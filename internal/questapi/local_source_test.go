@@ -18,18 +18,6 @@ func writeFile(t *testing.T, path string, contents string) {
 	}
 }
 
-func TestSourceRootFromCMakeCache(t *testing.T) {
-	cache := filepath.Join(t.TempDir(), "CMakeCache.txt")
-	writeFile(t, cache, "CMAKE_MAKE_PROGRAM:FILEPATH=/usr/bin/ninja\nCMAKE_HOME_DIRECTORY:INTERNAL=/home/eqemu/code\n")
-
-	if root := sourceRootFromCMakeCache(cache); root != "/home/eqemu/code" {
-		t.Fatalf("got %q", root)
-	}
-	if root := sourceRootFromCMakeCache(filepath.Join(t.TempDir(), "missing")); root != "" {
-		t.Fatalf("missing cache gave %q", root)
-	}
-}
-
 func TestReadServerSource(t *testing.T) {
 	if readServerSource(t.TempDir()) != nil {
 		t.Fatal("accepted a directory that is not a server checkout")

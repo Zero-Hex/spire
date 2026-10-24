@@ -1,10 +1,8 @@
 package questapi
 
 import (
-	"bufio"
 	"os"
 	"path/filepath"
-	"strings"
 )
 
 // Starfall adds quest API methods and events that upstream EQEmu/Server does
@@ -19,12 +17,7 @@ var localSourceDirs = []string{"zone", "common"}
 // GitHub source download produces. It returns an empty root when no local
 // source is found.
 func (c *ParseService) localServerSource() (string, map[string]string) {
-	info, err := c.updater.GetBuildInfo()
-	if err != nil || info.SourceDirectory == "" {
-		return "", nil
-	}
-
-	root := sourceRootFromCMakeCache(filepath.Join(info.SourceDirectory, "CMakeCache.txt"))
+	root := c.updater.GetSourceRoot()
 	if root == "" {
 		return "", nil
 	}
@@ -76,24 +69,4 @@ func readServerSource(root string) map[string]string {
 	}
 
 	return files
-}
-
-// sourceRootFromCMakeCache reads the source directory a build was configured
-// from (CMAKE_HOME_DIRECTORY); the build directory need not sit inside it
-func sourceRootFromCMakeCache(cachePath string) string {
-	file, err := os.Open(cachePath)
-	if err != nil {
-		return ""
-	}
-	defer file.Close()
-
-	const key = "CMAKE_HOME_DIRECTORY:INTERNAL="
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		if strings.HasPrefix(scanner.Text(), key) {
-			return strings.TrimSpace(strings.TrimPrefix(scanner.Text(), key))
-		}
-	}
-
-	return ""
 }
