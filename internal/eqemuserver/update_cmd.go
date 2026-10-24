@@ -77,8 +77,7 @@ func NewUpdateCommand(
 
 func (c *UpdateCommand) Handle(_ *cobra.Command, args []string) {
 	if useReleaseBinaries {
-		fmt.Println("Setting to use release binaries")
-		c.settings.SetSetting(spire.SettingUpdateType, spire.UpdateTypeRelease)
+		c.logger.Fatal().Err(ErrReleaseInstallsDisabled).Msg("--release-binaries is not supported")
 	}
 	if compileServer {
 		fmt.Println("Setting to compile server")

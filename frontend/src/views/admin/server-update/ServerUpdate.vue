@@ -42,22 +42,15 @@
         <eq-window title="Update Settings" style="height: 100%">
           <div class="row">
             <div class="col-3 text-right mt-3">
-              <eq-checkbox
-                label="Use Release Binaries"
-                class="d-inline-block"
-                :true-value="BUILD_TYPE.RELEASE"
-                :false-value="BUILD_TYPE.SELF_COMPILED"
-                v-model="updateType"
-                @input="setUpdateOption(BUILD_TYPE.RELEASE)"
-              />
+              <i class="fa fa-ban"></i> Release Binaries
             </div>
             <div class="col-9">
               <small class="text-muted">
-                Uses official release binaries from
-                <a href="https://github.com/EQEmu/EQEmu/releases" target="releases">EverQuest Emulator Server</a>
+                Disabled for Starfall
               </small>
               <div class="mt-1">
-                Use this when you are not developing server or making code changes to server code
+                Official EQEmu release binaries would replace this server's custom code with stock code.
+                Update by building from source below.
               </div>
             </div>
           </div>
@@ -67,7 +60,7 @@
               <eq-checkbox
                 label="Self-Compiled Binaries"
                 class="d-inline-block"
-                :false-value="BUILD_TYPE.RELEASE"
+                :false-value="BUILD_TYPE.SELF_COMPILED"
                 :true-value="BUILD_TYPE.SELF_COMPILED"
                 v-model="updateType"
                 @input="setUpdateOption(BUILD_TYPE.SELF_COMPILED)"
@@ -289,7 +282,7 @@ export default {
     next();
   },
   created() {
-    this.updateType = this.BUILD_TYPE.RELEASE
+    this.updateType = this.BUILD_TYPE.SELF_COMPILED
 
     this.init()
 

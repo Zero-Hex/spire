@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/EQEmu/spire/internal/database"
-	"github.com/EQEmu/spire/internal/download"
 	"github.com/EQEmu/spire/internal/eqemuserverconfig"
 	"github.com/EQEmu/spire/internal/github"
 	"github.com/EQEmu/spire/internal/logger"
@@ -16,7 +15,6 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
-	"path"
 	"path/filepath"
 	"strings"
 )
@@ -54,12 +52,19 @@ const (
 	updateTypeSelfCompiled = "self-compiled"
 )
 
+// ErrReleaseInstallsDisabled is returned for any attempt to install an
+// official EQEmu release. Starfall runs custom server code; a release zip
+// would overwrite those binaries with stock ones. Build from source instead.
+var ErrReleaseInstallsDisabled = errors.New("release installs are disabled: this server runs Starfall custom code, so update by building from source (self-compiled)")
+
 func (u *Updater) SetUpdateType(updateType string) {
 	u.settings.SetSetting(updateTypeSetting, updateType)
 }
 
+// GetUpdateType is always self-compiled; a stored "release" (set at Spire
+// init or by an older build) is ignored. See ErrReleaseInstallsDisabled.
 func (u *Updater) GetUpdateType() string {
-	return u.settings.GetSetting(updateTypeSetting).Value
+	return updateTypeSelfCompiled
 }
 
 func (u *Updater) GetBuildLocation() string {
@@ -111,20 +116,9 @@ func (u *Updater) GetVersionInfo() (ServerVersionInfo, error) {
 	return v, err
 }
 
+// InstallRelease is disabled for Starfall; see ErrReleaseInstallsDisabled.
 func (u *Updater) InstallRelease(release string) error {
-	file := path.Base(release)
-	downloadPath := filepath.Join(os.TempDir(), file)
-	err := download.WithProgress(downloadPath, release)
-	if err != nil {
-		return err
-	}
-
-	err = u.unzipper.Extract(downloadPath, u.pathmgmt.GetEQEmuServerBinPath())
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return ErrReleaseInstallsDisabled
 }
 
 type BuildInfo struct {

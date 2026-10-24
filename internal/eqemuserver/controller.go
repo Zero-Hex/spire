@@ -359,6 +359,10 @@ func (a *Controller) setUpdateType(c echo.Context) error {
 		)
 	}
 
+	if updateType == updateTypeRelease {
+		return c.JSON(http.StatusBadRequest, echo.Map{"error": ErrReleaseInstallsDisabled.Error()})
+	}
+
 	a.updater.SetUpdateType(updateType)
 
 	return c.JSON(
