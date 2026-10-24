@@ -329,6 +329,12 @@ export default {
             icon: "ra ra-trophy mr-1",
             routes: ['starfall/achievements']
           },
+          {
+            title: "Collections",
+            to: ROUTE.STARFALL_COLLECTIONS,
+            icon: "ra ra-gem mr-1",
+            routes: ['starfall/collections']
+          },
         ]
       },
       botNav: {
