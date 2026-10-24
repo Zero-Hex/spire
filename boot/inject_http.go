@@ -21,6 +21,7 @@ import (
 	"github.com/EQEmu/spire/internal/permissions"
 	"github.com/EQEmu/spire/internal/query"
 	"github.com/EQEmu/spire/internal/questapi"
+	"github.com/EQEmu/spire/internal/questfiles"
 	"github.com/EQEmu/spire/internal/spire"
 	"github.com/EQEmu/spire/internal/system"
 	"github.com/EQEmu/spire/internal/user"
@@ -60,6 +61,7 @@ var httpSet = wire.NewSet(
 	eqemuserver.NewPublicController,
 	clientassets.NewController,
 	clientassets.NewPublicController,
+	questfiles.NewController,
 	eqemuserverconfig.NewController,
 	websocket.NewController,
 	backup.NewController,
@@ -197,6 +199,7 @@ func provideControllers(
 	eqemuserverPublicController *eqemuserver.PublicController,
 	clientAssetsController *clientassets.Controller,
 	clientAssetsPublicController *clientassets.PublicController,
+	questFilesController *questfiles.Controller,
 	serverconfigController *eqemuserverconfig.Controller,
 	backupController *backup.Controller,
 	websocketController *websocket.Controller,
@@ -226,6 +229,7 @@ func provideControllers(
 			systemController,
 			authedAnalyticsController,
 			clientAssetsController,
+			questFilesController,
 		},
 		v1controllersNoAuth: []routes.Controller{
 			quest,

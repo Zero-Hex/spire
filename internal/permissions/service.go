@@ -49,6 +49,7 @@ func (s *Service) RegisterManualResources() map[string][]string {
 	return map[string][]string{
 		"Client Files":  {"client-file"},
 		"Client Assets": {"client-assets"},
+		"Quest Scripts": {"quest-files"},
 
 		// admin server
 		"Server Configuration":    {"admin/serverconfig"},

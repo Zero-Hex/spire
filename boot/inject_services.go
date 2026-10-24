@@ -18,6 +18,7 @@ import (
 	"github.com/EQEmu/spire/internal/pathmgmt"
 	"github.com/EQEmu/spire/internal/permissions"
 	"github.com/EQEmu/spire/internal/questapi"
+	"github.com/EQEmu/spire/internal/questfiles"
 	"github.com/EQEmu/spire/internal/spire"
 	"github.com/EQEmu/spire/internal/telnet"
 	"github.com/EQEmu/spire/internal/unzip"
@@ -57,6 +58,7 @@ var serviceSet = wire.NewSet(
 	eqemuserver.NewLauncher,
 	eqemuserver.NewQuestHotReloadWatcher,
 	clientassets.NewStore,
+	questfiles.NewService,
 	unzip.NewUnzipper,
 	websocket.NewClientManager,
 	eqemuserver.NewCrashLogWatcher,
