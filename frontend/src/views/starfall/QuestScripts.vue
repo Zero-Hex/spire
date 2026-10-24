@@ -61,7 +61,7 @@
                   Script
                 </b-button>
               </div>
-              <b-button size="sm" variant="outline-success" class="mr-2" @click="save()" :disabled="saving">
+              <b-button size="sm" variant="outline-success" class="mr-2" @click="save()" :disabled="!canSave()" title="Opening a classic NPC in the Forge converts its dialogue to windows; that is only written when you save an edit">
                 <i class="fa fa-save"></i> {{ saveLabel() }}
               </b-button>
               <b-button size="sm" variant="outline-secondary" class="mr-2" @click="reload()">
@@ -389,6 +389,11 @@ export default {
         return this.file.path.replace(/\.lua$/i, ".pl")
       }
       return this.file.path
+    },
+    // only once something changed, so opening a script never rewrites it;
+    // a Lua script saved as Perl is a change in itself (and confirms first)
+    canSave() {
+      return !!this.file && !this.saving && (this.dirty() || this.saveTarget() !== this.file.path)
     },
     saveLabel() {
       return this.saveTarget() !== this.file.path ? "Save as " + this.saveTarget().split("/").pop() : "Save"
