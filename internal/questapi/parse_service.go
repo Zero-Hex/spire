@@ -1,7 +1,9 @@
 package questapi
 
 import (
+	"github.com/EQEmu/spire/internal/eqemuserver"
 	"github.com/EQEmu/spire/internal/github"
+	"github.com/EQEmu/spire/internal/logger"
 	gocache "github.com/patrickmn/go-cache"
 	"sort"
 	"strings"
@@ -11,6 +13,8 @@ import (
 type ParseService struct {
 	cache      *gocache.Cache
 	downloader *github.SourceDownloader
+	updater    *eqemuserver.Updater
+	logger     *logger.AppLogger
 	files      map[string]string
 	snippets   map[string]string
 }
@@ -18,8 +22,10 @@ type ParseService struct {
 func NewParseService(
 	cache *gocache.Cache,
 	downloader *github.SourceDownloader,
+	updater *eqemuserver.Updater,
+	logger *logger.AppLogger,
 ) *ParseService {
-	return &ParseService{cache: cache, downloader: downloader}
+	return &ParseService{cache: cache, downloader: downloader, updater: updater, logger: logger}
 }
 
 type Response struct {
@@ -91,6 +97,25 @@ func (c *ParseService) Source(
 	return c.files
 }
 
+// sourceServer loads the server source the API is parsed from: this
+// server's own source when it is on this machine (see local_source.go),
+// otherwise upstream EQEmu/Server
+func (c *ParseService) sourceServer(forceRefresh bool) {
+	if !forceRefresh && len(c.files) > 0 {
+		return
+	}
+
+	root, files := c.localServerSource()
+	if root != "" {
+		c.logger.Info().Any("source", root).Any("files", len(files)).Msg("Quest API parsing local server source")
+		c.files = files
+		return
+	}
+
+	c.logger.Info().Msg("Quest API found no local server source, parsing upstream EQEmu/Server")
+	c.Source("EQEmu", "Server", "master", forceRefresh)
+}
+
 // Source source files
 func (c *ParseService) SourceSnippets(
 	org string,
@@ -120,7 +145,7 @@ func (c *ParseService) Parse(forceRefresh bool) Response {
 	}
 
 	// pull files in
-	c.Source("EQEmu", "Server", "master", forceRefresh)
+	c.sourceServer(forceRefresh)
 	c.SourceSnippets("EQEmu", "spire-quest-snippets", "main", forceRefresh)
 
 	// return cached copy
