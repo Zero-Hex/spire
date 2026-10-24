@@ -337,7 +337,7 @@ export default {
         modelCountDescription = util.format(" (%s models)", itemTypesModelMapping[type].length)
       }
 
-      if (itemTypesModelMapping[type].length > 0) {
+      if (itemTypesModelMapping[type] && itemTypesModelMapping[type].length > 0) {
         this.itemTypeOptions.push(
           {
             text: type + ") " + description + modelCountDescription,

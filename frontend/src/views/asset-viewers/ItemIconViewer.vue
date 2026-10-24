@@ -342,7 +342,7 @@ export default {
           itemCountDescription = util.format(" (%s icons)", itemTypesIconMapping[type].length)
         }
 
-        if (itemTypesIconMapping[type].length > 0) {
+        if (itemTypesIconMapping[type] && itemTypesIconMapping[type].length > 0) {
           iconItemTypeOptions.push(
             {
               text: type + ") " + description + itemCountDescription,
