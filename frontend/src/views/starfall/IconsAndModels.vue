@@ -58,7 +58,8 @@
       <div v-if="sheets().length === 0" class="text-muted text-center">
         No icon sheets imported: Spire shows the stock icons.
       </div>
-      <table class="eq-table" style="display: table; width: 100%" v-if="sheets().length > 0">
+      <div style="overflow-x: auto" v-if="sheets().length > 0">
+      <table class="eq-table" style="display: table; width: 100%">
         <thead>
         <tr>
           <th style="width: 70px">Sheet</th>
@@ -89,27 +90,31 @@
         </tr>
         </tbody>
       </table>
+      </div>
     </eq-window-simple>
 
     <eq-window-simple class="mt-3" title="Item model archives">
       <div v-if="archives().length === 0" class="text-muted text-center">
         No model archives imported.
       </div>
-      <div v-for="a in archives()" :key="a.file" class="starfall-archive">
-        <div class="d-flex align-items-center">
-          <div class="font-weight-bold mr-3">{{ a.file }}</div>
-          <b-button size="sm" variant="outline-warning" class="mr-2" @click="redraw(a)" :disabled="!!rendering">
-            <i class="fa fa-refresh"></i> Redraw previews
-          </b-button>
-          <b-button size="sm" variant="outline-danger" @click="removeArchive(a)">
-            <i class="fa fa-trash"></i> Remove
-          </b-button>
-        </div>
-        <div class="d-flex flex-wrap mt-2">
-          <div v-for="id in a.models" :key="id" class="starfall-model text-center mr-2 mb-2">
-            <span v-if="hasPreview(id)" :class="'object-ctn-' + id" />
-            <div v-else class="starfall-model-empty">no preview yet</div>
-            <div>IT{{ id }}</div>
+      <!-- one card per archive; cards sit side by side and wrap -->
+      <div class="starfall-archives">
+        <div v-for="a in archives()" :key="a.file" class="starfall-archive">
+          <div class="starfall-archive-name font-weight-bold" :title="a.file">{{ a.file }}</div>
+          <div class="mt-1 mb-2">
+            <b-button size="sm" variant="outline-warning" class="mr-1" @click="redraw(a)" :disabled="!!rendering" title="Redraw previews">
+              <i class="fa fa-refresh"></i> Redraw previews
+            </b-button>
+            <b-button size="sm" variant="outline-danger" @click="removeArchive(a)" title="Remove this archive">
+              <i class="fa fa-trash"></i> Remove
+            </b-button>
+          </div>
+          <div class="starfall-models">
+            <div v-for="id in a.models" :key="id" class="starfall-model text-center">
+              <span v-if="hasPreview(id)" :class="'object-ctn-' + id" />
+              <div v-else class="starfall-model-empty">no preview yet</div>
+              <div>IT{{ id }}</div>
+            </div>
           </div>
         </div>
       </div>
@@ -164,8 +169,10 @@ export default {
     sheets() {
       return Object.values(this.index.sheets || {}).sort((a, b) => a.sheet - b.sheet)
     },
+    // smallest first, so one-model archives (the toolkit's usual output)
+    // pack into rows instead of being split up by wide ones
     archives() {
-      return Object.values(this.index.archives || {}).sort((a, b) => a.file.localeCompare(b.file))
+      return Object.values(this.index.archives || {}).sort((a, b) => (a.models.length - b.models.length) || a.file.localeCompare(b.file))
     },
     hasPreview(id) {
       const m = (this.index.models || {})[id]
@@ -345,9 +352,35 @@ export default {
   background: rgba(255, 193, 7, .08);
 }
 
+.starfall-archives {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 12px;
+}
+
 .starfall-archive {
-  border-bottom: 1px solid rgba(255, 255, 255, .15);
-  padding: 10px 0;
+  min-width: 250px;
+  max-width: 100%;
+  border: 1px solid rgba(255, 255, 255, .15);
+  border-radius: 8px;
+  padding: 8px;
+}
+
+/* takes the card's width without widening it: a long name is cut short */
+.starfall-archive-name {
+  width: 0;
+  min-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.starfall-models {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
 }
 
 .starfall-model {
