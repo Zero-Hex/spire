@@ -33,6 +33,7 @@ export const STARFALL_REFS: { [key: string]: StarfallRef } = {
   achievement_category: {label: "Achievement category", list: "custom_achievement_categories", id: "id", name: "name"},
   collection: {label: "Collection", list: "custom_collections", id: "id", name: "name"},
   collection_category: {label: "Collection category", list: "custom_collection_categories", id: "id", name: "name"},
+  help_category: {label: "Help category", list: "custom_help_categories", id: "id", name: "name"},
   race: {label: "Race", list: "", id: "", name: "", constants: RACES},
   bodytype: {label: "Body type", list: "", id: "", name: "", constants: BODYTYPES},
   skill: {label: "Skill", list: "", id: "", name: "", constants: DB_SKILLS},

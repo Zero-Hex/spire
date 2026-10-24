@@ -341,6 +341,30 @@ export default {
             icon: "ra ra-pawprint mr-1",
             routes: ['starfall/pets']
           },
+          {
+            title: "Task Board",
+            to: ROUTE.STARFALL_QUEST_BOARD,
+            icon: "ra ra-scroll-unfurled mr-1",
+            routes: ['starfall/quest-board']
+          },
+          {
+            title: "Help Window",
+            to: ROUTE.STARFALL_HELP_WINDOW,
+            icon: "ra ra-help mr-1",
+            routes: ['starfall/help-window']
+          },
+          {
+            title: "Mob Inspect",
+            to: ROUTE.STARFALL_MOB_INSPECT,
+            icon: "ra ra-eye-monster mr-1",
+            routes: ['starfall/mob-inspect']
+          },
+          {
+            title: "Pinned Factions",
+            to: ROUTE.STARFALL_PINNED_FACTIONS,
+            icon: "ra ra-crowned-heart mr-1",
+            routes: ['starfall/pinned-factions']
+          },
         ]
       },
       botNav: {

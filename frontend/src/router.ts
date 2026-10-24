@@ -112,6 +112,26 @@ const router = new Router({
           meta: {title: "Starfall Pets"},
         },
         {
+          path: ROUTE.STARFALL_QUEST_BOARD,
+          component: () => import('./views/starfall/QuestBoard.vue'),
+          meta: {title: "Starfall Task Board"},
+        },
+        {
+          path: ROUTE.STARFALL_HELP_WINDOW,
+          component: () => import('./views/starfall/HelpWindow.vue'),
+          meta: {title: "Starfall Help Window"},
+        },
+        {
+          path: ROUTE.STARFALL_MOB_INSPECT,
+          component: () => import('./views/starfall/MobInspect.vue'),
+          meta: {title: "Starfall Mob Inspect"},
+        },
+        {
+          path: ROUTE.STARFALL_PINNED_FACTIONS,
+          component: () => import('./views/starfall/PinnedFactions.vue'),
+          meta: {title: "Starfall Pinned Factions"},
+        },
+        {
           path: ROUTE.STRINGS_DATABASE,
           component: () => import('./views/strings-database/StringsDatabase.vue'),
           meta: {title: "Strings Database (dbstr)"},
