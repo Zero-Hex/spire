@@ -95,7 +95,18 @@ func (e *CharacterMemmedSpellController) getCharacterMemmedSpell(c echo.Context)
 	params = append(params, id)
 	keys = append(keys, "id = ?")
 
-	// key param [slot_id] position [2] type [smallint]
+	// key param [class_id] position [2] type [tinyint]
+	if len(c.QueryParam("class_id")) > 0 {
+		classIdParam, err := strconv.Atoi(c.QueryParam("class_id"))
+		if err != nil {
+			return c.JSON(http.StatusInternalServerError, echo.Map{"error": fmt.Sprintf("Error parsing query param [class_id] err [%s]", err.Error())})
+		}
+
+		params = append(params, classIdParam)
+		keys = append(keys, "class_id = ?")
+	}
+
+	// key param [slot_id] position [3] type [smallint]
 	if len(c.QueryParam("slot_id")) > 0 {
 		slotIdParam, err := strconv.Atoi(c.QueryParam("slot_id"))
 		if err != nil {
@@ -149,6 +160,12 @@ func (e *CharacterMemmedSpellController) updateCharacterMemmedSpell(c echo.Conte
 		)
 	}
 
+	// Starfall personas: (id, slot_id) matches that slot for every class the
+	// character has, so a slot-level change must name the class too
+	if len(c.QueryParam("slot_id")) > 0 && len(c.QueryParam("class_id")) == 0 {
+		return c.JSON(http.StatusBadRequest, echo.Map{"error": "class_id is required with slot_id (persona spell rows are keyed by id, class_id, slot_id)"})
+	}
+
 	var params []interface{}
 	var keys []string
 
@@ -160,7 +177,18 @@ func (e *CharacterMemmedSpellController) updateCharacterMemmedSpell(c echo.Conte
 	params = append(params, id)
 	keys = append(keys, "id = ?")
 
-	// key param [slot_id] position [2] type [smallint]
+	// key param [class_id] position [2] type [tinyint]
+	if len(c.QueryParam("class_id")) > 0 {
+		classIdParam, err := strconv.Atoi(c.QueryParam("class_id"))
+		if err != nil {
+			return c.JSON(http.StatusInternalServerError, echo.Map{"error": fmt.Sprintf("Error parsing query param [class_id] err [%s]", err.Error())})
+		}
+
+		params = append(params, classIdParam)
+		keys = append(keys, "class_id = ?")
+	}
+
+	// key param [slot_id] position [3] type [smallint]
 	if len(c.QueryParam("slot_id")) > 0 {
 		slotIdParam, err := strconv.Atoi(c.QueryParam("slot_id"))
 		if err != nil {
@@ -277,6 +305,12 @@ func (e *CharacterMemmedSpellController) createCharacterMemmedSpell(c echo.Conte
 // @Failure 500 {string} string "Error deleting entity"
 // @Router /character_memmed_spell/{id} [delete]
 func (e *CharacterMemmedSpellController) deleteCharacterMemmedSpell(c echo.Context) error {
+	// Starfall personas: (id, slot_id) matches that slot for every class the
+	// character has, so a slot-level change must name the class too
+	if len(c.QueryParam("slot_id")) > 0 && len(c.QueryParam("class_id")) == 0 {
+		return c.JSON(http.StatusBadRequest, echo.Map{"error": "class_id is required with slot_id (persona spell rows are keyed by id, class_id, slot_id)"})
+	}
+
 	var params []interface{}
 	var keys []string
 
@@ -288,7 +322,18 @@ func (e *CharacterMemmedSpellController) deleteCharacterMemmedSpell(c echo.Conte
 	params = append(params, id)
 	keys = append(keys, "id = ?")
 
-	// key param [slot_id] position [2] type [smallint]
+	// key param [class_id] position [2] type [tinyint]
+	if len(c.QueryParam("class_id")) > 0 {
+		classIdParam, err := strconv.Atoi(c.QueryParam("class_id"))
+		if err != nil {
+			return c.JSON(http.StatusInternalServerError, echo.Map{"error": fmt.Sprintf("Error parsing query param [class_id] err [%s]", err.Error())})
+		}
+
+		params = append(params, classIdParam)
+		keys = append(keys, "class_id = ?")
+	}
+
+	// key param [slot_id] position [3] type [smallint]
 	if len(c.QueryParam("slot_id")) > 0 {
 		slotIdParam, err := strconv.Atoi(c.QueryParam("slot_id"))
 		if err != nil {

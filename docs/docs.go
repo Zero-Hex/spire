@@ -92739,6 +92739,9 @@ const docTemplate = `{
         "models.CharacterDiscipline": {
             "type": "object",
             "properties": {
+                "class_id": {
+                    "type": "integer"
+                },
                 "disc_id": {
                     "type": "integer"
                 },
@@ -92921,6 +92924,9 @@ const docTemplate = `{
         "models.CharacterMemmedSpell": {
             "type": "object",
             "properties": {
+                "class_id": {
+                    "type": "integer"
+                },
                 "id": {
                     "type": "integer"
                 },
@@ -93149,6 +93155,9 @@ const docTemplate = `{
         "models.CharacterSpell": {
             "type": "object",
             "properties": {
+                "class_id": {
+                    "type": "integer"
+                },
                 "id": {
                     "type": "integer"
                 },
