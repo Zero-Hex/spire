@@ -4,6 +4,7 @@ import (
 	"github.com/EQEmu/spire/internal/assets"
 	"github.com/EQEmu/spire/internal/auditlog"
 	"github.com/EQEmu/spire/internal/backup"
+	"github.com/EQEmu/spire/internal/clientassets"
 	"github.com/EQEmu/spire/internal/clientfiles"
 	"github.com/EQEmu/spire/internal/connection"
 	"github.com/EQEmu/spire/internal/desktop"
@@ -55,6 +56,7 @@ var serviceSet = wire.NewSet(
 	eqemuserver.NewUpdater,
 	eqemuserver.NewLauncher,
 	eqemuserver.NewQuestHotReloadWatcher,
+	clientassets.NewStore,
 	unzip.NewUnzipper,
 	websocket.NewClientManager,
 	eqemuserver.NewCrashLogWatcher,

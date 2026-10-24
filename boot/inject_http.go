@@ -6,6 +6,7 @@ import (
 	"github.com/EQEmu/spire/internal/assets"
 	"github.com/EQEmu/spire/internal/auth"
 	"github.com/EQEmu/spire/internal/backup"
+	"github.com/EQEmu/spire/internal/clientassets"
 	"github.com/EQEmu/spire/internal/clientfiles"
 	"github.com/EQEmu/spire/internal/eqemuanalytics"
 	"github.com/EQEmu/spire/internal/eqemuchangelog"
@@ -57,6 +58,8 @@ var httpSet = wire.NewSet(
 	staticmaps.NewStaticMapController,
 	eqemuserver.NewController,
 	eqemuserver.NewPublicController,
+	clientassets.NewController,
+	clientassets.NewPublicController,
 	eqemuserverconfig.NewController,
 	websocket.NewController,
 	backup.NewController,
@@ -192,6 +195,8 @@ func provideControllers(
 	settingsController *spire.SettingsController,
 	eqemuserverController *eqemuserver.Controller,
 	eqemuserverPublicController *eqemuserver.PublicController,
+	clientAssetsController *clientassets.Controller,
+	clientAssetsPublicController *clientassets.PublicController,
 	serverconfigController *eqemuserverconfig.Controller,
 	backupController *backup.Controller,
 	websocketController *websocket.Controller,
@@ -220,6 +225,7 @@ func provideControllers(
 			websocketController,
 			systemController,
 			authedAnalyticsController,
+			clientAssetsController,
 		},
 		v1controllersNoAuth: []routes.Controller{
 			quest,
@@ -229,6 +235,7 @@ func provideControllers(
 			changelogController,
 			eqemuserverPublicController,
 			modelController,
+			clientAssetsPublicController,
 		},
 		v1Analytics: []routes.Controller{
 			analyticsController,

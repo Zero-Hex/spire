@@ -47,7 +47,8 @@ func NewService(
 // these are routes that manipulate the database that do not fall under CRUD routes
 func (s *Service) RegisterManualResources() map[string][]string {
 	return map[string][]string{
-		"Client Files": {"client-file"},
+		"Client Files":  {"client-file"},
+		"Client Assets": {"client-assets"},
 
 		// admin server
 		"Server Configuration":    {"admin/serverconfig"},
@@ -78,7 +79,7 @@ func (s *Service) RegisterManualResources() map[string][]string {
 			"eqemuserver/zoneserver-list",
 			"eqemuserver/server/process-kill",
 		},
-		"Spire Settings": {"spire/setting"},
+		"Spire Settings":                   {"spire/setting"},
 		"Server Player Event ETL Settings": {"eqemuserver/player-event-logs/etl-settings"},
 	}
 }

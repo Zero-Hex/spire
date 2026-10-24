@@ -13,6 +13,7 @@ import (
 	"github.com/EQEmu/spire/internal/auditlog"
 	"github.com/EQEmu/spire/internal/auth"
 	"github.com/EQEmu/spire/internal/backup"
+	"github.com/EQEmu/spire/internal/clientassets"
 	"github.com/EQEmu/spire/internal/clientfiles"
 	"github.com/EQEmu/spire/internal/connection"
 	"github.com/EQEmu/spire/internal/console/cmd"
@@ -94,7 +95,8 @@ func InitializeApplication() (App, error) {
 	exporter := clientfiles.NewExporter(appLogger)
 	importer := clientfiles.NewImporter(appLogger)
 	clientfilesController := clientfiles.NewController(exporter, importer, resolver)
-	staticMapController := staticmaps.NewStaticMapController(resolver)
+	store := clientassets.NewStore(appLogger, pathManagement)
+	staticMapController := staticmaps.NewStaticMapController(resolver, store)
 	releases := eqemuanalytics.NewReleases()
 	eqemuanalyticsController := eqemuanalytics.NewController(resolver, releases)
 	authedController := eqemuanalytics.NewAuthedController(resolver)
@@ -112,13 +114,15 @@ func InitializeApplication() (App, error) {
 	userEvent := auditlog.NewUserEvent(resolver, cache)
 	eqemuserverController := eqemuserver.NewController(resolver, eqemuserverClient, appLogger, config, pathManagement, settings, updater, launcher, cache, userEvent)
 	publicController := eqemuserver.NewPublicController(resolver, eqemuserverClient, config, pathManagement, settings, updater)
+	clientassetsController := clientassets.NewController(store)
+	clientassetsPublicController := clientassets.NewPublicController(store)
 	eqemuserverconfigController := eqemuserverconfig.NewController(config)
 	backupController := backup.NewController(mysql, pathManagement)
 	handler := websocket.NewHandler(pathManagement)
 	websocketController := websocket.NewController(pathManagement, handler, clientManager, appLogger)
 	systemController := system.NewController()
 	modelsController := models.NewController()
-	bootAppControllerGroups := provideControllers(helloWorldController, controller, meController, analyticsController, connectionsController, questapiController, appController, queryController, clientfilesController, staticMapController, eqemuanalyticsController, authedController, eqemuchangelogController, assetsController, permissionsController, userController, settingsController, eqemuserverController, publicController, eqemuserverconfigController, backupController, websocketController, systemController, modelsController)
+	bootAppControllerGroups := provideControllers(helloWorldController, controller, meController, analyticsController, connectionsController, questapiController, appController, queryController, clientfilesController, staticMapController, eqemuanalyticsController, authedController, eqemuchangelogController, assetsController, permissionsController, userController, settingsController, eqemuserverController, publicController, clientassetsController, clientassetsPublicController, eqemuserverconfigController, backupController, websocketController, systemController, modelsController)
 	aaAbilityController := crudcontrollers.NewAaAbilityController(resolver, userEvent)
 	aaRankController := crudcontrollers.NewAaRankController(resolver, userEvent)
 	aaRankEffectController := crudcontrollers.NewAaRankEffectController(resolver, userEvent)
@@ -379,7 +383,7 @@ func InitializeApplication() (App, error) {
 	spireAssets := assets.NewSpireAssets(pathManagement, appLogger, unzipper)
 	router := NewRouter(bootAppControllerGroups, bootCrudControllers, contextMiddleware, readOnlyMiddleware, permissionsMiddleware, requestLogMiddleware, localUserAuthMiddleware, spireAssets)
 	questHotReloadWatcher := eqemuserver.NewQuestHotReloadWatcher(appLogger, config, pathManagement, eqemuserverClient, resolver)
-	server := http.NewServer(appLogger, router, questHotReloadWatcher, launcher, clientManager)
+	server := http.NewServer(appLogger, router, questHotReloadWatcher, launcher, clientManager, store)
 	httpServeCommand := cmd.NewHttpServeCommand(appLogger, server)
 	routesListCommand := cmd.NewRoutesListCommand(router)
 	migrateCommand := spire.NewMigrateCommand(connections)

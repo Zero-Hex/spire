@@ -3,6 +3,7 @@ package staticmaps
 import (
 	_ "embed"
 	"fmt"
+	"github.com/EQEmu/spire/internal/clientassets"
 	"github.com/EQEmu/spire/internal/database"
 	"github.com/EQEmu/spire/internal/http/routes"
 	"github.com/labstack/echo/v4"
@@ -10,12 +11,14 @@ import (
 )
 
 type StaticMapController struct {
-	db *database.Resolver
+	db           *database.Resolver
+	clientAssets *clientassets.Store
 }
 
-func NewStaticMapController(db *database.Resolver) *StaticMapController {
+func NewStaticMapController(db *database.Resolver, clientAssets *clientassets.Store) *StaticMapController {
 	return &StaticMapController{
-		db: db,
+		db:           db,
+		clientAssets: clientAssets,
 	}
 }
 
@@ -54,13 +57,15 @@ func (q *StaticMapController) getStaticMapFileCompressed(c echo.Context) error {
 	case "emitters.json":
 		file = emittersMap
 	case "item-icons-map.json":
-		file = itemIconsMap
+		// limited to the RoF2 client's icons, plus imported icon sheets
+		file = q.clientAssets.ItemIconsMap(itemIconsMap)
 	case "monograms-map.json":
 		file = monogramsMap
 	case "npc-models-map.json":
 		file = npcModelsMap
 	case "objects-map.json":
-		file = objectsMap
+		// plus imported item models that have a preview
+		file = q.clientAssets.ObjectsMap(objectsMap)
 	case "player-animations.json":
 		file = playerAnimationsMap
 	case "spell-animations-map.json":

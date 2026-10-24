@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/EQEmu/spire/internal/banner"
+	"github.com/EQEmu/spire/internal/clientassets"
 	"github.com/EQEmu/spire/internal/console"
 	"github.com/EQEmu/spire/internal/env"
 	"github.com/EQEmu/spire/internal/eqemuserver"
@@ -34,6 +35,7 @@ type Server struct {
 	watcher                *eqemuserver.QuestHotReloadWatcher
 	launcher               *eqemuserver.Launcher
 	websocketClientManager *websocket.ClientManager
+	clientAssets           *clientassets.Store
 }
 
 func NewServer(
@@ -42,6 +44,7 @@ func NewServer(
 	watcher *eqemuserver.QuestHotReloadWatcher,
 	launcher *eqemuserver.Launcher,
 	websocket *websocket.ClientManager,
+	clientAssets *clientassets.Store,
 ) *Server {
 	return &Server{
 		logger:                 logger,
@@ -49,6 +52,7 @@ func NewServer(
 		watcher:                watcher,
 		launcher:               launcher,
 		websocketClientManager: websocket,
+		clientAssets:           clientAssets,
 	}
 }
 
@@ -160,6 +164,7 @@ func (c *Server) Serve(port uint) error {
 	}
 
 	go c.websocketClientManager.Start()
+	go c.clientAssets.Watch()
 
 	go func() {
 		c.launcher.ServerProcessLauncherWatchdog()
