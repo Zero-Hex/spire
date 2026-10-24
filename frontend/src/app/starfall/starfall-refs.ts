@@ -16,7 +16,8 @@ export type StarfallRef = {
   label: string
   list: string                      // API list route, eg "items" ("" for constants)
   id: string                        // id column in that table
-  name: string                      // name column, shown and searched
+  name: string                      // name field in the API's JSON
+  column?: string                   // name column in the database, when its case differs
   link?: (id: number) => string     // Spire page for the referenced row
   constants?: { [key: string]: string }
 }
@@ -31,7 +32,7 @@ function classNames() {
 }
 
 export const STARFALL_REFS: { [key: string]: StarfallRef } = {
-  item: {label: "Item", list: "items", id: "id", name: "name", link: (id) => util.format(ROUTE.ITEM_EDIT, id)},
+  item: {label: "Item", list: "items", id: "id", name: "name", column: "Name", link: (id) => util.format(ROUTE.ITEM_EDIT, id)},
   npc: {label: "NPC", list: "npc_types", id: "id", name: "name", link: (id) => ROUTE.NPC_EDIT.replace(":npc", String(id))},
   faction: {label: "Faction", list: "faction_lists", id: "id", name: "name"},
   task: {label: "Task", list: "tasks", id: "id", name: "title", link: (id) => util.format(ROUTE.TASK_EDIT, id)},
@@ -39,6 +40,8 @@ export const STARFALL_REFS: { [key: string]: StarfallRef } = {
   npc_spells: {label: "NPC spell set", list: "npc_spells", id: "id", name: "name", link: (id) => util.format(ROUTE.NPC_SPELL_EDIT, id)},
   achievement: {label: "Achievement", list: "custom_achievements", id: "id", name: "name"},
   achievement_category: {label: "Achievement category", list: "custom_achievement_categories", id: "id", name: "name"},
+  collection: {label: "Collection", list: "custom_collections", id: "id", name: "name"},
+  collection_category: {label: "Collection category", list: "custom_collection_categories", id: "id", name: "name"},
   race: {label: "Race", list: "", id: "", name: "", constants: RACES},
   bodytype: {label: "Body type", list: "", id: "", name: "", constants: BODYTYPES},
   skill: {label: "Skill", list: "", id: "", name: "", constants: DB_SKILLS},
@@ -82,7 +85,7 @@ export class StarfallRefs {
       const r = await SpireApi.v1().get(ref.list, {
         params: (new SpireQueryBuilder())
           .where(ref.id, "=", id)
-          .select([ref.id, ref.name])
+          .select([ref.id, ref.column || ref.name])
           .limit(1)
           .get()
       })
@@ -114,7 +117,7 @@ export class StarfallRefs {
       if (ref.id === "id") {
         try {
           const r = await SpireApi.v1().post(ref.list + "/bulk", {ids: missing}, {
-            params: (new SpireQueryBuilder()).select([ref.id, ref.name]).get()
+            params: (new SpireQueryBuilder()).select([ref.id, ref.column || ref.name]).get()
           })
           for (const row of (r.data || [])) {
             nameCache[type][row[ref.id]] = row[ref.name] || ""
@@ -151,7 +154,7 @@ export class StarfallRefs {
         .map(([id, name]) => ({id: parseInt(id), name: String(name)}))
     }
 
-    const q = (new SpireQueryBuilder()).select([ref.id, ref.name]).limit(15)
+    const q = (new SpireQueryBuilder()).select([ref.id, ref.column || ref.name]).limit(15)
     if (/^\d+$/.test(text)) {
       q.where(ref.id, "=", text)
     } else {
@@ -161,7 +164,7 @@ export class StarfallRefs {
       if (words.length === 0) {
         return []
       }
-      q.where(ref.name, "like", words.reduce((a, b) => (b.length > a.length ? b : a)))
+      q.where(ref.column || ref.name, "like", words.reduce((a, b) => (b.length > a.length ? b : a)))
     }
 
     try {
