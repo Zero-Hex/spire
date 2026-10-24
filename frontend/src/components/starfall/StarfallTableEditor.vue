@@ -156,7 +156,7 @@ export default {
       return this.selectedKey !== null && this.keyOf(row) === this.selectedKey
     },
     canCreate() {
-      return !this.waiting
+      return !this.waiting && !(this.def.maxRows && this.rows.length >= this.def.maxRows)
     },
     columns() {
       return this.def.columns.map((name) => {
@@ -297,8 +297,10 @@ export default {
       }
       Object.assign(row, this.filter)
 
-      // tables without AUTO_INCREMENT need an id chosen up front
-      if (!this.def.autoIncrement) {
+      // tables without AUTO_INCREMENT need an id chosen up front, unless the
+      // filter fixes it (a 1:1 row keyed by its parent) or it is a real id
+      // the user picks (def.chooseKey: a class, an NPC, a faction)
+      if (!this.def.autoIncrement && !this.def.chooseKey && typeof this.filter[this.def.key] === "undefined") {
         row[this.def.key] = await this.nextKey()
       }
 
@@ -328,8 +330,11 @@ export default {
       }
     },
 
+    // starts from the whole row: the API diffs the body against the stored
+    // row, so a column missing from the body (the key, or one the form does
+    // not show) would be written as zero
     payload() {
-      const out = {}
+      const out = JSON.parse(JSON.stringify(this.editing))
       for (const f of this.def.fields) {
         let v = this.editing[f.name]
         if (f.type === "int" || f.type === "float" || f.type === "ref" || f.type === "bool") {
@@ -347,6 +352,13 @@ export default {
     },
 
     validate() {
+      if (this.def.chooseKey && !(Number(this.editing[this.def.key]) > 0)) {
+        const f = this.def.fields.find((x) => x.name === this.def.key)
+        return (f ? f.label : this.def.key) + " is required"
+      }
+      if (this.isNew && this.def.chooseKey && this.rows.find((r) => this.keyOf(r) === Number(this.editing[this.def.key]))) {
+        return "There is already a row for " + this.editing[this.def.key]
+      }
       for (const f of this.def.fields) {
         const v = this.editing[f.name]
         if (f.required && (v === "" || v === null || v === 0)) {
