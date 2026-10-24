@@ -289,11 +289,16 @@ export default {
 
       let latest = "0.0.0";
 
-      // fetch from github releases EQEmu/spire
-      const url = 'https://api.github.com/repos/EQEmu/spire/releases/latest'
+      // fetch from the Starfall fork's releases, never EQEmu/spire (see internal/updater)
+      const url = 'https://api.github.com/repos/Zero-Hex/spire/releases/latest'
       fetch(url)
         .then(response => response.json())
         .then(data => {
+          // no release published yet
+          if (!data || !data.tag_name) {
+            return
+          }
+
           latest = data.tag_name.replace("v", "")
           this.release = data
           const ignoredUpdateVersion = LocalSettings.getIgnoredUpdateVersion()

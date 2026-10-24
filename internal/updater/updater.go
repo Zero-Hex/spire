@@ -23,6 +23,14 @@ import (
 	"time"
 )
 
+// Spire updates itself from this repository's releases. Starfall runs its own
+// fork, so this must never point at EQEmu/spire: that would replace the fork
+// with the stock build.
+const (
+	releaseOwner = "Zero-Hex"
+	releaseRepo  = "spire"
+)
+
 // Updater is a service that checks for updates to the app
 type Updater struct {
 	// this is the package.json embedded in the binary which contains the app version
@@ -128,7 +136,7 @@ func (s *Updater) CheckForUpdates(interactive bool) bool {
 
 	// get releases
 	client := github.NewClient(&http.Client{Timeout: 5 * time.Second})
-	release, _, err := client.Repositories.GetLatestRelease(context.Background(), "EQEmu", "spire")
+	release, _, err := client.Repositories.GetLatestRelease(context.Background(), releaseOwner, releaseRepo)
 	if err != nil {
 		s.logger.Info().Err(err).Msg("Failed to get latest release")
 		return false
