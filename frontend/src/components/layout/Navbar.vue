@@ -95,6 +95,7 @@
           </h6>
 
           <ul class="navbar-nav mb-md-3">
+            <nav-section-component :config="starfallNav"/>
             <nav-section-component :config="botNav"/>
             <nav-section-component :config="calculatorNav"/>
 
@@ -316,6 +317,20 @@ export default {
       appVersion: AppEnv.getVersion(),
       latestAppVersion: LocalSettings.getLatestUpdateVersion(),
       appFeatures: AppEnv.getFeatures(),
+      // Starfall's custom systems (tables from the server's custom migrations)
+      starfallNav: {
+        label: "Starfall",
+        labelIcon: "ra ra-sun mr-1",
+        routePrefixMatches: ["starfall"],
+        navs: [
+          {
+            title: "Achievements",
+            to: ROUTE.STARFALL_ACHIEVEMENTS,
+            icon: "ra ra-trophy mr-1",
+            routes: ['starfall/achievements']
+          },
+        ]
+      },
       botNav: {
         label: "Bots",
         labelIcon: "ra ra-reactor mr-1",

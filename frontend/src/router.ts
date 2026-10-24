@@ -97,6 +97,11 @@ const router = new Router({
           meta: {title: "Client Files"},
         },
         {
+          path: ROUTE.STARFALL_ACHIEVEMENTS,
+          component: () => import('./views/starfall/Achievements.vue'),
+          meta: {title: "Starfall Achievements"},
+        },
+        {
           path: ROUTE.STRINGS_DATABASE,
           component: () => import('./views/strings-database/StringsDatabase.vue'),
           meta: {title: "Strings Database (dbstr)"},

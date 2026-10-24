@@ -53,6 +53,7 @@ export const ROUTE = {
   SPELL_EDIT: "/spell/%s",
   SPELLS_LIST: "/spells",
   STRINGS_DATABASE: "/strings-database",
+  STARFALL_ACHIEVEMENTS: "/starfall/achievements",
   TASK_EDIT: "/tasks/%s",
   TASKS: "/tasks",
   MERCHANTS: "/merchants",
