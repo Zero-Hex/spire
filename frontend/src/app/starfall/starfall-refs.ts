@@ -22,15 +22,6 @@ export type StarfallRef = {
   constants?: { [key: string]: string }
 }
 
-function classNames() {
-  const names = {}
-  for (const [id, c] of Object.entries(DB_PLAYER_CLASSES)) {
-    // @ts-ignore
-    names[id] = c.class
-  }
-  return names
-}
-
 export const STARFALL_REFS: { [key: string]: StarfallRef } = {
   item: {label: "Item", list: "items", id: "id", name: "name", column: "Name", link: (id) => util.format(ROUTE.ITEM_EDIT, id)},
   npc: {label: "NPC", list: "npc_types", id: "id", name: "name", link: (id) => ROUTE.NPC_EDIT.replace(":npc", String(id))},
@@ -45,7 +36,7 @@ export const STARFALL_REFS: { [key: string]: StarfallRef } = {
   race: {label: "Race", list: "", id: "", name: "", constants: RACES},
   bodytype: {label: "Body type", list: "", id: "", name: "", constants: BODYTYPES},
   skill: {label: "Skill", list: "", id: "", name: "", constants: DB_SKILLS},
-  class: {label: "Class", list: "", id: "", name: "", constants: classNames()},
+  class: {label: "Class", list: "", id: "", name: "", constants: DB_PLAYER_CLASSES},
 }
 
 // names already looked up, per ref type

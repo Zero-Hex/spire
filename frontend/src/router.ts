@@ -107,6 +107,11 @@ const router = new Router({
           meta: {title: "Starfall Collections"},
         },
         {
+          path: ROUTE.STARFALL_PETS,
+          component: () => import('./views/starfall/PetSpecies.vue'),
+          meta: {title: "Starfall Pets"},
+        },
+        {
           path: ROUTE.STRINGS_DATABASE,
           component: () => import('./views/strings-database/StringsDatabase.vue'),
           meta: {title: "Strings Database (dbstr)"},

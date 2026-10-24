@@ -335,6 +335,12 @@ export default {
             icon: "ra ra-gem mr-1",
             routes: ['starfall/collections']
           },
+          {
+            title: "Pets",
+            to: ROUTE.STARFALL_PETS,
+            icon: "ra ra-pawprint mr-1",
+            routes: ['starfall/pets']
+          },
         ]
       },
       botNav: {
