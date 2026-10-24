@@ -3,6 +3,7 @@ package clientassets
 import (
 	"io"
 	"net/http"
+	"os"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -42,11 +43,15 @@ func (p *PublicController) file(c echo.Context) error {
 	if !publicFile.MatchString(name) {
 		return c.JSON(http.StatusNotFound, echo.Map{"error": "not found"})
 	}
+	path := filepath.Join(p.store.Dir(), filepath.FromSlash(name))
 	if name == "client-assets.css" {
-		// regenerated on every import
+		// regenerated on every import; empty until the first one
 		c.Response().Header().Set("Cache-Control", "no-cache")
+		if _, err := os.Stat(path); os.IsNotExist(err) {
+			return c.Blob(http.StatusOK, "text/css", []byte{})
+		}
 	}
-	return c.File(filepath.Join(p.store.Dir(), filepath.FromSlash(name)))
+	return c.File(path)
 }
 
 // Controller imports and removes client assets

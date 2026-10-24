@@ -365,6 +365,12 @@ export default {
             icon: "ra ra-crowned-heart mr-1",
             routes: ['starfall/pinned-factions']
           },
+          {
+            title: "Icons & Models",
+            to: ROUTE.STARFALL_ICONS_MODELS,
+            icon: "ra ra-relic-blade mr-1",
+            routes: ['starfall/icons-and-models']
+          },
         ]
       },
       botNav: {

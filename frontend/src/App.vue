@@ -32,6 +32,7 @@ import AppUpdateModal from "@/components/modals/AppUpdateModal.vue";
 import {SpireWebsocket} from "@/app/api/spire-websocket";
 import {Notify} from "@/app/Notify";
 import {WindowManager} from "@/app/window";
+import {ClientAssets} from "@/app/client-assets";
 
 export default {
   name: "App",
@@ -359,6 +360,9 @@ export default {
 
         document.head.appendChild(link);
       });
+
+      // the client's own icons and model previews override the stock ones
+      ClientAssets.loadCss()
     }
   },
 }

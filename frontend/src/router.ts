@@ -132,6 +132,11 @@ const router = new Router({
           meta: {title: "Starfall Pinned Factions"},
         },
         {
+          path: ROUTE.STARFALL_ICONS_MODELS,
+          component: () => import('./views/starfall/IconsAndModels.vue'),
+          meta: {title: "Icons & Models"},
+        },
+        {
           path: ROUTE.STRINGS_DATABASE,
           component: () => import('./views/strings-database/StringsDatabase.vue'),
           meta: {title: "Strings Database (dbstr)"},

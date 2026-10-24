@@ -42,3 +42,5 @@ eqemu-server-installer-linux-amd64
 eqemu-server-installer-windows-amd64.exe
 
 *.old
+# the vendored EQ Model Viewer ships its own three.js and pako
+!frontend/public/model-viewer/vendor/
