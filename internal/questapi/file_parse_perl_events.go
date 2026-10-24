@@ -245,7 +245,8 @@ func (c *ParseService) parsePerlEvents(files map[string]string) []PerlEvent {
 						eventTypeSplit := strings.Split(eventLine, "(")
 						// grab event type and then grab the sub event
 						// grep: Player(EVENT_LEVEL_UP, this, "", 0);
-						if len(eventTypeSplit) > 0 {
+						// a mention with no call after it (eg in a comment) has no "("
+						if len(eventTypeSplit) > 1 {
 							eventType := eventTypeSplit[0]
 							var eventTypes = []string{eventType}
 
