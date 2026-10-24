@@ -1,6 +1,7 @@
 package questfiles
 
 import (
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -129,5 +130,18 @@ func TestBackupsArePruned(t *testing.T) {
 	}
 	if b, _ := s.Backups("qeynos/Guard_Phil.pl"); len(b) != keepBackups {
 		t.Errorf("want %d backups kept, got %d", keepBackups, len(b))
+	}
+}
+
+// file times are nanoseconds: they must survive a JSON round trip through
+// a browser, where numbers above 2^53 lose digits
+func TestModifiedTravelsAsAString(t *testing.T) {
+	b, _ := json.Marshal(Script{Path: "a.pl", Modified: 1792853116528861777})
+	if !strings.Contains(string(b), `"modified":"1792853116528861777"`) {
+		t.Fatalf("got %s", b)
+	}
+	var r saveRequest
+	if err := json.Unmarshal([]byte(`{"path":"a.pl","modified":"1792853116528861777"}`), &r); err != nil || r.Modified != 1792853116528861777 {
+		t.Fatalf("got %v %v", r.Modified, err)
 	}
 }

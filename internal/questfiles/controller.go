@@ -57,7 +57,7 @@ func (q *Controller) read(c echo.Context) error {
 type saveRequest struct {
 	Path     string `json:"path"`
 	Content  string `json:"content"`
-	Modified int64  `json:"modified"`
+	Modified int64  `json:"modified,string"`
 	Retire   string `json:"retire"`
 }
 

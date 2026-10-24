@@ -61,6 +61,7 @@ export const ROUTE = {
   STARFALL_MOB_INSPECT: "/starfall/mob-inspect",
   STARFALL_PINNED_FACTIONS: "/starfall/pinned-factions",
   STARFALL_ICONS_MODELS: "/starfall/icons-and-models",
+  STARFALL_QUEST_SCRIPTS: "/starfall/quest-scripts",
   TASK_EDIT: "/tasks/%s",
   TASKS: "/tasks",
   MERCHANTS: "/merchants",

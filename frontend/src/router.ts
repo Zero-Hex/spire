@@ -137,6 +137,11 @@ const router = new Router({
           meta: {title: "Icons & Models"},
         },
         {
+          path: ROUTE.STARFALL_QUEST_SCRIPTS,
+          component: () => import('./views/starfall/QuestScripts.vue'),
+          meta: {title: "Quest Scripts"},
+        },
+        {
           path: ROUTE.STRINGS_DATABASE,
           component: () => import('./views/strings-database/StringsDatabase.vue'),
           meta: {title: "Strings Database (dbstr)"},

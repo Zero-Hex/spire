@@ -148,10 +148,12 @@ func (s *Service) List(dir string) (Listing, error) {
 	return out, nil
 }
 
+// Modified is in nanoseconds, more digits than a JavaScript number holds
+// exactly, so it travels as a string
 type Script struct {
 	Path     string `json:"path"`
 	Content  string `json:"content"`
-	Modified int64  `json:"modified"`
+	Modified int64  `json:"modified,string"`
 }
 
 func (s *Service) Read(rel string) (Script, error) {

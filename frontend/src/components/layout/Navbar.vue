@@ -371,6 +371,12 @@ export default {
             icon: "ra ra-relic-blade mr-1",
             routes: ['starfall/icons-and-models']
           },
+          {
+            title: "Quest Scripts",
+            to: ROUTE.STARFALL_QUEST_SCRIPTS,
+            icon: "ra ra-quill-ink mr-1",
+            routes: ['starfall/quest-scripts']
+          },
         ]
       },
       botNav: {
