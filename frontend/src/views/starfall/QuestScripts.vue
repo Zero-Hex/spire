@@ -162,6 +162,7 @@
 import EqWindowSimple  from "@/components/eq-ui/EQWindowSimple";
 import InfoErrorBanner from "@/components/InfoErrorBanner";
 import {SpireApi}      from "@/app/api/spire-api";
+import {contextAt}     from "@/app/starfall/quest-completions";
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
@@ -377,6 +378,7 @@ export default {
 
       this.check = null
       this.runCheck()
+      this.loadCompletions(this.lang()) // ready before the first quest::
     },
     async newFile() {
       let name = this.newName.trim()
@@ -614,50 +616,39 @@ export default {
       // the server checks the script; Ace's own Lua checker would replace its markers
       ace.session.setUseWorker(false)
 
-      // the Quest API after quest::, $client->, eq., e.self: ... and events after sub / function
+      // the Quest API after quest::, $client->, eq., e.self: ... (following
+      // variables), chat types in a Message() and the like, events after sub
       const completer = {
         identifierRegexps: [/[a-zA-Z_0-9]/],
         getCompletions: (editor, session, pos, prefix, callback) => {
-          const before = session.getLine(pos.row).slice(0, pos.column - prefix.length)
-          this.completionsFor(before).then((list) => callback(null, list))
+          this.completionsAt(session, pos.row, pos.column - prefix.length).then((list) => callback(null, list))
         },
       }
       ace.setOptions({ enableBasicAutocompletion: [completer], enableLiveAutocompletion: [completer], enableSnippets: false })
       ace.completers = [completer]
-      // Ace opens the list once a letter is typed; open it on the trigger itself
+      // Ace opens the list once a letter is typed; open it on the trigger
+      // itself, and on a chat type argument the cursor lands in
+      const opens = ["insertstring", "Tab", "Shift-Tab", "Return"]
       ace.commands.on("afterExec", (e) => {
-        if (e.command.name !== "insertstring" || (ace.completer && ace.completer.activated)) {
+        if (!opens.includes(e.command.name) || (ace.completer && ace.completer.activated)) {
           return
         }
         const pos = ace.getCursorPosition()
-        if (this.trigger(ace.session.getLine(pos.row).slice(0, pos.column))) {
-          ace.execCommand("startAutocomplete")
+        // after a comma, wait for the space: typed into an open list, it
+        // would become part of what the list matches
+        if (/,$/.test(ace.session.getLine(pos.row).slice(0, pos.column))) {
+          return
         }
+        this.contextAt(ace.session, pos.row, pos.column).then((ctx) => {
+          const now = ace.getCursorPosition()
+          if (ctx && now.row === pos.row && now.column === pos.column && !(ace.completer && ace.completer.activated)) {
+            ace.execCommand("startAutocomplete")
+          }
+        })
       })
     },
 
     // ------------------------------------------------------------ completions
-    // what the text before the name asks for: a key of the completions'
-    // triggers, "events", or null
-    trigger(before) {
-      let m
-      if (this.lang() === "lua") {
-        if (/\beq\.$/.test(before)) {
-          return "eq."
-        }
-        if ((m = before.match(/\be\.(\w+)\s*:\s*$/))) {
-          return "e." + m[1] + ":"
-        }
-        return /^\s*function\s+$/.test(before) ? "events" : null
-      }
-      if ((m = before.match(/\b(quest|plugin)::$/))) {
-        return m[1] + "::"
-      }
-      if ((m = before.match(/\$(\w+)\s*->\s*$/))) {
-        return "$" + m[1] + "->"
-      }
-      return /^\s*sub\s+$/.test(before) ? "events" : null
-    },
     async loadCompletions(lang) {
       if (!this.completionCache[lang]) {
         this.completionCache[lang] = SpireApi.v1().get("quest-files/completions", { params: { lang: lang } })
@@ -669,40 +660,66 @@ export default {
       }
       return this.completionCache[lang]
     },
-    async completionsFor(before) {
+    // what to offer at row, column: the variables are tracked from the top
+    async contextAt(session, row, column) {
       const lang = this.lang()
-      const key  = this.trigger(before)
-      if (!key) {
-        return []
-      }
       const data = await this.loadCompletions(lang)
       if (!data) {
+        return null
+      }
+      const before = session.getLine(row).slice(0, column)
+      return contextAt(data, lang, session.getLines(0, row - 1), before)
+    },
+    async completionsAt(session, row, column) {
+      const ctx = await this.contextAt(session, row, column)
+      if (!ctx) {
         return []
       }
+      const lua     = this.lang() === "lua"
       const esc     = (t) => String(t).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;" }[c]))
       const snipArg = (t) => String(t).replace(/[\\$}]/g, "\\$&")
 
-      if (key === "events") {
-        return data.events.map((e) => ({
+      if (ctx.kind === "chat") {
+        // keep the list in number order: Ace sorts by score first
+        return ctx.items.map((t, i) => {
+          const name  = t.names.join(" / ")
+          const value = lua && t.lua.length ? (ctx.typedMT ? t.lua[0].slice(3) : t.lua[0]) : String(t.value)
+          // inserted as a snippet: Ace filters on value when there is one,
+          // and the caption lets you type the name as well as the number
+          return {
+            caption: lua && t.lua.length ? t.lua[0] + " " + t.value : t.value + " " + name,
+            snippet: value,
+            meta: lua ? name : "chat type",
+            score: 10000 - i,
+            docHTML: "<b>" + t.value + "</b> " + esc(name) + (t.lua.length ? "<br>Lua: " + esc(t.lua.join(", ")) : "") +
+              "<br><i>" + esc(ctx.call.name) + ", argument " + (ctx.arg + 1) + "</i>",
+          }
+        })
+      }
+      if (ctx.kind === "events") {
+        return ctx.items.map((e) => ({
           caption: e.name,
           value: e.name,
-          snippet: lang === "lua" ? e.name + "(e)\n\t$0\nend" : e.name + " {\n\t$0\n}",
+          snippet: lua ? e.name + "(e)\n\t$0\nend" : e.name + " {\n\t$0\n}",
           meta: "event",
           score: 1000,
           docHTML: "<b>" + esc(e.name) + "</b>" + (e.class ? " <i>" + esc(e.class) + "</i>" : "") +
             (e.signatures[0] ? "<br>" + esc(e.signatures[0]) : ""),
         }))
       }
-      return (data.triggers[key] || []).map((c) => ({
+      // a chat type argument is left empty, so the list of them opens there
+      const args = (c) => c.params.map((p, i) => (c.chat_args || []).includes(i) ? "${" + (i + 1) + "}" : "${" + (i + 1) + ":" + snipArg(p) + "}")
+      return ctx.items.map((c) => ({
         caption: c.name,
         value: c.name,
-        snippet: c.name + "(" + c.params.map((p, i) => "${" + (i + 1) + ":" + snipArg(p) + "}").join(", ") + ")",
+        snippet: c.name + "(" + args(c).join(", ") + ")",
         meta: c.class,
         score: 1000,
-        docHTML: c.signatures.map((sig) => "<b>" + esc(key + sig) + "</b>").join("<br>") +
+        docHTML: c.signatures.map((sig) => "<b>" + esc(sig) + "</b>").join("<br>") +
           (c.returns ? "<br>returns " + esc(c.returns) : "") + "<br><i>" + esc(c.class) + "</i>",
       }))
     },
+
     beforeUnload(e) {
       if (this.dirty()) {
         e.preventDefault()

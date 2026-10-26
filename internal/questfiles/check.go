@@ -46,6 +46,8 @@ type questAPI interface {
 	FromLocalSource() bool
 	Parse(forceRefresh bool) questapi.Response
 	Read(fn func(questapi.Response))
+	ChatTypes() []questapi.ChatType
+	LuaParents() map[string][]string
 }
 
 func NewChecker(service *Service, api *questapi.ParseService) *Checker {
@@ -371,7 +373,6 @@ func (k *Checker) lintLua(content string, r *CheckResult) {
 		r.Notes = append(r.Notes, apiNotReady)
 		return
 	}
-	mobClasses := []string{"Mob", "Client", "NPC", "Bot", "Merc"}
 	r.Checks = append(r.Checks, "Quest API")
 
 	warn := func(line int, col int, msg string) {

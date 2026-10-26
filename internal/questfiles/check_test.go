@@ -17,6 +17,14 @@ func (fakeAPI) FromLocalSource() bool { return true }
 
 func (a fakeAPI) Read(fn func(questapi.Response)) { fn(a.Parse(false)) }
 
+func (fakeAPI) LuaParents() map[string][]string {
+	return map[string][]string{"Mob": {"Entity"}, "Client": {"Mob"}}
+}
+
+func (fakeAPI) ChatTypes() []questapi.ChatType {
+	return []questapi.ChatType{{Value: 15, Names: []string{"Yellow"}, Lua: []string{"MT.Yellow"}}}
+}
+
 func (fakeAPI) Parse(bool) questapi.Response {
 	pm := func(names ...string) []questapi.PerlMethod {
 		var out []questapi.PerlMethod
@@ -39,6 +47,17 @@ func (fakeAPI) Parse(bool) questapi.Response {
 		"NPC":    pm("GetNPCTypeID"),
 		"quest":  pm("say", "settimer"),
 	}
+	r.PerlApi.PerlMethods["Mob"] = append(r.PerlApi.PerlMethods["Mob"],
+		questapi.PerlMethod{Method: "Message", Params: []string{"uint32 type", "string message"}},
+		questapi.PerlMethod{Method: "GetTarget", ReturnType: "Mob*"},
+		questapi.PerlMethod{Method: "CastToClient", ReturnType: "Client*"},
+	)
+	r.PerlApi.PerlMethods["quest"] = append(r.PerlApi.PerlMethods["quest"],
+		questapi.PerlMethod{Method: "gmsay", Params: []string{"string message", "int color_id"}},
+		questapi.PerlMethod{Method: "gmsay", Params: []string{"string message", "int color_id", "bool send_to_world"}},
+		questapi.PerlMethod{Method: "popupcolormessage", Params: []string{"color", "message"}}, // the parser drops std::string
+		questapi.PerlMethod{Method: "SetTint", Params: []string{"int16 slot_id", "uint32 color"}},
+	)
 	r.PerlApi.PerlEvents = []questapi.PerlEvent{{EventName: "EVENT_SAY", EventIdentifier: "EVENT_SAY"}, {EventName: "EVENT_SPAWN", EventIdentifier: "EVENT_SPAWN"}}
 	r.LuaApi.LuaMethods = map[string][]questapi.LuaMethod{
 		"Mob": lm("Say", "GetName"),
@@ -108,16 +127,16 @@ func TestLuaSyntaxErrors(t *testing.T) {
 func TestQuestAPITypos(t *testing.T) {
 	k := testChecker(t)
 	r := k.Check("a.pl", strings.Join([]string{
-		"sub EVENT_SAY {",                          // 1
-		"  my $l = $client->GetLevle();",           // 2 typo
-		"  $client->GetName();",                    // 3 Mob method on a client: fine
-		"  $npc->getnpctypeid();",                  // 4 wrong case
-		"  quest::say('x'); quest::sya('y');",      // 5 typo
-		"  plugin::ShowScriptWindow($client);",     // 6 defined in plugins
-		"  plugin::ShowScriptWindo($client);",      // 7 typo
-		"  # $client->NotAMethod() in a comment",   // 8 ignored
-		"  my $db = $dbh->prepare('x');",           // 9 not a quest variable
-		"  $client->Message(15, 'it\\'s # fine');", // 10 Message unknown in the fake API
+		"sub EVENT_SAY {",                        // 1
+		"  my $l = $client->GetLevle();",         // 2 typo
+		"  $client->GetName();",                  // 3 Mob method on a client: fine
+		"  $npc->getnpctypeid();",                // 4 wrong case
+		"  quest::say('x'); quest::sya('y');",    // 5 typo
+		"  plugin::ShowScriptWindow($client);",   // 6 defined in plugins
+		"  plugin::ShowScriptWindo($client);",    // 7 typo
+		"  # $client->NotAMethod() in a comment", // 8 ignored
+		"  my $db = $dbh->prepare('x');",         // 9 not a quest variable
+		"  $client->Shout(15, 'it\\'s # fine');", // 10 Shout unknown in the fake API
 		"}",
 		"sub EVENT_SAYY { }", // 12 not an event
 	}, "\n"))
@@ -131,7 +150,7 @@ func TestQuestAPITypos(t *testing.T) {
 		"4: $npc has no method getnpctypeid (NPC, Mob); did you mean GetNPCTypeID? (names are case-sensitive)",
 		"5: quest::sya is not in the Quest API; did you mean say?",
 		"7: plugin::ShowScriptWindo is not defined in the plugins folder; did you mean ShowScriptWindow?",
-		"10: $client has no method Message (Client, Mob)",
+		"10: $client has no method Shout (Client, Mob)",
 		"12: EVENT_SAYY is not a Perl event, so this sub never runs; did you mean EVENT_SAY?",
 	}
 	if strings.Join(got, "\n") != strings.Join(want, "\n") {

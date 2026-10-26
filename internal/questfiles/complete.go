@@ -10,29 +10,58 @@ import (
 	"github.com/EQEmu/spire/internal/questapi"
 )
 
-// Completion is one name the editor offers after a trigger such as quest::
+// Completion is one name the editor offers, such as a method after $client->
 type Completion struct {
 	Name       string   `json:"name"`
 	Params     []string `json:"params"`     // the first signature's, for the inserted call
 	Signatures []string `json:"signatures"` // every overload, eg Say(string message)
 	Returns    string   `json:"returns,omitempty"`
-	Class      string   `json:"class"` // where it comes from: Client, quest, a plugin file
+	Class      string   `json:"class"`               // where it comes from: Client, quest, a plugin file
+	ChatArgs   []int    `json:"chat_args,omitempty"` // the arguments that take a chat type
 }
 
-// Completions are the names offered in one language, keyed by what precedes
-// them: "quest::", "$client->", "eq.", "e.self:", ... and the events, offered
-// after "sub " or "function "
+// Completions are what the editor offers in one language. A variable's
+// methods are its classes' and their parents'; a call's result is the class
+// its return type names (types), so the editor can follow
+// my $t = $client->GetTarget(); to $t->
 type Completions struct {
-	Triggers map[string][]Completion `json:"triggers"`
-	Events   []Completion            `json:"events"`
-	Notes    []string                `json:"notes"`
+	Namespaces map[string][]Completion `json:"namespaces"` // "quest::", "plugin::", "eq."
+	Classes    map[string][]Completion `json:"classes"`    // each class's own methods
+	Parents    map[string][]string     `json:"parents"`    // Client: Mob (direct or all)
+	Vars       map[string][]string     `json:"vars"`       // "$client": Client, Mob; "e.self": ...
+	Types      map[string]string       `json:"types"`      // a return type as written: its class
+	Events     []Completion            `json:"events"`     // offered after "sub " or "function "
+	ChatTypes  []questapi.ChatType     `json:"chat_types"`
+	Notes      []string                `json:"notes"`
 }
 
-// the Lua event table fields that hold a mob
-var luaMobVars = []string{"self", "other"}
+// the classes each Perl class inherits from
+var classParents = map[string][]string{
+	"Client": {"Mob"},
+	"NPC":    {"Mob"},
+	"Bot":    {"NPC", "Mob"},
+	"Merc":   {"NPC", "Mob"},
+	"Corpse": {"Mob"},
+}
+
+// return types that name a class by another name
+var typeAliases = map[string]string{
+	"ItemInstance": "QuestItem", // Perl's EQ::ItemInstance*
+}
+
+var mobClasses = []string{"Mob", "Client", "NPC", "Bot", "Merc"}
 
 func (k *Checker) Completions(lang string) Completions {
-	out := Completions{Triggers: map[string][]Completion{}, Events: []Completion{}, Notes: []string{}}
+	out := Completions{
+		Namespaces: map[string][]Completion{},
+		Classes:    map[string][]Completion{},
+		Parents:    classParents,
+		Vars:       map[string][]string{},
+		Types:      map[string]string{},
+		Events:     []Completion{},
+		ChatTypes:  []questapi.ChatType{},
+		Notes:      []string{},
+	}
 	if k.api == nil {
 		return out
 	}
@@ -42,43 +71,119 @@ func (k *Checker) Completions(lang string) Completions {
 
 	k.api.Parse(false)
 	k.api.Read(func(api questapi.Response) {
+		classes := map[string][]Completion{}
+		add := func(class, name string, params []string, returns string) {
+			classes[class] = append(classes[class], Completion{Name: name, Params: params, Returns: returns, Class: class})
+		}
 		if lang == "lua" {
-			classes := map[string][]Completion{}
 			for class, list := range api.LuaApi.LuaMethods {
 				for _, m := range list {
-					classes[class] = append(classes[class], Completion{Name: m.Method, Params: m.Params, Returns: m.ReturnType, Class: class})
+					add(class, m.Method, m.Params, m.ReturnType)
 				}
-			}
-			out.Triggers["eq."] = merge(classes, []string{"eq"})
-			for _, v := range luaMobVars {
-				out.Triggers["e."+v+":"] = merge(classes, []string{"Mob", "Client", "NPC", "Bot", "Merc"})
 			}
 			for _, e := range api.LuaApi.LuaEvents {
 				out.Events = append(out.Events, event(e.EventIdentifier, e.EntityType, e.EventVars, "e."))
 			}
-			return
-		}
-
-		classes := map[string][]Completion{}
-		for class, list := range api.PerlApi.PerlMethods {
-			for _, m := range list {
-				classes[class] = append(classes[class], Completion{Name: m.Method, Params: m.Params, Returns: m.ReturnType, Class: class})
+			out.Vars["e.self"] = mobClasses
+			out.Vars["e.other"] = mobClasses
+		} else {
+			for class, list := range api.PerlApi.PerlMethods {
+				for _, m := range list {
+					add(class, m.Method, m.Params, m.ReturnType)
+				}
+			}
+			for _, e := range api.PerlApi.PerlEvents {
+				out.Events = append(out.Events, event(e.EventIdentifier, e.EntityType, e.EventVars, "$"))
+			}
+			for v, cls := range perlVarClasses {
+				out.Vars["$"+v] = cls
 			}
 		}
-		out.Triggers["quest::"] = merge(classes, []string{"quest"})
-		for v, cls := range perlVarClasses {
-			out.Triggers["$"+v+"->"] = merge(classes, cls)
+
+		for class := range classes {
+			list := merge(classes, []string{class})
+			switch class {
+			case "quest":
+				out.Namespaces["quest::"] = list
+			case "eq":
+				out.Namespaces["eq."] = list
+			default:
+				out.Classes[class] = list
+			}
 		}
-		for _, e := range api.PerlApi.PerlEvents {
-			out.Events = append(out.Events, event(e.EventIdentifier, e.EntityType, e.EventVars, "$"))
+		// the class each return type names: Mob*, Lua_Client, EQ::ItemInstance*
+		for _, list := range classes {
+			for _, m := range list {
+				if m.Returns == "" {
+					continue
+				}
+				if class := typeClass(m.Returns, out.Classes); class != "" {
+					out.Types[m.Returns] = class
+				}
+			}
 		}
 	})
 	out.Events = mergeEvents(out.Events)
+	out.ChatTypes = k.api.ChatTypes()
+	// the Lua bindings have their own: Lua_Bot is a Lua_Mob, and Lua_Mob a Lua_Entity
+	if lua := k.api.LuaParents(); lang == "lua" && len(lua) > 0 {
+		out.Parents = lua
+	}
 
 	if lang != "lua" {
-		out.Triggers["plugin::"] = k.pluginCompletions()
+		out.Namespaces["plugin::"] = k.pluginCompletions()
 	}
 	return out
+}
+
+func typeClass(returns string, classes map[string][]Completion) string {
+	t := strings.TrimSpace(returns)
+	for _, cut := range []string{"const ", "EQ::", "Lua_", "*", "&"} {
+		t = strings.ReplaceAll(t, cut, "")
+	}
+	t = strings.TrimSpace(t)
+	if a, ok := typeAliases[t]; ok {
+		t = a
+	}
+	if _, ok := classes[t]; ok {
+		return t
+	}
+	return ""
+}
+
+var (
+	chatParamNames   = map[string]bool{"emote_color_id": true, "color_id": true, "message_type": true, "chat_type": true}
+	chatGenericNames = map[string]bool{"type": true, "color": true}
+	chatMethodWords  = []string{"message", "marquee", "coloredtext"}
+)
+
+// chatArg reports whether a parameter takes a chat type: named for one, or a
+// plain type / color of a call that shows a message
+func chatArg(method, param string) bool {
+	f := strings.Fields(param)
+	if len(f) == 0 {
+		return false
+	}
+	name := strings.TrimLeft(f[len(f)-1], "*&$")
+	if len(f) > 1 && !strings.Contains(strings.ToLower(strings.Join(f[:len(f)-1], " ")), "int") {
+		return false // a string color, say
+	}
+	if chatParamNames[name] {
+		return true
+	}
+	if !chatGenericNames[name] {
+		return false
+	}
+	lower := strings.ToLower(method)
+	if strings.Contains(lower, "popup") {
+		return false // popups take an HTML colour
+	}
+	for _, w := range chatMethodWords {
+		if strings.Contains(lower, w) {
+			return true
+		}
+	}
+	return false
 }
 
 // merge lists the methods of classes, the first class's first; overloads
@@ -89,6 +194,17 @@ func merge(classes map[string][]Completion, order []string) []Completion {
 	for _, class := range order {
 		for _, c := range classes[class] {
 			sig := c.Name + "(" + strings.Join(c.Params, ", ") + ")"
+			for i, p := range c.Params {
+				if chatArg(c.Name, p) {
+					if j, ok := at[c.Name]; ok {
+						if !containsInt(out[j].ChatArgs, i) {
+							out[j].ChatArgs = append(out[j].ChatArgs, i)
+						}
+					} else if !containsInt(c.ChatArgs, i) {
+						c.ChatArgs = append(c.ChatArgs, i)
+					}
+				}
+			}
 			if i, ok := at[c.Name]; ok {
 				if !contains(out[i].Signatures, sig) {
 					out[i].Signatures = append(out[i].Signatures, sig)
@@ -140,6 +256,15 @@ func mergeEvents(events []Completion) []Completion {
 		out = []Completion{}
 	}
 	return out
+}
+
+func containsInt(list []int, n int) bool {
+	for _, v := range list {
+		if v == n {
+			return true
+		}
+	}
+	return false
 }
 
 func contains(list []string, s string) bool {
