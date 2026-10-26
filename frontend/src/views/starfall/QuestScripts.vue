@@ -613,6 +613,95 @@ export default {
       ace.setFontSize(14)
       // the server checks the script; Ace's own Lua checker would replace its markers
       ace.session.setUseWorker(false)
+
+      // the Quest API after quest::, $client->, eq., e.self: ... and events after sub / function
+      const completer = {
+        identifierRegexps: [/[a-zA-Z_0-9]/],
+        getCompletions: (editor, session, pos, prefix, callback) => {
+          const before = session.getLine(pos.row).slice(0, pos.column - prefix.length)
+          this.completionsFor(before).then((list) => callback(null, list))
+        },
+      }
+      ace.setOptions({ enableBasicAutocompletion: [completer], enableLiveAutocompletion: [completer], enableSnippets: false })
+      ace.completers = [completer]
+      // Ace opens the list once a letter is typed; open it on the trigger itself
+      ace.commands.on("afterExec", (e) => {
+        if (e.command.name !== "insertstring" || (ace.completer && ace.completer.activated)) {
+          return
+        }
+        const pos = ace.getCursorPosition()
+        if (this.trigger(ace.session.getLine(pos.row).slice(0, pos.column))) {
+          ace.execCommand("startAutocomplete")
+        }
+      })
+    },
+
+    // ------------------------------------------------------------ completions
+    // what the text before the name asks for: a key of the completions'
+    // triggers, "events", or null
+    trigger(before) {
+      let m
+      if (this.lang() === "lua") {
+        if (/\beq\.$/.test(before)) {
+          return "eq."
+        }
+        if ((m = before.match(/\be\.(\w+)\s*:\s*$/))) {
+          return "e." + m[1] + ":"
+        }
+        return /^\s*function\s+$/.test(before) ? "events" : null
+      }
+      if ((m = before.match(/\b(quest|plugin)::$/))) {
+        return m[1] + "::"
+      }
+      if ((m = before.match(/\$(\w+)\s*->\s*$/))) {
+        return "$" + m[1] + "->"
+      }
+      return /^\s*sub\s+$/.test(before) ? "events" : null
+    },
+    async loadCompletions(lang) {
+      if (!this.completionCache[lang]) {
+        this.completionCache[lang] = SpireApi.v1().get("quest-files/completions", { params: { lang: lang } })
+          .then((r) => r.data)
+          .catch(() => {
+            this.completionCache[lang] = null // try again next time
+            return null
+          })
+      }
+      return this.completionCache[lang]
+    },
+    async completionsFor(before) {
+      const lang = this.lang()
+      const key  = this.trigger(before)
+      if (!key) {
+        return []
+      }
+      const data = await this.loadCompletions(lang)
+      if (!data) {
+        return []
+      }
+      const esc     = (t) => String(t).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;" }[c]))
+      const snipArg = (t) => String(t).replace(/[\\$}]/g, "\\$&")
+
+      if (key === "events") {
+        return data.events.map((e) => ({
+          caption: e.name,
+          value: e.name,
+          snippet: lang === "lua" ? e.name + "(e)\n\t$0\nend" : e.name + " {\n\t$0\n}",
+          meta: "event",
+          score: 1000,
+          docHTML: "<b>" + esc(e.name) + "</b>" + (e.class ? " <i>" + esc(e.class) + "</i>" : "") +
+            (e.signatures[0] ? "<br>" + esc(e.signatures[0]) : ""),
+        }))
+      }
+      return (data.triggers[key] || []).map((c) => ({
+        caption: c.name,
+        value: c.name,
+        snippet: c.name + "(" + c.params.map((p, i) => "${" + (i + 1) + ":" + snipArg(p) + "}").join(", ") + ")",
+        meta: c.class,
+        score: 1000,
+        docHTML: c.signatures.map((sig) => "<b>" + esc(key + sig) + "</b>").join("<br>") +
+          (c.returns ? "<br>returns " + esc(c.returns) : "") + "<br><i>" + esc(c.class) + "</i>",
+      }))
     },
     beforeUnload(e) {
       if (this.dirty()) {
@@ -620,6 +709,9 @@ export default {
         e.returnValue = ""
       }
     },
+  },
+  created() {
+    this.completionCache = {} // per language, a promise of the completions; not reactive
   },
   async mounted() {
     window.addEventListener("beforeunload", this.beforeUnload)
@@ -688,5 +780,12 @@ export default {
   border: 1px solid rgba(255, 255, 255, .15);
   border-radius: 6px;
   background: #12141b;
+}
+</style>
+
+<style>
+/* Ace puts the completion list on the page body, outside the scoped styles */
+body .ace_editor.ace_autocomplete {
+  width: 440px;
 }
 </style>

@@ -23,6 +23,7 @@ func (q *Controller) Routes() []*routes.Route {
 		routes.RegisterRoute(http.MethodGet, "quest-files/file", q.read, nil),
 		routes.RegisterRoute(http.MethodPut, "quest-files/file", q.save, nil),
 		routes.RegisterRoute(http.MethodPost, "quest-files/check", q.check, nil),
+		routes.RegisterRoute(http.MethodGet, "quest-files/completions", q.completions, nil),
 		routes.RegisterRoute(http.MethodGet, "quest-files/backups", q.backups, nil),
 		routes.RegisterRoute(http.MethodGet, "quest-files/backup", q.backup, nil),
 		// loaded in a frame, which sends no auth header: use ?jwt=
@@ -90,6 +91,11 @@ func (q *Controller) check(c echo.Context) error {
 		return fail(c, errors.New("the script is too large to check"))
 	}
 	return c.JSON(http.StatusOK, q.checker.Check(r.Path, r.Content))
+}
+
+// completions are the names the editor offers after quest::, $client->, eq. ...
+func (q *Controller) completions(c echo.Context) error {
+	return c.JSON(http.StatusOK, q.checker.Completions(c.QueryParam("lang")))
 }
 
 func (q *Controller) backups(c echo.Context) error {
