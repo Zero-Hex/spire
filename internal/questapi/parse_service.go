@@ -7,6 +7,7 @@ import (
 	gocache "github.com/patrickmn/go-cache"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -18,6 +19,10 @@ type ParseService struct {
 	files      map[string]string
 	snippets   map[string]string
 	localRoot  string // the server source the API was parsed from; "" = upstream
+
+	probeMu     sync.Mutex // FromLocalSource before the first parse
+	probedAt    time.Time
+	probedLocal bool
 }
 
 func NewParseService(
@@ -73,6 +78,9 @@ var luaConstants map[string][]LuaConstants
 
 const lockKey = "quest-api-lock"
 
+// apiMu guards the parsed API above while Parse rewrites it
+var apiMu sync.RWMutex
+
 // Files return files from memory
 func (c *ParseService) Files() map[string]string {
 	return c.files
@@ -118,10 +126,23 @@ func (c *ParseService) sourceServer(forceRefresh bool) {
 	c.Source("EQEmu", "Server", "master", forceRefresh)
 }
 
-// FromLocalSource reports whether the API was parsed from this server's own
-// source, so it includes the server's custom methods and events
+// FromLocalSource reports whether the API is parsed from this server's own
+// source, so it includes the server's custom methods and events. Before the
+// first parse it reports whether Parse will find that source.
 func (c *ParseService) FromLocalSource() bool {
-	return c.localRoot != ""
+	if len(c.files) > 0 {
+		return c.localRoot != ""
+	}
+
+	c.probeMu.Lock()
+	defer c.probeMu.Unlock()
+	// finding no build walks the home folder: remember the answer for a while
+	if c.probedAt.IsZero() || time.Since(c.probedAt) > 5*time.Minute {
+		root := c.updater.GetSourceRoot()
+		c.probedLocal = root != "" && isServerSource(root)
+		c.probedAt = time.Now()
+	}
+	return c.probedLocal
 }
 
 // Source source files
@@ -163,6 +184,7 @@ func (c *ParseService) Parse(forceRefresh bool) Response {
 
 	// set operation lock
 	c.cache.Set(lockKey, 1, time.Minute*10)
+	apiMu.Lock()
 
 	// empty maps
 	for k := range perlMethods {
@@ -258,9 +280,18 @@ func (c *ParseService) Parse(forceRefresh bool) Response {
 	lastRefreshed = time.Now()
 
 	// delete lock
+	apiMu.Unlock()
 	c.cache.Delete(lockKey)
 
 	return c.apiResponse()
+}
+
+// Read calls fn with the parsed API while no parse can change it; fn must
+// not keep the maps
+func (c *ParseService) Read(fn func(Response)) {
+	apiMu.RLock()
+	defer apiMu.RUnlock()
+	fn(c.apiResponse())
 }
 
 // response method

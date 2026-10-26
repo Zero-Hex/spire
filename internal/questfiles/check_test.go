@@ -15,6 +15,8 @@ type fakeAPI struct{}
 
 func (fakeAPI) FromLocalSource() bool { return true }
 
+func (a fakeAPI) Read(fn func(questapi.Response)) { fn(a.Parse(false)) }
+
 func (fakeAPI) Parse(bool) questapi.Response {
 	pm := func(names ...string) []questapi.PerlMethod {
 		var out []questapi.PerlMethod
@@ -106,15 +108,15 @@ func TestLuaSyntaxErrors(t *testing.T) {
 func TestQuestAPITypos(t *testing.T) {
 	k := testChecker(t)
 	r := k.Check("a.pl", strings.Join([]string{
-		"sub EVENT_SAY {",                         // 1
-		"  my $l = $client->GetLevle();",          // 2 typo
-		"  $client->GetName();",                   // 3 Mob method on a client: fine
-		"  $npc->getnpctypeid();",                 // 4 wrong case
-		"  quest::say('x'); quest::sya('y');",     // 5 typo
-		"  plugin::ShowScriptWindow($client);",    // 6 defined in plugins
-		"  plugin::ShowScriptWindo($client);",     // 7 typo
-		"  # $client->NotAMethod() in a comment",  // 8 ignored
-		"  my $db = $dbh->prepare('x');",          // 9 not a quest variable
+		"sub EVENT_SAY {",                          // 1
+		"  my $l = $client->GetLevle();",           // 2 typo
+		"  $client->GetName();",                    // 3 Mob method on a client: fine
+		"  $npc->getnpctypeid();",                  // 4 wrong case
+		"  quest::say('x'); quest::sya('y');",      // 5 typo
+		"  plugin::ShowScriptWindow($client);",     // 6 defined in plugins
+		"  plugin::ShowScriptWindo($client);",      // 7 typo
+		"  # $client->NotAMethod() in a comment",   // 8 ignored
+		"  my $db = $dbh->prepare('x');",           // 9 not a quest variable
 		"  $client->Message(15, 'it\\'s # fine');", // 10 Message unknown in the fake API
 		"}",
 		"sub EVENT_SAYY { }", // 12 not an event

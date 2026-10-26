@@ -33,7 +33,7 @@ func (c *ParseService) localServerSource() (string, map[string]string) {
 // readServerSource reads the parsed directories of a server checkout, or
 // returns nil when root does not look like one
 func readServerSource(root string) map[string]string {
-	if _, err := os.Stat(filepath.Join(root, "zone", "embparser.cpp")); err != nil {
+	if !isServerSource(root) {
 		return nil
 	}
 
@@ -69,4 +69,10 @@ func readServerSource(root string) map[string]string {
 	}
 
 	return files
+}
+
+// isServerSource reports whether root looks like a server source checkout
+func isServerSource(root string) bool {
+	_, err := os.Stat(filepath.Join(root, "zone", "embparser.cpp"))
+	return err == nil
 }

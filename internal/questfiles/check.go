@@ -34,6 +34,8 @@ type CheckResult struct {
 
 // Checker finds syntax errors (perl -c, a Lua 5.1 parser) and calls the
 // Quest API does not have: a misspelt method only fails when its line runs
+const apiNotReady = "Quest API checks are skipped: Spire is still parsing the API from this server's source. Check again in a moment."
+
 type Checker struct {
 	service *Service
 	api     questAPI
@@ -43,6 +45,7 @@ type Checker struct {
 type questAPI interface {
 	FromLocalSource() bool
 	Parse(forceRefresh bool) questapi.Response
+	Read(fn func(questapi.Response))
 }
 
 func NewChecker(service *Service, api *questapi.ParseService) *Checker {
@@ -209,19 +212,24 @@ func (k *Checker) lintPerl(content string, r *CheckResult) {
 		r.Notes = append(r.Notes, "Quest API checks are off: Spire has not parsed the API from this server's source, so it would not know the server's own methods.")
 		return
 	}
-	api := k.api.Parse(false)
-
 	methods := map[string]map[string]bool{}
-	for class, list := range api.PerlApi.PerlMethods {
-		methods[class] = map[string]bool{}
-		for _, m := range list {
-			methods[class][m.Method] = true
-		}
-	}
 	events := map[string]bool{}
-	for _, e := range api.PerlApi.PerlEvents {
-		events[e.EventIdentifier] = true
-		events[e.EventName] = true
+	k.api.Parse(false)
+	k.api.Read(func(api questapi.Response) {
+		for class, list := range api.PerlApi.PerlMethods {
+			methods[class] = map[string]bool{}
+			for _, m := range list {
+				methods[class][m.Method] = true
+			}
+		}
+		for _, e := range api.PerlApi.PerlEvents {
+			events[e.EventIdentifier] = true
+			events[e.EventName] = true
+		}
+	})
+	if len(methods["quest"]) == 0 || len(events) == 0 {
+		r.Notes = append(r.Notes, apiNotReady)
+		return
 	}
 	plugins, pluginsFound := k.pluginSubs()
 	r.Checks = append(r.Checks, "Quest API")
@@ -345,18 +353,23 @@ func (k *Checker) lintLua(content string, r *CheckResult) {
 		r.Notes = append(r.Notes, "Quest API checks are off: Spire has not parsed the API from this server's source, so it would not know the server's own methods.")
 		return
 	}
-	api := k.api.Parse(false)
-
 	methods := map[string]map[string]bool{}
-	for class, list := range api.LuaApi.LuaMethods {
-		methods[class] = map[string]bool{}
-		for _, m := range list {
-			methods[class][m.Method] = true
-		}
-	}
 	events := map[string]bool{}
-	for _, e := range api.LuaApi.LuaEvents {
-		events[e.EventIdentifier] = true
+	k.api.Parse(false)
+	k.api.Read(func(api questapi.Response) {
+		for class, list := range api.LuaApi.LuaMethods {
+			methods[class] = map[string]bool{}
+			for _, m := range list {
+				methods[class][m.Method] = true
+			}
+		}
+		for _, e := range api.LuaApi.LuaEvents {
+			events[e.EventIdentifier] = true
+		}
+	})
+	if len(methods["eq"]) == 0 || len(events) == 0 {
+		r.Notes = append(r.Notes, apiNotReady)
+		return
 	}
 	mobClasses := []string{"Mob", "Client", "NPC", "Bot", "Merc"}
 	r.Checks = append(r.Checks, "Quest API")

@@ -31,6 +31,12 @@
               @click="openFile(f.path)"
             >
               <i :class="'fa ' + (f.name.toLowerCase().endsWith('.lua') ? 'fa-moon-o' : 'fa-file-code-o') + ' mr-1'"></i> {{ f.name }}
+              <b-badge v-if="f.superseded_by" variant="warning" class="ml-1" :title="f.superseded_by + ' in this folder loads instead: the zone tries .lua first'">
+                not loaded
+              </b-badge>
+              <b-badge v-if="f.supersedes" variant="info" class="ml-1" :title="'Loads instead of ' + f.supersedes + ': the zone tries .lua first'">
+                overrides .pl
+              </b-badge>
             </div>
             <div v-if="listing.dirs.length + listing.files.length === 0" class="text-muted">Empty folder</div>
           </div>
@@ -72,6 +78,42 @@
                 <b-dropdown-item v-for="b in backups" :key="b" @click="openBackup(b)">{{ b }}</b-dropdown-item>
               </b-dropdown>
               <span v-if="dirty()" class="text-warning">Unsaved changes</span>
+            </div>
+
+            <div v-if="file.superseded_by" class="mt-2 text-warning">
+              <i class="fa fa-exclamation-triangle mr-1"></i>
+              This file never loads: <b>{{ file.superseded_by }}</b> in the same folder does, because the zone tries
+              .lua before .pl. Remove or rename the .lua for this script to run.
+            </div>
+
+            <!-- syntax and Quest API checks -->
+            <div class="mt-2 quest-problems">
+              <div v-if="checking && !check" class="text-muted">Checking...</div>
+              <div v-else-if="check">
+                <span v-if="check.problems.length === 0" class="text-success">
+                  <i class="fa fa-check mr-1"></i> No problems found
+                </span>
+                <span v-else>
+                  <span v-if="count('error')" class="text-danger mr-2">{{ count('error') }} error{{ count('error') === 1 ? '' : 's' }}</span>
+                  <span v-if="count('warning')" class="text-warning mr-2">{{ count('warning') }} warning{{ count('warning') === 1 ? '' : 's' }}</span>
+                </span>
+                <span class="text-muted ml-1" v-if="check.checks.length">
+                  ({{ check.checks.join(", ") }}{{ mode === "forge" ? (forgeEdited() ? ", the Forge's script" : ", the file as saved") : "" }})
+                </span>
+                <i v-if="checking" class="fa fa-cog fa-spin ml-1 text-muted"></i>
+
+                <div
+                  v-for="(p, i) in check.problems"
+                  :key="i"
+                  :class="'quest-problem ' + (p.severity === 'error' ? 'text-danger' : 'text-warning')"
+                  @click="goToLine(p)"
+                  :title="p.line ? 'Go to line ' + p.line : ''"
+                >
+                  <i :class="'fa ' + (p.severity === 'error' ? 'fa-times-circle' : 'fa-exclamation-triangle') + ' mr-1'"></i>
+                  <span v-if="p.line">Line {{ p.line }}: </span>{{ p.message }}
+                </div>
+                <div v-for="(n, i) in check.notes" :key="'n' + i" class="text-muted">{{ n }}</div>
+              </div>
             </div>
 
             <div v-if="conflict" class="mt-2 text-warning">
@@ -143,11 +185,26 @@ export default {
       isNew: false,
 
       backups: [],
+      check: null,        // the latest check: { problems, checks, notes }
+      checking: false,
+      checkTimer: null,
       saving: false,
       conflict: false,
       notification: "",
       error: "",
     }
+  },
+  watch: {
+    text() {
+      if (this.mode === "text") {
+        this.scheduleCheck()
+      }
+    },
+    forgeOutput() {
+      if (this.mode === "forge") {
+        this.scheduleCheck()
+      }
+    },
   },
   computed: {
     forgeUrl() {
@@ -317,6 +374,9 @@ export default {
           this.notification = "No Script Window or [keyword] dialogue for the Forge to edit in this script: it is open as text."
         }
       }
+
+      this.check = null
+      this.runCheck()
     },
     async newFile() {
       let name = this.newName.trim()
@@ -367,6 +427,7 @@ export default {
         }
         this.mode = "text"
         this.$nextTick(() => this.$refs.ace.editor.resize()) // Ace measures wrong while hidden
+        this.runCheck()
         return
       }
 
@@ -380,6 +441,7 @@ export default {
         this.textBaseline = this.text
       }
       this.mode = "forge"
+      this.runCheck()
     },
 
     // ------------------------------------------------------------ save
@@ -404,6 +466,16 @@ export default {
       const retire  = target !== this.file.path ? this.file.path : ""
       if (retire && !confirm("Save as " + target + "? The zone loads a .lua ahead of a .pl, so " + this.file.path + " is moved to backups.")) {
         return
+      }
+
+      // a script that does not compile stops the whole NPC's quest from loading
+      const errors = (await this.fetchCheck(target, content)).problems.filter((p) => p.severity === "error")
+      if (errors.length > 0) {
+        const first = errors[0]
+        if (!confirm(target + " has " + errors.length + " error" + (errors.length === 1 ? "" : "s") + " and the zone will not load it as it is.\n\n" +
+          (first.line ? "Line " + first.line + ": " : "") + first.message + "\n\nSave anyway?")) {
+          return
+        }
       }
 
       this.saving       = true
@@ -461,12 +533,86 @@ export default {
       }
     },
 
+    // ------------------------------------------------------------ checks
+    // the file as it is until the Forge has an edit, then what Save writes
+    forgeEdited() {
+      return this.mode === "forge" && this.forgeOk && this.forgeOutput !== this.forgeBaseline
+    },
+    checkTarget() {
+      if (this.forgeEdited()) {
+        return { path: this.saveTarget(), content: this.forgeOutput }
+      }
+      return { path: this.file.path, content: this.text }
+    },
+    scheduleCheck() {
+      clearTimeout(this.checkTimer)
+      this.checkTimer = setTimeout(() => this.runCheck(), 800)
+    },
+    async runCheck() {
+      if (!this.file) {
+        return
+      }
+      clearTimeout(this.checkTimer)
+      const t       = this.checkTarget()
+      this.checking = true
+      const result  = await this.fetchCheck(t.path, t.content)
+      const now     = this.file ? this.checkTarget() : {}
+      if (now.path === t.path && now.content === t.content) { // still the script on screen
+        this.check = result
+        this.markLines()
+      }
+      this.checking = false
+    },
+    async fetchCheck(path, content) {
+      try {
+        const r = await SpireApi.v1().post("quest-files/check", { path: path, content: content })
+        return r.data
+      } catch (e) {
+        return { problems: [], checks: [], notes: ["The check failed: " + (e.response && e.response.data && e.response.data.error || e)] }
+      }
+    },
+    count(severity) {
+      return this.check ? this.check.problems.filter((p) => p.severity === severity).length : 0
+    },
+    // markers in the Script tab, for the script the check ran on
+    markLines() {
+      const ace = this.$refs.ace && this.$refs.ace.editor
+      if (!ace) {
+        return
+      }
+      const marks = this.mode === "text" && this.check ? this.check.problems.filter((p) => p.line > 0).map((p) => ({
+        row: p.line - 1,
+        column: Math.max(0, (p.column || 1) - 1),
+        text: p.message,
+        type: p.severity === "error" ? "error" : "warning",
+      })) : []
+      ace.session.setAnnotations(marks)
+    },
+    // the lines are the generated script's: show it in the Script tab there
+    async goToLine(p) {
+      if (!p.line) {
+        return
+      }
+      if (this.mode !== "text") {
+        await this.setMode("text")
+        await this.runCheck()
+      }
+      this.$nextTick(() => {
+        const ace = this.$refs.ace.editor
+        ace.gotoLine(p.line, Math.max(0, (p.column || 1) - 1), true)
+        ace.focus()
+      })
+    },
+
     aceInit() {
       require("brace/ext/language_tools")
       require("brace/theme/terminal")
       require("brace/mode/lua")
       require("brace/mode/perl")
-      this.$refs.ace.editor.setFontSize(14)
+      const ace = this.$refs.ace.editor
+      ace.setFontSize(14)
+      // the server checks the script; Ace's own Lua checker would replace its markers
+      ace.session.setUseWorker(false)
     },
     beforeUnload(e) {
       if (this.dirty()) {
@@ -519,6 +665,21 @@ export default {
 
 .quest-crumbs {
   word-break: break-all;
+}
+
+.quest-problems {
+  max-height: 160px;
+  overflow-y: auto;
+  font-size: 13px;
+}
+
+.quest-problem {
+  cursor: pointer;
+  padding: 1px 0;
+}
+
+.quest-problem:hover {
+  text-decoration: underline;
 }
 
 .quest-forge {
