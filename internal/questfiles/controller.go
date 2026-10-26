@@ -10,10 +10,11 @@ import (
 
 type Controller struct {
 	service *Service
+	checker *Checker
 }
 
-func NewController(service *Service) *Controller {
-	return &Controller{service: service}
+func NewController(service *Service, checker *Checker) *Controller {
+	return &Controller{service: service, checker: checker}
 }
 
 func (q *Controller) Routes() []*routes.Route {
@@ -21,6 +22,7 @@ func (q *Controller) Routes() []*routes.Route {
 		routes.RegisterRoute(http.MethodGet, "quest-files/list", q.list, nil),
 		routes.RegisterRoute(http.MethodGet, "quest-files/file", q.read, nil),
 		routes.RegisterRoute(http.MethodPut, "quest-files/file", q.save, nil),
+		routes.RegisterRoute(http.MethodPost, "quest-files/check", q.check, nil),
 		routes.RegisterRoute(http.MethodGet, "quest-files/backups", q.backups, nil),
 		routes.RegisterRoute(http.MethodGet, "quest-files/backup", q.backup, nil),
 		// loaded in a frame, which sends no auth header: use ?jwt=
@@ -71,6 +73,23 @@ func (q *Controller) save(c echo.Context) error {
 		return fail(c, err)
 	}
 	return c.JSON(http.StatusOK, s)
+}
+
+type checkRequest struct {
+	Path    string `json:"path"`
+	Content string `json:"content"`
+}
+
+// check looks for syntax errors and calls the Quest API does not have
+func (q *Controller) check(c echo.Context) error {
+	var r checkRequest
+	if err := c.Bind(&r); err != nil {
+		return fail(c, err)
+	}
+	if len(r.Content) > maxScriptBytes {
+		return fail(c, errors.New("the script is too large to check"))
+	}
+	return c.JSON(http.StatusOK, q.checker.Check(r.Path, r.Content))
 }
 
 func (q *Controller) backups(c echo.Context) error {

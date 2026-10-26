@@ -17,6 +17,7 @@ type ParseService struct {
 	logger     *logger.AppLogger
 	files      map[string]string
 	snippets   map[string]string
+	localRoot  string // the server source the API was parsed from; "" = upstream
 }
 
 func NewParseService(
@@ -106,6 +107,7 @@ func (c *ParseService) sourceServer(forceRefresh bool) {
 	}
 
 	root, files := c.localServerSource()
+	c.localRoot = root
 	if root != "" {
 		c.logger.Info().Any("source", root).Any("files", len(files)).Msg("Quest API parsing local server source")
 		c.files = files
@@ -114,6 +116,12 @@ func (c *ParseService) sourceServer(forceRefresh bool) {
 
 	c.logger.Info().Msg("Quest API found no local server source, parsing upstream EQEmu/Server")
 	c.Source("EQEmu", "Server", "master", forceRefresh)
+}
+
+// FromLocalSource reports whether the API was parsed from this server's own
+// source, so it includes the server's custom methods and events
+func (c *ParseService) FromLocalSource() bool {
+	return c.localRoot != ""
 }
 
 // Source source files

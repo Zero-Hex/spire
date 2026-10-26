@@ -59,6 +59,7 @@ var serviceSet = wire.NewSet(
 	eqemuserver.NewQuestHotReloadWatcher,
 	clientassets.NewStore,
 	questfiles.NewService,
+	questfiles.NewChecker,
 	unzip.NewUnzipper,
 	websocket.NewClientManager,
 	eqemuserver.NewCrashLogWatcher,

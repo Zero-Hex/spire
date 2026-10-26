@@ -102,6 +102,10 @@ type Entry struct {
 	Path     string `json:"path"`
 	Size     int64  `json:"size"`
 	Modified int64  `json:"modified"`
+	// the zone tries a .lua before a .pl of the same name, so a .pl next
+	// to a same-named .lua never loads
+	SupersededBy string `json:"superseded_by,omitempty"`
+	Supersedes   string `json:"supersedes,omitempty"`
 }
 
 type Listing struct {
@@ -145,15 +149,46 @@ func (s *Service) List(dir string) (Listing, error) {
 			out.Files = append(out.Files, entry)
 		}
 	}
+
+	names := map[string]bool{}
+	for _, f := range out.Files {
+		names[f.Name] = true
+	}
+	for i, f := range out.Files {
+		base := strings.TrimSuffix(f.Name, filepath.Ext(f.Name))
+		switch filepath.Ext(f.Name) {
+		case ".pl":
+			if names[base+".lua"] {
+				out.Files[i].SupersededBy = base + ".lua"
+			}
+		case ".lua":
+			if names[base+".pl"] {
+				out.Files[i].Supersedes = base + ".pl"
+			}
+		}
+	}
 	return out, nil
+}
+
+// supersededBy names the same-named .lua that loads instead of a .pl
+func supersededBy(abs string) string {
+	if filepath.Ext(abs) != ".pl" {
+		return ""
+	}
+	lua := strings.TrimSuffix(abs, ".pl") + ".lua"
+	if _, err := os.Stat(lua); err == nil {
+		return filepath.Base(lua)
+	}
+	return ""
 }
 
 // Modified is in nanoseconds, more digits than a JavaScript number holds
 // exactly, so it travels as a string
 type Script struct {
-	Path     string `json:"path"`
-	Content  string `json:"content"`
-	Modified int64  `json:"modified,string"`
+	Path         string `json:"path"`
+	Content      string `json:"content"`
+	Modified     int64  `json:"modified,string"`
+	SupersededBy string `json:"superseded_by,omitempty"`
 }
 
 func (s *Service) Read(rel string) (Script, error) {
@@ -176,7 +211,7 @@ func (s *Service) Read(rel string) (Script, error) {
 		return Script{}, err
 	}
 	root, _ := filepath.Abs(s.QuestsDir())
-	return Script{Path: relPath(root, abs), Content: string(data), Modified: info.ModTime().UnixNano()}, nil
+	return Script{Path: relPath(root, abs), Content: string(data), Modified: info.ModTime().UnixNano(), SupersededBy: supersededBy(abs)}, nil
 }
 
 // Save writes a script. modified is the time the file had when it was
