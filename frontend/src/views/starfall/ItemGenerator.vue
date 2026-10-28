@@ -8,7 +8,7 @@
     hide-footer
     @hidden="$emit('closed')"
   >
-    <div v-if="archive">
+    <div v-if="archive || armorSet">
       <div class="d-flex align-items-center flex-wrap mb-2">
         <span class="gen-label">Make</span>
         <div class="btn-group btn-group-sm mr-3">
@@ -38,14 +38,16 @@
         <b-button size="sm" variant="outline-secondary" @click="pickIcon(null)">Choose...</b-button>
       </div>
 
-      <!-- sets: the Heroes' Forge set -->
-      <div v-if="kind !== 'weapon'" class="d-flex align-items-center flex-wrap mb-2">
+      <!-- sets: the Heroes' Forge set; typed only when no tag row names it -->
+      <div v-if="armorSet" class="d-flex align-items-center flex-wrap mb-2">
         <span class="gen-label">Heroes' Forge set</span>
-        <b-form-input size="sm" type="number" v-model.number="set" style="max-width: 110px" class="mr-2"
-                      :placeholder="plan ? String(plan.set) : ''" @input="replanSoon()"/>
-        <span v-if="plan && plan.set_source" class="text-muted gen-hint">
-          {{ plan.set }} from {{ plan.set_source }}<span v-if="plan.sets.length > 1">;
-          its models are in sets {{ plan.sets.map((s) => s.set).join(", ") }}</span>
+        <b v-if="armorSet.set" class="mr-2">{{ armorSet.set }}</b>
+        <b-form-input v-else size="sm" type="number" v-model.number="set" style="max-width: 110px" class="mr-2"
+                      @input="replanSoon()"/>
+        <span class="text-muted gen-hint">
+          <span v-if="armorSet.set">as NewArmorTagData.txt names it;</span>
+          <span v-else>no NewArmorTagData.txt row names these models yet: the number their rows will use;</span>
+          {{ armorSet.models.length }} pieces in {{ armorSet.archives.map((a) => a.file).join(", ") }}
         </span>
       </div>
 
@@ -148,7 +150,8 @@ export default {
   components: { ItemIconSelector },
   data() {
     return {
-      archive: null,
+      archive: null,  // weapon: the archive with the models
+      armorSet: null, // armor, ornament: the Heroes' Forge set
       kind: "weapon",
       name: "",
       models: [],
@@ -166,13 +169,26 @@ export default {
     }
   },
   methods: {
-    // open makes items from an archive: "weapon" from item models, "armor"
-    // or "ornament" from a Heroes' Forge set
+    // open makes weapons from an archive's item models
     open(archive, kind) {
+      this.reset(archive, null, kind)
+      this.models = archive.models.length === 1 ? [archive.models[0]] : []
+      this.$refs.modal.show()
+      this.replan()
+    },
+    // openSet makes "armor" or "ornament" pieces of a Heroes' Forge set
+    openSet(set, kind) {
+      this.reset(null, set, kind)
+      this.set = set.set || set.guess || null
+      this.$refs.modal.show()
+      this.replan()
+    },
+    reset(archive, set, kind) {
       this.archive   = archive
+      this.armorSet  = set
       this.kind      = kind
       this.name      = ""
-      this.models    = archive.models.length === 1 ? [archive.models[0]] : []
+      this.models    = []
       this.icon      = null
       this.set       = null
       this.templates = ""
@@ -180,14 +196,15 @@ export default {
       this.created   = []
       this.picking   = null
       this.error     = ""
-      this.$refs.modal.show()
-      this.replan()
     },
     title() {
+      if (this.armorSet) {
+        return "Create items for " + (this.armorSet.set ? "set " + this.armorSet.set : this.armorSet.texture || "untagged armor")
+      }
       return this.archive ? "Create items from " + this.archive.file : "Create items"
     },
     kinds() {
-      if (this.archive && this.archive.kind === "armor") {
+      if (this.armorSet) {
         return [{ value: "armor", text: "Armor set" }, { value: "ornament", text: "Ornament set" }]
       }
       return [{ value: "weapon", text: "Weapon" }]
@@ -198,6 +215,9 @@ export default {
       this.replan()
     },
     baseName() {
+      if (this.armorSet) {
+        return "Set " + (this.set || "")
+      }
       return this.archive ? this.archive.file.replace(/\.[^.]*$/, "") : ""
     },
     usualTemplates() {
@@ -210,7 +230,7 @@ export default {
     request() {
       return {
         kind: this.kind,
-        archive: this.archive.file,
+        archive: this.archive ? this.archive.file : "",
         models: this.kind === "weapon" ? this.models : [],
         set: this.kind === "weapon" ? 0 : (parseInt(this.set) || 0),
         templates: this.templates.split(/[\s,]+/).map((t) => parseInt(t)).filter((t) => t > 0),
@@ -257,7 +277,8 @@ export default {
       try {
         const r = await SpireApi.v1().post("item-gen/create", {
           kind: this.kind,
-          archive: this.archive.file,
+          archive: this.archive ? this.archive.file : "",
+          set: this.plan.set,
           start: parseInt(this.start) || 0,
           rows: this.plan.rows,
         })

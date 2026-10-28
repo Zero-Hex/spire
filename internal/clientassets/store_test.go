@@ -130,6 +130,11 @@ func TestItemIconsMapIsRof2PlusImported(t *testing.T) {
 
 // buildPFS writes a minimal PFS archive holding the named files
 func buildPFS(t *testing.T, names []string) []byte {
+	return buildPFSWith(t, names, nil)
+}
+
+// buildPFSWith is buildPFS with the given content for some files
+func buildPFSWith(t *testing.T, names []string, content map[string][]byte) []byte {
 	pack := func(data []byte) []byte {
 		var z bytes.Buffer
 		w := zlib.NewWriter(&z)
@@ -147,6 +152,9 @@ func buildPFS(t *testing.T, names []string) []byte {
 	var entries []entry
 	for i, n := range names {
 		data := []byte("file " + n)
+		if c, ok := content[n]; ok {
+			data = c
+		}
 		entries = append(entries, entry{uint32(i + 1), uint32(body.Len()), uint32(len(data))})
 		body.Write(pack(data))
 	}

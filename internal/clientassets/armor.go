@@ -14,10 +14,10 @@ import (
 	"strings"
 )
 
-// Heroes' Forge armor comes as one archive per set: a model for each slot,
-// race and gender (it63400.mod ... it63725.mod), sharing one texture
-// (hfm253_c.dds). A piece renders as nothing on its own, so a set is shown as
-// one card with its texture, not as item models to preview and pick.
+// Heroes' Forge armor comes as archives of models for each slot, race and
+// gender (it63400.mod ... it63725.mod) wearing a set's texture (hfm253_c.dds).
+// A piece renders as nothing on its own, so armor archives are not shown as
+// item models to preview and pick, but by set (armorsets.go).
 
 const (
 	ArchiveItems = "items"
@@ -75,15 +75,16 @@ func (s *Store) applyKindLocked(idx *Index, a *Archive, data []byte) {
 			}
 		}
 		a.Swatch = false
-		if a.Texture == "" {
-			return
-		}
 		if data == nil {
 			b, err := os.ReadFile(filepath.Join(s.dirLocked(), "archives", a.File))
 			if err != nil {
 				return
 			}
 			data = b
+		}
+		s.readArmorTexturesLocked(a, data)
+		if a.Texture == "" {
+			return
 		}
 		if png, err := textureSwatch(data, a.Texture); err == nil {
 			_ = os.MkdirAll(models, 0755)
@@ -102,6 +103,15 @@ func (s *Store) applyKindLocked(idx *Index, a *Archive, data []byte) {
 // apart
 func (s *Store) classifyArchivesLocked(idx *Index) {
 	for _, a := range idx.Archives {
+		// armor read before textures were read per model
+		if a.Kind == ArchiveArmor && a.ModelTextures == nil {
+			if data, err := os.ReadFile(filepath.Join(s.dirLocked(), "archives", a.File)); err == nil {
+				s.readArmorTexturesLocked(a, data)
+			} else {
+				a.ModelTextures = map[int]string{}
+			}
+			continue
+		}
 		if a.Kind != "" {
 			continue
 		}

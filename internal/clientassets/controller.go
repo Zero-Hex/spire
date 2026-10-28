@@ -34,7 +34,7 @@ func (p *PublicController) Routes() []*routes.Route {
 }
 
 // only these are served; archives are not public
-var publicFile = regexp.MustCompile(`^(client-assets\.css|icons/item_\d+\.png|models/CTN_\d+\.png|models/set_[a-z0-9_.-]+\.png)$`)
+var publicFile = regexp.MustCompile(`^(client-assets\.css|icons/item_\d+\.png|models/CTN_\d+\.png|models/(set|tex)_[a-z0-9_.-]+\.png)$`)
 
 func (p *PublicController) version(c echo.Context) error {
 	return c.JSON(http.StatusOK, echo.Map{"version": p.store.Index().Version})
@@ -70,6 +70,7 @@ func (a *Controller) Routes() []*routes.Route {
 		routes.RegisterRoute(http.MethodGet, "client-assets", a.info, nil),
 		routes.RegisterRoute(http.MethodPost, "client-assets/upload", a.upload, nil),
 		routes.RegisterRoute(http.MethodGet, "client-assets/archive/:name", a.archive, nil),
+		routes.RegisterRoute(http.MethodGet, "client-assets/armor-sets", a.armorSets, nil),
 		routes.RegisterRoute(http.MethodPost, "client-assets/model/:id/preview", a.preview, nil),
 		routes.RegisterRoute(http.MethodDelete, "client-assets/sheet/:sheet", a.removeSheet, nil),
 		routes.RegisterRoute(http.MethodDelete, "client-assets/archive/:name", a.removeArchive, nil),
@@ -268,6 +269,11 @@ func (a *Controller) addRemoval(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, echo.Map{"error": err.Error()})
 	}
 	return c.JSON(http.StatusOK, echo.Map{"result": msg})
+}
+
+// armorSets lists the Heroes' Forge sets in the archives, by set number
+func (a *Controller) armorSets(c echo.Context) error {
+	return c.JSON(http.StatusOK, echo.Map{"sets": a.store.ArmorSets()})
 }
 
 // setArchiveKind shows an archive as an armor set or as item models

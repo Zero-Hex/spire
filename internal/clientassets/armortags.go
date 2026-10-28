@@ -1,4 +1,4 @@
-package itemgen
+package clientassets
 
 import (
 	"bufio"
@@ -19,7 +19,7 @@ const (
 	SlotRobe = 7
 	// values under 1000 are shorthand to the server (×100 + slot), so a set
 	// number under 10 cannot be given in full
-	minSet = 10
+	MinSet = 10
 )
 
 // SetMatch is a Heroes' Forge set an archive's models belong to
@@ -29,13 +29,17 @@ type SetMatch struct {
 	Models int   `json:"models"` // how many of the archive's models it names
 }
 
-// ArmorTags is NewArmorTagData.txt: the set×100+slot ids naming each IT model
-type ArmorTags map[int][]int
+// ArmorTags is NewArmorTagData.txt: the set×100+slot ids naming each IT
+// model, and the models each set's rows name
+type ArmorTags struct {
+	models map[int][]int
+	sets   map[int]map[int]bool
+}
 
 // ParseArmorTags reads NewArmorTagData.txt: tab separated rows of
 // ID, race tag, IT number, IT number pair, ...; # starts a comment
 func ParseArmorTags(data []byte) ArmorTags {
-	tags := ArmorTags{}
+	tags := ArmorTags{models: map[int][]int{}, sets: map[int]map[int]bool{}}
 	sc := bufio.NewScanner(bytes.NewReader(data))
 	sc.Buffer(make([]byte, 64<<10), 1<<20)
 	for sc.Scan() {
@@ -50,12 +54,19 @@ func ParseArmorTags(data []byte) ArmorTags {
 		}
 		for _, c := range cols[2:min(4, len(cols))] {
 			if it, err := strconv.Atoi(strings.TrimSpace(c)); err == nil && it > 0 {
-				tags[it] = append(tags[it], id)
+				tags.models[it] = append(tags.models[it], id)
+				if tags.sets[id/100] == nil {
+					tags.sets[id/100] = map[int]bool{}
+				}
+				tags.sets[id/100][it] = true
 			}
 		}
 	}
 	return tags
 }
+
+// Empty says no tag file was read
+func (t ArmorTags) Empty() bool { return len(t.models) == 0 }
 
 // FindSets lists the sets the models belong to, the one naming most of them
 // first
@@ -64,9 +75,9 @@ func FindSets(tags ArmorTags, models []int) []SetMatch {
 	slots := map[int]map[int]bool{}
 	for _, it := range models {
 		counted := map[int]bool{}
-		for _, id := range tags[it] {
+		for _, id := range tags.models[it] {
 			set, slot := id/100, id%100
-			if set < minSet || slot > SlotRobe {
+			if set < MinSet || slot > SlotRobe {
 				continue
 			}
 			m := bySet[set]
@@ -99,14 +110,14 @@ func FindSets(tags ArmorTags, models []int) []SetMatch {
 	return out
 }
 
-var hfTexture = regexp.MustCompile(`(?i)^hfm0*(\d+)_`)
+var hfTextureSet = regexp.MustCompile(`(?i)^hfm0*(\d+)_`)
 
 // SetFromTexture guesses the set from an archive's Heroes' Forge texture
 // (hfm253_c.dds is set 253), or 0
 func SetFromTexture(texture string) int {
-	if m := hfTexture.FindStringSubmatch(texture); m != nil {
+	if m := hfTextureSet.FindStringSubmatch(texture); m != nil {
 		n, _ := strconv.Atoi(m[1])
-		if n >= minSet {
+		if n >= MinSet {
 			return n
 		}
 	}
@@ -128,8 +139,8 @@ var armorSlots = []struct {
 	{1 << 19, 6, "Boots"},
 }
 
-// slotOf is the Heroes' Forge slot an item worn in these slots shows on, or -1
-func slotOf(slots int) int {
+// SlotOf is the Heroes' Forge slot an item worn in these slots shows on, or -1
+func SlotOf(slots int) int {
 	for _, s := range armorSlots {
 		if slots&s.bits != 0 {
 			return s.slot
@@ -138,7 +149,8 @@ func slotOf(slots int) int {
 	return -1
 }
 
-func slotLabel(slot int) string {
+// SlotLabel names a Heroes' Forge slot
+func SlotLabel(slot int) string {
 	if slot == SlotRobe {
 		return "Robe"
 	}

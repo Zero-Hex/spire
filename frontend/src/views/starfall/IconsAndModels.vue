@@ -135,41 +135,53 @@
       </div>
     </eq-window-simple>
 
-    <eq-window-simple class="mt-3" title="Armor sets" v-if="armorSets().length > 0">
+    <eq-window-simple class="mt-3" title="Armor sets" v-if="sets.length > 0">
       <div class="text-muted mb-2" style="font-size: 13px">
-        A Heroes' Forge armor archive holds a model for each slot, race and gender, none of which shows anything alone:
-        each set is one card, with its texture.
+        One card per Heroes' Forge set, whatever archives its models are in: <code>NewArmorTagData.txt</code> (upload
+        it to Client Patch, in <code>Resources</code>) says which set each model is in, and each model's materials say
+        which texture it wears. Models no tag row names are grouped by their texture.
       </div>
       <div class="starfall-archives">
-        <div v-for="a in armorSets()" :key="a.file" class="starfall-archive starfall-armor">
+        <div v-for="set in sets" :key="setKey(set)" class="starfall-archive starfall-armor">
           <div class="d-flex">
-            <img v-if="a.swatch" :src="swatchUrl(a)" :alt="a.texture" class="starfall-swatch mr-2" :title="a.texture">
+            <img v-if="set.swatch" :src="fileUrl(set.swatch)" :alt="set.texture" class="starfall-swatch mr-2" :title="set.texture">
             <div v-else class="starfall-model-empty starfall-swatch mr-2">no texture</div>
             <div class="starfall-archive-body">
-              <div class="starfall-archive-name font-weight-bold" :title="a.file">
-                {{ a.file }} <b-badge v-if="a.ignore" variant="warning" title="Kept out of the client patch (Ignore)">not sent</b-badge><b-badge v-else-if="a.beta" variant="info" title="Sent to the beta channel only">beta only</b-badge>
-              </div>
-              <div>{{ a.models.length }} pieces<span v-if="a.texture">, texture <code>{{ a.texture }}</code></span></div>
-              <div class="starfall-armor-groups mt-1">
-                <span v-for="g in groups(a.models)" :key="g.from" class="badge badge-secondary mr-1 mb-1">
-                  IT{{ g.from }}<span v-if="g.to !== g.from">&ndash;{{ g.to }}</span> ({{ g.count }})
+              <div class="font-weight-bold">
+                <span v-if="set.set">Set {{ set.set }}</span>
+                <span v-else class="text-warning" title="No NewArmorTagData.txt row names these models: the client shows nothing for them">
+                  Not in NewArmorTagData.txt<span v-if="set.guess"> (set {{ set.guess }}?)</span>
                 </span>
               </div>
-              <div class="mt-1">
-                <b-button size="sm" variant="outline-secondary" class="mr-1" @click="setKind(a, 'items')"
-                          title="Not armor: show its models as item models, with previews">
-                  Item models
-                </b-button>
-                <b-button size="sm" variant="outline-danger" class="mr-1" @click="removeArchive(a)">
-                  <i class="fa fa-trash"></i> Remove
-                </b-button>
+              <div>
+                {{ set.models.length }} pieces<span v-if="set.texture">, <code>{{ set.texture }}</code></span>
+              </div>
+              <div v-if="set.set" class="mt-1">
+                <span v-for="slot in slotNames" :key="slot.slot"
+                      :class="'badge mr-1 mb-1 ' + (set.slots.includes(slot.slot) ? 'badge-success' : 'badge-dark')"
+                      :title="set.slots.includes(slot.slot) ? 'has models' : 'no models'">
+                  {{ slot.name }}
+                </span>
+              </div>
+              <div class="mt-1 starfall-set-archives">
+                <span v-for="ar in set.archives" :key="ar.file" class="mr-2">
+                  {{ ar.file }}<span class="text-muted"> ({{ ar.models }})</span>
+                  <b-badge v-if="ar.ignore" variant="warning">not sent</b-badge>
+                  <b-badge v-else-if="ar.remove" variant="danger">removed</b-badge>
+                  <b-badge v-else-if="ar.beta" variant="info">beta only</b-badge>
+                </span>
+              </div>
+              <div v-if="set.missing.length" class="text-warning mt-1" style="font-size: 13px"
+                   :title="set.missing.map((m) => 'IT' + m).join(', ')">
+                <i class="fa fa-exclamation-triangle"></i>
+                {{ set.missing.length }} model(s) its tag rows name are in no archive here (IT{{ set.missing[0] }}...)
               </div>
               <div class="mt-1">
-                <b-button size="sm" variant="outline-success" class="mr-1" @click="$refs.generator.open(a, 'armor')"
+                <b-button size="sm" variant="outline-success" class="mr-1" @click="$refs.generator.openSet(set, 'armor')"
                           title="Make a piece per slot of this set: copies of the cloth set">
                   <i class="fa fa-magic"></i> Create armor
                 </b-button>
-                <b-button size="sm" variant="outline-success" @click="$refs.generator.open(a, 'ornament')"
+                <b-button size="sm" variant="outline-success" @click="$refs.generator.openSet(set, 'ornament')"
                           title="Make an ornament per slot of this set: copies of the Old Hero's Forge set">
                   <i class="fa fa-magic"></i> Create ornaments
                 </b-button>
@@ -178,6 +190,43 @@
           </div>
         </div>
       </div>
+    </eq-window-simple>
+
+    <eq-window-simple class="mt-3" title="Armor archives" v-if="armorArchives().length > 0">
+      <table class="eq-table" style="display: table; width: 100%">
+        <thead>
+        <tr>
+          <th>Archive</th>
+          <th>Pieces</th>
+          <th>Models</th>
+          <th></th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr v-for="a in armorArchives()" :key="a.file">
+          <td>
+            {{ a.file }}
+            <b-badge v-if="a.ignore" variant="warning" title="Kept out of the client patch (Ignore)">not sent</b-badge>
+            <b-badge v-else-if="a.beta" variant="info" title="Sent to the beta channel only">beta only</b-badge>
+          </td>
+          <td>{{ a.models.length }}</td>
+          <td>
+            <span v-for="g in groups(a.models)" :key="g.from" class="badge badge-secondary mr-1 mb-1">
+              IT{{ g.from }}<span v-if="g.to !== g.from">&ndash;{{ g.to }}</span> ({{ g.count }})
+            </span>
+          </td>
+          <td class="text-nowrap">
+            <b-button size="sm" variant="outline-secondary" class="mr-1" @click="setKind(a, 'items')"
+                      title="Not armor: show its models as item models, with previews">
+              Item models
+            </b-button>
+            <b-button size="sm" variant="outline-danger" @click="removeArchive(a)">
+              <i class="fa fa-trash"></i> Remove
+            </b-button>
+          </td>
+        </tr>
+        </tbody>
+      </table>
     </eq-window-simple>
 
     <item-generator ref="generator"/>
@@ -217,6 +266,8 @@ export default {
       uploading: false,
       rendering: "",
       results: [],
+      sets: [], // Heroes' Forge sets, by set number
+      slotNames: ["Helm", "Chest", "Arms", "Wrists", "Hands", "Legs", "Feet", "Robe"].map((name, slot) => ({ slot, name })),
       hold: "", // how uploads are held back from players: "", "beta" or "ignore"
       holds: [
         { value: "", text: "Live and beta" },
@@ -243,8 +294,19 @@ export default {
     archives() {
       return Object.values(this.index.archives || {}).filter((a) => a.kind !== "armor").sort((a, b) => (a.models.length - b.models.length) || a.file.localeCompare(b.file))
     },
-    armorSets() {
+    armorArchives() {
       return Object.values(this.index.archives || {}).filter((a) => a.kind === "armor").sort((a, b) => a.file.localeCompare(b.file))
+    },
+    async loadSets() {
+      try {
+        const r   = await SpireApi.v1().get("client-assets/armor-sets")
+        this.sets = r.data.sets || []
+      } catch (e) {
+        this.showError(e)
+      }
+    },
+    setKey(set) {
+      return set.set ? "set" + set.set : "tex" + set.archives.map((a) => a.file).join() + set.texture
     },
     // runs of model numbers: a set's slots are numbered in blocks
     groups(ids) {
@@ -260,9 +322,8 @@ export default {
       }
       return out
     },
-    swatchUrl(a) {
-      const name = "set_" + a.file.toLowerCase().replace(/\.[^.]*$/, "") + ".png"
-      return SpireApi.getBasePath() + "/api/v1/client-assets/file/models/" + name + "?v=" + this.index.version
+    fileUrl(path) {
+      return SpireApi.getBasePath() + "/api/v1/client-assets/file/" + path + "?v=" + this.index.version
     },
     async setKind(a, kind) {
       try {
@@ -434,6 +495,11 @@ export default {
       } catch (e) {
         this.showError(e)
       }
+    },
+  },
+  watch: {
+    "index.version"() {
+      this.loadSets()
     },
   },
   async mounted() {

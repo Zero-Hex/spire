@@ -78,9 +78,12 @@ type Archive struct {
 	Kind    string `json:"kind,omitempty"`
 	Texture string `json:"texture,omitempty"` // armor: the colour texture shown for the set
 	Swatch  bool   `json:"swatch,omitempty"`  // armor: models/set_<file>.png holds that texture
-	Ignore  bool   `json:"ignore,omitempty"`  // kept in Spire only: neither sent nor deleted
-	Remove  bool   `json:"remove,omitempty"`  // deleted from players' clients, not sent
-	Beta    bool   `json:"beta,omitempty"`    // sent to the beta channel only
+	// armor: the colour texture each model wears (models/tex_<texture>.png
+	// holds each one); nil when not yet read
+	ModelTextures map[int]string `json:"model_textures,omitempty"`
+	Ignore        bool           `json:"ignore,omitempty"` // kept in Spire only: neither sent nor deleted
+	Remove        bool           `json:"remove,omitempty"` // deleted from players' clients, not sent
+	Beta          bool           `json:"beta,omitempty"`   // sent to the beta channel only
 }
 
 const (

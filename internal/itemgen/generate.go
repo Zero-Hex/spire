@@ -48,9 +48,9 @@ type Template struct {
 
 type PlanRequest struct {
 	Kind      string `json:"kind"`
-	Archive   string `json:"archive"`
+	Archive   string `json:"archive"`   // weapon: the archive with its models
 	Models    []int  `json:"models"`    // weapon: the item models to make items of
-	Set       int    `json:"set"`       // armor, ornament: the Heroes' Forge set, if not the one found
+	Set       int    `json:"set"`       // armor, ornament: the Heroes' Forge set
 	Templates []int  `json:"templates"` // the items to copy, if not the usual ones
 	Name      string `json:"name"`      // weapon: its name; sets: put before each piece's name
 	Icon      int    `json:"icon"`      // weapon: its icon
@@ -70,14 +70,12 @@ type Row struct {
 }
 
 type Plan struct {
-	Kind      string     `json:"kind"`
-	Archive   string     `json:"archive"`
-	Set       int        `json:"set"`
-	SetSource string     `json:"set_source"`
-	Sets      []SetMatch `json:"sets"` // every set the archive's models are in
-	Rows      []Row      `json:"rows"`
-	FirstID   int        `json:"first_id"`
-	Warnings  []string   `json:"warnings"`
+	Kind     string   `json:"kind"`
+	Archive  string   `json:"archive"`
+	Set      int      `json:"set"`
+	Rows     []Row    `json:"rows"`
+	FirstID  int      `json:"first_id"`
+	Warnings []string `json:"warnings"`
 }
 
 type Generator struct {
@@ -95,10 +93,6 @@ func (g *Generator) Plan(db *gorm.DB, req PlanRequest) (Plan, error) {
 		return Plan{}, fmt.Errorf("%q is not weapon, armor or ornament", req.Kind)
 	}
 	idx := g.assets.Index()
-	archive := idx.Archives[strings.ToLower(req.Archive)]
-	if archive == nil {
-		return Plan{}, fmt.Errorf("Spire holds no item model archive %v", req.Archive)
-	}
 	start, err := checkStart(req.Start)
 	if err != nil {
 		return Plan{}, err
@@ -108,41 +102,60 @@ func (g *Generator) Plan(db *gorm.DB, req PlanRequest) (Plan, error) {
 		return Plan{}, err
 	}
 
-	plan := Plan{Kind: req.Kind, Archive: archive.File, Sets: []SetMatch{}, Rows: []Row{}, Warnings: []string{}}
-	switch {
-	case archive.Ignore:
-		plan.Warnings = append(plan.Warnings, archive.File+" is set to Ignore: players do not get it, so they will not see these models.")
-	case archive.Remove:
-		plan.Warnings = append(plan.Warnings, archive.File+" is set to Remove: players' copies are deleted, so they will not see these models.")
-	case archive.Beta:
-		plan.Warnings = append(plan.Warnings, archive.File+" is Beta only, but items are in the database every player uses: live players will not see these models until it goes live.")
+	plan := Plan{Kind: req.Kind, Rows: []Row{}, Warnings: []string{}}
+	held := func(file string, beta, ignore, remove bool) {
+		switch {
+		case ignore:
+			plan.Warnings = append(plan.Warnings, file+" is set to Ignore: players do not get it, so they will not see these models.")
+		case remove:
+			plan.Warnings = append(plan.Warnings, file+" is set to Remove: players' copies are deleted, so they will not see these models.")
+		case beta:
+			plan.Warnings = append(plan.Warnings, file+" is Beta only, but items are in the database every player uses: live players will not see these models until it goes live.")
+		}
 	}
 
-	name := strings.TrimSpace(req.Name)
-	if name == "" {
-		name = strings.TrimSuffix(archive.File, filepath.Ext(archive.File))
-	}
 	if req.Kind == KindWeapon {
+		archive := idx.Archives[strings.ToLower(req.Archive)]
+		if archive == nil {
+			return Plan{}, fmt.Errorf("Spire holds no item model archive %v", req.Archive)
+		}
+		plan.Archive = archive.File
+		held(archive.File, archive.Beta, archive.Ignore, archive.Remove)
+		name := strings.TrimSpace(req.Name)
+		if name == "" {
+			name = strings.TrimSuffix(archive.File, filepath.Ext(archive.File))
+		}
 		plan.Rows, err = weaponRows(archive, templates[0], req.Models, name, req.Icon)
 		if err != nil {
 			return Plan{}, err
 		}
 	} else {
-		var tags ArmorTags
-		if data, ok := g.assets.ClientFileData("Resources/NewArmorTagData.txt"); ok {
-			tags = ParseArmorTags(data)
+		if req.Set < clientassets.MinSet {
+			return Plan{}, fmt.Errorf("give the Heroes' Forge set number: the server reads numbers under 1000 as shorthand, so sets start at %d", clientassets.MinSet)
 		}
-		plan.Sets = FindSets(tags, archive.Models)
-		set, slots, source := chooseSet(plan.Sets, req.Set, archive.Texture, tags != nil)
-		if set == 0 {
-			return Plan{}, fmt.Errorf("no Heroes' Forge set names %v's models: upload the client's Resources/NewArmorTagData.txt with its rows, or give the set number", archive.File)
+		plan.Set = req.Set
+		set := findSet(g.assets.ArmorSets(), req.Set)
+		slots := []int{0, 1, 2, 3, 4, 5, 6}
+		switch {
+		case set == nil:
+			return Plan{}, fmt.Errorf("Spire holds no models of set %d", req.Set)
+		case set.Set == 0:
+			plan.Warnings = append(plan.Warnings, fmt.Sprintf("No NewArmorTagData.txt row Spire holds names set %d's models: the client shows nothing for these pieces until the tag file with its rows is uploaded and sent to players.", req.Set))
+		default:
+			slots = set.Slots
+			if len(set.Missing) > 0 {
+				plan.Warnings = append(plan.Warnings, fmt.Sprintf("NewArmorTagData.txt names %d model(s) of set %d that no archive Spire holds has (IT%d...): those pieces show nothing for some races.", len(set.Missing), req.Set, set.Missing[0]))
+			}
 		}
-		if set < minSet {
-			return Plan{}, fmt.Errorf("set %d: the server reads Heroes' Forge numbers under 1000 as shorthand, so sets start at %d", set, minSet)
+		for _, a := range set.Archives {
+			held(a.File, a.Beta, a.Ignore, a.Remove)
 		}
-		plan.Set, plan.SetSource = set, source
+		name := strings.TrimSpace(req.Name)
+		if name == "" {
+			name = fmt.Sprintf("Set %d", req.Set)
+		}
 		var warnings []string
-		plan.Rows, warnings = setRows(req.Kind, templates, set, slots, name)
+		plan.Rows, warnings = setRows(req.Kind, templates, req.Set, slots, name)
 		plan.Warnings = append(plan.Warnings, warnings...)
 	}
 
@@ -178,29 +191,20 @@ func checkStart(start int) (int, error) {
 	return start, nil
 }
 
-// chooseSet is the set to use, the slots it has models for (all but the robe
-// when not known), and where the set number came from
-func chooseSet(found []SetMatch, asked int, texture string, haveTags bool) (int, []int, string) {
-	allSlots := []int{0, 1, 2, 3, 4, 5, 6}
-	if asked > 0 {
-		for _, m := range found {
-			if m.Set == asked {
-				return asked, m.Slots, "chosen (NewArmorTagData.txt names its slots)"
-			}
+// findSet is the set by its number: as NewArmorTagData.txt names it, or
+// else models no tag row names whose texture suggests that number
+func findSet(sets []clientassets.ArmorSet, n int) *clientassets.ArmorSet {
+	for i := range sets {
+		if sets[i].Set == n {
+			return &sets[i]
 		}
-		return asked, allSlots, "chosen"
 	}
-	if len(found) > 0 {
-		return found[0].Set, found[0].Slots, "NewArmorTagData.txt"
-	}
-	if set := SetFromTexture(texture); set > 0 {
-		why := "the texture name " + texture + " (Spire holds no Resources/NewArmorTagData.txt)"
-		if haveTags {
-			why = "the texture name " + texture + " (NewArmorTagData.txt has no rows for these models yet)"
+	for i := range sets {
+		if sets[i].Set == 0 && sets[i].Guess == n {
+			return &sets[i]
 		}
-		return set, allSlots, why
 	}
-	return 0, nil, ""
+	return nil
 }
 
 func weaponRows(archive *clientassets.Archive, t Template, models []int, name string, icon int) ([]Row, error) {
@@ -246,31 +250,31 @@ func setRows(kind string, templates []Template, set int, slots []int, name strin
 	var chest *Template
 	used := map[int]bool{}
 	for i, t := range templates {
-		slot := slotOf(t.Slots)
+		slot := clientassets.SlotOf(t.Slots)
 		switch {
 		case slot < 0:
 			warnings = append(warnings, fmt.Sprintf("%v (%d) is not worn in an armor slot, so it is left out.", t.Name, t.ID))
 			continue
 		case !has[slot]:
-			warnings = append(warnings, fmt.Sprintf("Set %d has no %v models in this archive, so %v (%d) is left out.", set, strings.ToLower(slotLabel(slot)), t.Name, t.ID))
+			warnings = append(warnings, fmt.Sprintf("Set %d has no %v models, so %v (%d) is left out.", set, strings.ToLower(clientassets.SlotLabel(slot)), t.Name, t.ID))
 			continue
 		case used[slot]:
-			warnings = append(warnings, fmt.Sprintf("%v (%d) is a second %v: both are made.", t.Name, t.ID, strings.ToLower(slotLabel(slot))))
+			warnings = append(warnings, fmt.Sprintf("%v (%d) is a second %v: both are made.", t.Name, t.ID, strings.ToLower(clientassets.SlotLabel(slot))))
 		}
 		used[slot] = true
 		if slot == 1 && chest == nil {
 			chest = &templates[i]
 		}
 		rows = append(rows, Row{
-			TemplateID: t.ID, TemplateName: t.Name, Slot: slot, SlotLabel: slotLabel(slot),
-			Name: name + " " + slotLabel(slot) + suffix, Icon: t.Icon, Idfile: t.Idfile, Herosforgemodel: set*100 + slot,
+			TemplateID: t.ID, TemplateName: t.Name, Slot: slot, SlotLabel: clientassets.SlotLabel(slot),
+			Name: name + " " + clientassets.SlotLabel(slot) + suffix, Icon: t.Icon, Idfile: t.Idfile, Herosforgemodel: set*100 + slot,
 		})
 	}
 	// a robe is worn in the chest slot
-	if has[SlotRobe] && chest != nil {
+	if has[clientassets.SlotRobe] && chest != nil {
 		rows = append(rows, Row{
-			TemplateID: chest.ID, TemplateName: chest.Name, Slot: SlotRobe, SlotLabel: slotLabel(SlotRobe),
-			Name: name + " " + slotLabel(SlotRobe) + suffix, Icon: chest.Icon, Idfile: chest.Idfile, Herosforgemodel: set*100 + SlotRobe,
+			TemplateID: chest.ID, TemplateName: chest.Name, Slot: clientassets.SlotRobe, SlotLabel: clientassets.SlotLabel(clientassets.SlotRobe),
+			Name: name + " " + clientassets.SlotLabel(clientassets.SlotRobe) + suffix, Icon: chest.Icon, Idfile: chest.Idfile, Herosforgemodel: set*100 + clientassets.SlotRobe,
 		})
 	}
 	sort.SliceStable(rows, func(i, j int) bool { return rows[i].Slot < rows[j].Slot })
@@ -356,7 +360,8 @@ func nextID(db *gorm.DB, start, n int) (int, error) {
 
 type CreateRequest struct {
 	Kind    string `json:"kind"`
-	Archive string `json:"archive"`
+	Archive string `json:"archive"` // weapon
+	Set     int    `json:"set"`     // armor, ornament
 	Start   int    `json:"start"`
 	Rows    []Row  `json:"rows"`
 }
@@ -406,7 +411,11 @@ func (g *Generator) Create(db *gorm.DB, req CreateRequest) ([]Created, error) {
 			return err
 		}
 		for _, r := range req.Rows {
-			comment := fmt.Sprintf("Spire: %v from %v, a copy of %d", req.Kind, req.Archive, r.TemplateID)
+			from := req.Archive
+			if req.Kind != KindWeapon {
+				from = fmt.Sprintf("Heroes' Forge set %d", req.Set)
+			}
+			comment := fmt.Sprintf("Spire: %v from %v, a copy of %d", req.Kind, from, r.TemplateID)
 			sql, args := copySQL(columns, r.TemplateID, map[string]any{
 				"id":              id,
 				"name":            strings.TrimSpace(r.Name),
