@@ -165,8 +165,8 @@ func (p *Patcher) Build() error {
 	case set.PublicURL == "":
 		return errors.New("set the public address first")
 	}
-	if _, err := exec.LookPath("dotnet"); err != nil {
-		return errors.New("the .NET SDK (dotnet) is not installed on this server, or not on Spire's PATH")
+	if FindDotnet() == "" {
+		return errors.New("the .NET SDK (dotnet) is not installed where Spire runs")
 	}
 
 	p.running = true
@@ -236,10 +236,16 @@ func (p *Patcher) build(set PatcherSettings, version string) error {
 	}
 	defer os.RemoveAll(out)
 
-	p.logf("$ build.sh (version %v, %v)\n", version, set.PublicURL)
+	dotnet := FindDotnet()
+	p.logf("$ build.sh (version %v, %v, with %v)\n", version, set.PublicURL, dotnet)
 	cmd := exec.CommandContext(ctx, "sh", filepath.Join(set.SourceDir, "build.sh"), out)
 	cmd.Dir = set.SourceDir
 	cmd.Env = append(os.Environ(),
+		// dotnet-install.sh does not put dotnet on the PATH
+		"PATH="+filepath.Dir(dotnet)+string(os.PathListSeparator)+os.Getenv("PATH"),
+		"DOTNET_ROOT="+filepath.Dir(dotnet),
+		// building needs no ICU, which a server container may not have
+		"DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1",
 		"VERSION="+version,
 		"SERVER_NAME="+set.ServerName,
 		"FILE_NAME="+set.FileName,
@@ -318,4 +324,26 @@ func (p *Patcher) Release() (*PatcherBuild, error) {
 		return nil, err
 	}
 	return st.Released, nil
+}
+
+// FindDotnet is the .NET SDK's dotnet: on the PATH, or where Microsoft's
+// dotnet-install.sh and packages put it. "" when there is none.
+func FindDotnet() string {
+	if p, err := exec.LookPath("dotnet"); err == nil {
+		return p
+	}
+	var places []string
+	if root := os.Getenv("DOTNET_ROOT"); root != "" {
+		places = append(places, filepath.Join(root, "dotnet"))
+	}
+	if home, err := os.UserHomeDir(); err == nil {
+		places = append(places, filepath.Join(home, ".dotnet", "dotnet"))
+	}
+	places = append(places, "/usr/share/dotnet/dotnet", "/usr/lib/dotnet/dotnet", "/opt/dotnet/dotnet")
+	for _, p := range places {
+		if fi, err := os.Stat(p); err == nil && !fi.IsDir() && fi.Mode()&0111 != 0 {
+			return p
+		}
+	}
+	return ""
 }

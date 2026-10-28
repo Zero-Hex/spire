@@ -91,7 +91,9 @@
           </b-button>
           <input ref="patcherPicker" type="file" accept=".exe" style="display: none" @change="uploadPatcher">
           <span v-if="!patcher.dotnet" class="text-warning">
-            The .NET SDK is not installed on this server (<code>apt install dotnet-sdk-8.0</code>), so it cannot build here.
+            The .NET SDK is not installed where Spire runs, so it cannot build here. As the user Spire runs as (in
+            akk-stack, inside the eqemu-server container):
+            <code>curl -sSL https://dot.net/v1/dotnet-install.sh | bash -s -- --channel 8.0</code>
           </span>
         </div>
 

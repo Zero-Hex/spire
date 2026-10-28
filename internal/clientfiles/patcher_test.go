@@ -145,3 +145,16 @@ func TestPatcherBuildFailureIsReported(t *testing.T) {
 		t.Errorf("upload: %v", err)
 	}
 }
+
+// dotnet-install.sh puts the SDK in ~/.dotnet and not on the PATH
+func TestDotnetIsFoundInHome(t *testing.T) {
+	home := t.TempDir()
+	_ = os.MkdirAll(filepath.Join(home, ".dotnet"), 0755)
+	_ = os.WriteFile(filepath.Join(home, ".dotnet", "dotnet"), []byte("#!/bin/sh\n"), 0755)
+	t.Setenv("PATH", t.TempDir())
+	t.Setenv("DOTNET_ROOT", "")
+	t.Setenv("HOME", home)
+	if got := FindDotnet(); got != filepath.Join(home, ".dotnet", "dotnet") {
+		t.Errorf("found %q", got)
+	}
+}

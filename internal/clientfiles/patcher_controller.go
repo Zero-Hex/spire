@@ -3,7 +3,6 @@ package clientfiles
 import (
 	"io"
 	"net/http"
-	"os/exec"
 
 	"github.com/EQEmu/spire/internal/http/routes"
 	"github.com/labstack/echo/v4"
@@ -37,8 +36,7 @@ type patcherStatus struct {
 }
 
 func (p *PatcherController) status(c echo.Context) error {
-	_, err := exec.LookPath("dotnet")
-	return c.JSON(http.StatusOK, patcherStatus{PatcherStatus: p.patcher.Status(), SuggestedURL: patcherURL(c), Dotnet: err == nil})
+	return c.JSON(http.StatusOK, patcherStatus{PatcherStatus: p.patcher.Status(), SuggestedURL: patcherURL(c), Dotnet: FindDotnet() != ""})
 }
 
 func (p *PatcherController) settings(c echo.Context) error {
