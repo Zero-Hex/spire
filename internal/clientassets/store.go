@@ -57,6 +57,7 @@ type SheetInfo struct {
 	FirstIcon int    `json:"first_icon"`
 	LastIcon  int    `json:"last_icon"`
 	Updated   int64  `json:"updated"`
+	Remove    bool   `json:"remove,omitempty"` // deleted from players' clients, not sent
 }
 
 type ModelInfo struct {
@@ -70,6 +71,7 @@ type Archive struct {
 	File    string `json:"file"`
 	Models  []int  `json:"models"`
 	Updated int64  `json:"updated"`
+	Remove  bool   `json:"remove,omitempty"` // deleted from players' clients, not sent
 }
 
 const (
@@ -269,6 +271,7 @@ func (s *Store) importSheet(name string, data []byte) (string, error) {
 	}
 
 	idx := s.loadLocked()
+	s.replacesFileLocked(idx, "uifiles/default/"+sheetFile(n))
 	idx.Sheets[n] = &SheetInfo{Sheet: n, File: name, FirstIcon: first, LastIcon: first + iconsPerSheet - 1, Updated: time.Now().Unix()}
 	if err := s.saveLocked(); err != nil {
 		return "", err
@@ -309,6 +312,7 @@ func (s *Store) importArchive(name string, data []byte) (string, error) {
 	}
 
 	idx := s.loadLocked()
+	s.replacesFileLocked(idx, name)
 	now := time.Now().Unix()
 
 	// a re-imported archive replaces its old model list

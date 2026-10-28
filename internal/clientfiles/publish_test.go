@@ -28,7 +28,7 @@ func TestPublishOnlyChangesWhatChanged(t *testing.T) {
 		src("spells_us.txt", "spells v1"),
 		src("Resources/GlobalLoad.txt", "global"),
 		src("uifiles/default/EQUI.xml", "global"), // same content: stored once
-	}, nil)
+	}, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -44,7 +44,7 @@ func TestPublishOnlyChangesWhatChanged(t *testing.T) {
 		src("spells_us.txt", "spells v1"),
 		src("resources/globalload.txt", "global"),
 		src("uifiles/default/EQUI.xml", "global"),
-	}, nil)
+	}, nil, nil)
 	if m2.Version != m1.Version || m2.Published != m1.Published || d2.Unchanged != 3 {
 		t.Fatalf("republish: %v vs %v, %+v", m2.Version, m1.Version, d2)
 	}
@@ -53,7 +53,7 @@ func TestPublishOnlyChangesWhatChanged(t *testing.T) {
 		src("spells_us.txt", "spells v2"),
 		src("Resources/GlobalLoad.txt", "global"),
 		src("dinput8.dll", "dll"),
-	}, nil)
+	}, nil, nil)
 	if m3.Version == m1.Version || strings.Join(d3.Changed, ",") != "spells_us.txt" ||
 		strings.Join(d3.Added, ",") != "dinput8.dll" || strings.Join(d3.Removed, ",") != "uifiles/default/EQUI.xml" || d3.Unchanged != 1 {
 		t.Fatalf("%+v", d3)
@@ -100,5 +100,32 @@ func TestFilelistIsWhatThePatcherReads(t *testing.T) {
 	if got.Version != "abc123" || got.DownloadPrefix != "http://15.204.93.56:3000/api/v1/patch/rof/" || len(got.Deletes) != 0 ||
 		len(got.Downloads) != 2 || got.Downloads[0].Size != 12 || got.Downloads[1].Name != "uifiles/default/EQUI: \"odd\" #name.xml" {
 		t.Fatalf("%+v\n%s", got, out)
+	}
+}
+
+func TestPublishDeletesFromClients(t *testing.T) {
+	p := &Publisher{dir: t.TempDir()}
+	m1, _, _ := p.Publish([]publishSource{src("spells_us.txt", "x")}, nil, nil)
+
+	m2, d2, _ := p.Publish([]publishSource{src("spells_us.txt", "x")}, []string{"IT9.eqg", "spells_us.txt", "it9.eqg"}, nil)
+	if m2.Version == m1.Version {
+		t.Error("a new delete is not a new patch, so patchers would not run it")
+	}
+	if strings.Join(m2.Deletes, ",") != "IT9.eqg" || strings.Join(d2.Deleted, ",") != "IT9.eqg" {
+		t.Errorf("deletes %v, diff %+v (a file sent is not also deleted)", m2.Deletes, d2)
+	}
+
+	var got struct {
+		Deletes []struct {
+			Name string `yaml:"name"`
+		} `yaml:"deletes"`
+	}
+	if err := yaml.Unmarshal(Filelist(&m2, "http://h/rof/"), &got); err != nil || len(got.Deletes) != 1 || got.Deletes[0].Name != "IT9.eqg" {
+		t.Fatalf("%+v %v", got, err)
+	}
+
+	_, d3, _ := p.Publish([]publishSource{src("spells_us.txt", "x")}, nil, nil)
+	if strings.Join(d3.Undeleted, ",") != "IT9.eqg" {
+		t.Errorf("%+v", d3)
 	}
 }

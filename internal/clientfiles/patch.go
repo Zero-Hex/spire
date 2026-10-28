@@ -34,13 +34,13 @@ func (f *Controller) databaseEntries(c echo.Context) []clientassets.PatchFile {
 	}
 	now := time.Now().Unix()
 	out := []clientassets.PatchFile{
-		{Path: "dbstr_us.txt", Source: count(&models.DbStr{}, "db_str", "strings"), Updated: now},
-		{Path: "spells_us.txt", Source: count(&models.SpellsNew{}, "spells_new", "spells"), Updated: now},
+		{Path: "dbstr_us.txt", Source: count(&models.DbStr{}, "db_str", "strings"), Kind: "database", Updated: now},
+		{Path: "spells_us.txt", Source: count(&models.SpellsNew{}, "spells_new", "spells"), Kind: "database", Updated: now},
 	}
 	if _, err := os.Stat(f.pathmgmt.GetExportClientFilesBinPath()); err == nil {
 		out = append(out,
-			clientassets.PatchFile{Path: "Resources/BaseData.txt", Source: "database (base_data)", Updated: now},
-			clientassets.PatchFile{Path: "Resources/SkillCaps.txt", Source: "database (skill_caps)", Updated: now},
+			clientassets.PatchFile{Path: "Resources/BaseData.txt", Source: "database (base_data)", Kind: "database", Updated: now},
+			clientassets.PatchFile{Path: "Resources/SkillCaps.txt", Source: "database (skill_caps)", Kind: "database", Updated: now},
 		)
 	}
 	return out
@@ -58,28 +58,34 @@ func (f *Controller) patchContents(c echo.Context) error {
 	return c.JSON(http.StatusOK, patchContents{Files: files, Notes: notes})
 }
 
-// everything in the patch, read as it is stored or published
-func (f *Controller) patchSources(c echo.Context) ([]publishSource, []string, error) {
+// everything in the patch, read as it is stored or published, and the files
+// deleted from players' clients
+func (f *Controller) patchSources(c echo.Context) ([]publishSource, []string, []string, error) {
 	built, notes, err := f.databaseFiles(c)
 	if err != nil {
-		return nil, notes, err
+		return nil, nil, notes, err
 	}
 	var out []publishSource
 	for _, b := range built {
 		b := b
 		out = append(out, publishSource{Path: b.Path, Source: b.Source, read: func() ([]byte, error) { return b.Data, nil }})
 	}
+	var deletes []string
 	assets, assetNotes := f.assets.PatchFiles()
 	for _, a := range assets {
+		if a.Remove {
+			deletes = append(deletes, a.Path)
+			continue
+		}
 		out = append(out, publishSource{Path: a.Path, Source: a.Source, read: a.Read})
 	}
-	return out, append(notes, assetNotes...), nil
+	return out, deletes, append(notes, assetNotes...), nil
 }
 
 // patch streams the zip
 func (f *Controller) patch(c echo.Context) error {
 	// built first: a failure here can still be an error page
-	sources, notes, err := f.patchSources(c)
+	sources, deletes, notes, err := f.patchSources(c)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, echo.Map{"error": err.Error()})
 	}
@@ -121,6 +127,12 @@ func (f *Controller) patch(c echo.Context) error {
 		"Files:",
 	}
 	readme = append(readme, listing...)
+	if len(deletes) > 0 {
+		readme = append(readme, "", "Delete these from the client folder if they are there:")
+		for _, d := range deletes {
+			readme = append(readme, "  "+d)
+		}
+	}
 	if len(notes) > 0 {
 		readme = append(readme, "", "Notes:")
 		for _, n := range notes {
@@ -151,14 +163,14 @@ func (f *Controller) published(c echo.Context) error {
 }
 
 func (f *Controller) publish(c echo.Context) error {
-	sources, notes, err := f.patchSources(c)
+	sources, deletes, notes, err := f.patchSources(c)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, echo.Map{"error": err.Error()})
 	}
 	if notes == nil {
 		notes = []string{}
 	}
-	m, diff, err := f.publisher.Publish(sources, notes)
+	m, diff, err := f.publisher.Publish(sources, deletes, notes)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, echo.Map{"error": err.Error()})
 	}

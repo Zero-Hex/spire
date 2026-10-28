@@ -35,7 +35,7 @@
         <div v-if="publishResult" class="mt-2">
           <div v-if="nothingChanged()" class="text-muted">Nothing changed since the last publish.</div>
           <div v-for="(list, kind) in changeLists()" :key="kind">
-            <span :class="kind === 'removed' ? 'text-warning' : 'text-success'">{{ kind }} ({{ list.length }}):</span>
+            <span :class="kind === 'deleted from players' || kind === 'no longer sent' ? 'text-warning' : 'text-success'">{{ kind }} ({{ list.length }}):</span>
             <code v-for="f in list" :key="f" class="mr-2">{{ f }}</code>
           </div>
         </div>
@@ -160,6 +160,57 @@
           e.g. the patcher's <code>rof</code> folder: each file goes to its place inside it
         </span>
       </div>
+      <div class="mt-2 d-flex align-items-center flex-wrap">
+        <b-button size="sm" variant="outline-warning" class="mr-3" @click="$refs.zipPicker.click()" :disabled="uploading">
+          <i class="fa fa-file-archive-o mr-1"></i> Import from a .zip
+        </b-button>
+        <input ref="zipPicker" type="file" accept=".zip" style="display: none" @change="onPickZip">
+        <span class="mr-2">Remove from players</span>
+        <b-form-input size="sm" v-model="removalPath" placeholder="e.g. IT9001.eqg or uifiles/default/EQUI_Old.xml"
+                      style="max-width: 360px" class="mr-2" @keyup.enter="addRemoval()"/>
+        <b-button size="sm" variant="outline-danger" @click="addRemoval()" :disabled="!removalPath.trim()">Remove if found</b-button>
+      </div>
+
+      <!-- a staged zip: pick what to add, or to remove from players -->
+      <div v-if="zip" class="client-patch-zip mt-3">
+        <div class="d-flex align-items-center mb-2">
+          <b class="mr-2">{{ zip.name }}</b>
+          <span class="text-muted mr-auto">{{ zip.entries.length }} files: choose what each does</span>
+          <b-button size="sm" variant="outline-success" class="mr-2" @click="importZip()" :disabled="!zipPicks().length || uploading">
+            Import {{ zipPicks().length }} selected
+          </b-button>
+          <b-button size="sm" variant="outline-secondary" @click="zip = null">Close</b-button>
+        </div>
+        <table class="eq-table eq-highlight-rows client-patch-files">
+          <thead>
+          <tr>
+            <th>In the zip</th>
+            <th>Do</th>
+            <th>Goes to folder</th>
+            <th>What it is</th>
+          </tr>
+          </thead>
+          <tbody>
+          <tr v-for="e in zip.entries" :key="e.entry" :class="e.kind === 'refused' ? 'text-muted' : ''">
+            <td><code>{{ e.path }}</code> <span class="text-muted">{{ size(e.size) }}</span></td>
+            <td>
+              <b-form-select v-if="e.kind !== 'refused'" size="sm" v-model="e.action" :options="zipActions" style="width: 160px"/>
+              <span v-else>&mdash;</span>
+            </td>
+            <td>
+              <b-form-input v-if="e.kind !== 'refused'" size="sm" v-model="e.folder"
+                            :placeholder="e.needs_folder ? 'choose: / for next to eqgame.exe' : '(next to eqgame.exe)'"
+                            :state="e.action === 'add' && e.needs_folder && !e.folderSet ? false : null"
+                            @input="e.folderSet = true" style="max-width: 240px"/>
+            </td>
+            <td>
+              <b-badge :variant="kindVariant(e.kind)" class="mr-1">{{ e.kind }}</b-badge>
+              <span :class="e.kind === 'refused' ? 'text-warning' : ''">{{ e.note }}</span>
+            </td>
+          </tr>
+          </tbody>
+        </table>
+      </div>
       <div class="mt-2" v-if="results.length > 0">
         <div v-for="(r, i) in results" :key="i" :class="resultClass(r)">
           <i :class="'fa ' + (skipped(r) ? 'fa-minus' : r.error ? 'fa-times' : 'fa-check') + ' mr-1'"></i>
@@ -174,6 +225,7 @@
         <thead>
         <tr>
           <th>In the client folder</th>
+          <th>Players</th>
           <th>From</th>
           <th class="text-right">Size</th>
           <th>Updated</th>
@@ -181,14 +233,23 @@
         </tr>
         </thead>
         <tbody>
-        <tr v-for="f in contents.files" :key="f.path">
+        <tr v-for="f in contents.files" :key="f.path" :class="f.remove ? 'client-patch-removed' : ''">
           <td><code>{{ f.path }}</code></td>
+          <td class="text-nowrap">
+            <span v-if="f.kind === 'database'" class="text-muted">add</span>
+            <div v-else class="btn-group btn-group-sm">
+              <b-button size="sm" :variant="f.remove ? 'outline-secondary' : 'success'" :disabled="f.kind === 'removal'"
+                        @click="setRemove(f, false)" title="Send it to players">Add</b-button>
+              <b-button size="sm" :variant="f.remove ? 'danger' : 'outline-secondary'"
+                        @click="setRemove(f, true)" title="Delete it from players' clients if they have it">Remove</b-button>
+            </div>
+          </td>
           <td>{{ f.source }}</td>
           <td class="text-right">{{ f.size ? size(f.size) : "" }}</td>
           <td>{{ when(f.updated) }}</td>
           <td>
-            <b-button v-if="f.source.startsWith('uploaded')" size="sm" variant="outline-danger"
-                      @click="remove(f)" title="Leave it out of the patch">
+            <b-button v-if="f.kind === 'file' || f.kind === 'removal'" size="sm" variant="outline-danger"
+                      @click="remove(f)" :title="f.kind === 'removal' ? 'Stop removing it from players' : 'Forget it: neither sent nor removed'">
               <i class="fa fa-trash"></i>
             </b-button>
           </td>
@@ -218,6 +279,13 @@ export default {
       publishing: false,
       publishResult: null,
       folder: "",
+      zip: null,
+      removalPath: "",
+      zipActions: [
+        { value: "add", text: "Add" },
+        { value: "remove", text: "Remove if found" },
+        { value: "", text: "Leave out" },
+      ],
       dragging: false,
       uploading: false,
       results: [],
@@ -348,16 +416,22 @@ export default {
     changeLists() {
       const d   = this.publishResult.diff
       const out = {}
-      for (const kind of ["added", "changed", "removed"]) {
-        if (d[kind].length) {
-          out[kind] = d[kind]
+      const labels = {
+        added: "added",
+        changed: "changed",
+        removed: "no longer sent",
+        deleted: "deleted from players",
+        undeleted: "no longer deleted",
+      }
+      for (const kind of Object.keys(labels)) {
+        if (d[kind] && d[kind].length) {
+          out[labels[kind]] = d[kind]
         }
       }
       return out
     },
     nothingChanged() {
-      const d = this.publishResult.diff
-      return !d.added.length && !d.changed.length && !d.removed.length
+      return Object.keys(this.changeLists()).length === 0
     },
     skipped(r) {
       return r.error && r.error.includes("built from the database")
@@ -413,8 +487,99 @@ export default {
       this.uploading = false
       await this.load()
     },
+    async setRemove(f, remove) {
+      if (f.remove === remove) {
+        return
+      }
+      if (remove && !confirm("Remove " + f.path + " from players? The next publish deletes it from their clients if they have it.")) {
+        return
+      }
+      try {
+        await SpireApi.v1().put("client-assets/remove", { path: f.path, remove: remove })
+      } catch (e) {
+        this.showError(e)
+      }
+      await this.load()
+    },
+    async addRemoval() {
+      const path = this.removalPath.trim()
+      if (!path || !confirm("Delete " + path + " from players' clients if they have it, at the next publish?")) {
+        return
+      }
+      try {
+        const r           = await SpireApi.v1().post("client-assets/removal", { path: path })
+        this.notification = r.data.result
+        this.removalPath  = ""
+      } catch (e) {
+        this.showError(e)
+      }
+      await this.load()
+    },
+
+    // ------------------------------------------------------------ zip import
+    async onPickZip(e) {
+      const f = e.target.files[0]
+      e.target.value = ""
+      if (!f) {
+        return
+      }
+      this.uploading = true
+      this.error     = ""
+      this.results   = []
+      try {
+        const form = new FormData()
+        form.append("file", f, f.name)
+        const r = await SpireApi.v1().post("client-assets/zip", form)
+        r.data.entries.forEach((e) => {
+          e.action    = e.kind === "refused" || e.needs_folder ? "" : "add"
+          e.folderSet = false
+        })
+        this.zip = r.data
+      } catch (err) {
+        this.showError(err)
+      }
+      this.uploading = false
+    },
+    kindVariant(kind) {
+      return { models: "info", sheet: "primary", file: "secondary", refused: "warning" }[kind] || "secondary"
+    },
+    zipPicks() {
+      if (!this.zip) {
+        return []
+      }
+      return this.zip.entries.filter((e) => e.action && e.kind !== "refused").map((e) => ({
+        entry: e.entry,
+        // "/" chooses next to eqgame.exe
+        folder: (e.folder || "").trim() === "/" ? "" : (e.folder || "").trim(),
+        remove: e.action === "remove",
+      }))
+    },
+    async importZip() {
+      const missing = this.zip.entries.filter((e) => e.action === "add" && e.needs_folder && !e.folderSet)
+      if (missing.length) {
+        this.error = "Choose a folder for " + missing.map((e) => e.path).join(", ") + " (/ for next to eqgame.exe)"
+        return
+      }
+      this.uploading = true
+      this.error     = ""
+      try {
+        const r      = await SpireApi.v1().post("client-assets/zip/" + this.zip.id + "/import", { picks: this.zipPicks() })
+        this.results = r.data.results
+        if (!r.data.results.some((x) => x.error)) {
+          this.zip = null
+        }
+      } catch (e) {
+        this.showError(e)
+      }
+      this.uploading = false
+      await this.load()
+    },
+
     async remove(f) {
-      if (!confirm("Leave " + f.path + " out of the client patch? Spire forgets its copy. Players keep theirs.")) {
+      const what = f.kind === "removal"
+        ? "Stop deleting " + f.path + " from players' clients?"
+        : "Forget " + f.path + "? Spire drops its copy, and it is neither sent nor deleted: players keep theirs."
+      if (!confirm(what)) {
         return
       }
       try {
@@ -468,6 +633,17 @@ export default {
   padding: 8px;
   font-size: 12px;
   white-space: pre-wrap;
+}
+
+.client-patch-zip {
+  border: 1px solid rgba(255, 193, 7, .45);
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.client-patch-removed code {
+  text-decoration: line-through;
+  color: #dc3545;
 }
 
 .client-patch-files td {

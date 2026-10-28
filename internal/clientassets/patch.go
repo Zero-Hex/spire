@@ -3,6 +3,7 @@ package clientassets
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"image"
 	"image/draw"
@@ -28,14 +29,19 @@ type ClientFile struct {
 	Path    string `json:"path"` // where it goes in the client folder
 	Size    int64  `json:"size"`
 	Updated int64  `json:"updated"`
+	// deleted from players' clients if they have it, not sent; a removal
+	// with no copy kept has Size 0
+	Remove bool `json:"remove,omitempty"`
 }
 
 // PatchFile is one file of the client patch
 type PatchFile struct {
 	Path    string `json:"path"`   // in the client folder, / separated
 	Source  string `json:"source"` // what it comes from, for people
+	Kind    string `json:"kind"`   // sheet, models, file, removal (no copy kept), database
 	Size    int64  `json:"size"`
 	Updated int64  `json:"updated"`
+	Remove  bool   `json:"remove"` // deleted from players' clients if found, not sent
 
 	read func() ([]byte, error)
 }
@@ -98,6 +104,12 @@ func cleanClientFolder(folder string) (string, error) {
 // such; anything else is kept for the client patch as it is. With no folder,
 // the usual one for the file is used.
 func (s *Store) ImportAt(folder, name string, data []byte) (string, error) {
+	return s.importInto(folder, name, data, false)
+}
+
+// importInto is ImportAt; placed says the folder was chosen for this file,
+// so "" puts it next to eqgame.exe rather than in its usual folder
+func (s *Store) importInto(folder, name string, data []byte, placed bool) (string, error) {
 	base := filepath.Base(strings.ReplaceAll(name, "\\", "/"))
 	folder, err := cleanClientFolder(folder)
 	if err != nil {
@@ -109,7 +121,7 @@ func (s *Store) ImportAt(folder, name string, data []byte) (string, error) {
 	case strings.EqualFold(filepath.Ext(base), ".eqg") && folder == "":
 		return s.importArchive(base, data)
 	}
-	return s.importClientFile(folder, base, data, folder != "")
+	return s.importClientFile(folder, base, data, placed || folder != "")
 }
 
 // importClientFile keeps a file for the patch as it is, at folder/name
@@ -349,17 +361,18 @@ func (s *Store) PatchFiles() ([]PatchFile, []string) {
 			size = 128 + 256*256*4
 		}
 		files = append(files, PatchFile{
-			Path: "uifiles/default/" + sheetFile(n), Source: source, Size: size, Updated: idx.Sheets[n].Updated,
-			read: func() ([]byte, error) { return s.SheetDDS(n) },
+			Path: "uifiles/default/" + sheetFile(n), Source: source, Kind: "sheet", Size: size, Updated: idx.Sheets[n].Updated,
+			Remove: idx.Sheets[n].Remove,
+			read:   func() ([]byte, error) { return s.SheetDDS(n) },
 		})
 	}
 
-	keep := func(path, source, file string, updated int64) {
+	keep := func(path, source, kind, file string, updated int64, remove bool) {
 		size := int64(0)
 		if fi, err := os.Stat(file); err == nil {
 			size = fi.Size()
 		}
-		files = append(files, PatchFile{Path: path, Source: source, Size: size, Updated: updated,
+		files = append(files, PatchFile{Path: path, Source: source, Kind: kind, Size: size, Updated: updated, Remove: remove,
 			read: func() ([]byte, error) { return os.ReadFile(file) }})
 	}
 	for _, a := range idx.Archives {
@@ -367,17 +380,31 @@ func (s *Store) PatchFiles() ([]PatchFile, []string) {
 		for i, id := range a.Models {
 			labels[i] = "IT" + strconv.Itoa(id)
 		}
-		keep(a.File, "item models "+strings.Join(labels, ", "), filepath.Join(dir, "archives", a.File), a.Updated)
+		keep(a.File, "item models "+strings.Join(labels, ", "), "models", filepath.Join(dir, "archives", a.File), a.Updated, a.Remove)
 	}
 
 	var animations *ClientFile
 	for _, f := range idx.Files {
-		if strings.EqualFold(f.Path, "uifiles/default/EQUI_Animations.xml") {
+		if f.Remove && f.Size == 0 {
+			files = append(files, PatchFile{Path: f.Path, Source: "removed from players (Spire keeps no copy)", Kind: "removal",
+				Updated: f.Updated, Remove: true})
+			continue
+		}
+		if strings.EqualFold(f.Path, "uifiles/default/EQUI_Animations.xml") && !f.Remove {
 			animations = f
 			continue
 		}
-		keep(f.Path, "uploaded", filepath.Join(dir, "files", filepath.FromSlash(f.Path)), f.Updated)
+		keep(f.Path, "uploaded", "file", filepath.Join(dir, "files", filepath.FromSlash(f.Path)), f.Updated, f.Remove)
 	}
+
+	// frames are added for the sheets players get
+	sent := sheets[:0:0]
+	for _, n := range sheets {
+		if !idx.Sheets[n].Remove {
+			sent = append(sent, n)
+		}
+	}
+	sheets = sent
 
 	past := 0
 	for _, n := range sheets {
@@ -403,7 +430,7 @@ func (s *Store) PatchFiles() ([]PatchFile, []string) {
 		if warn != "" {
 			notes = append(notes, "EQUI_Animations.xml: "+warn+".")
 		}
-		files = append(files, PatchFile{Path: animations.Path, Source: source, Size: int64(len(xml)), Updated: animations.Updated,
+		files = append(files, PatchFile{Path: animations.Path, Source: source, Kind: "file", Size: int64(len(xml)), Updated: animations.Updated,
 			read: func() ([]byte, error) { return []byte(xml), nil }})
 	case past > 0:
 		notes = append(notes, fmt.Sprintf(
@@ -414,4 +441,117 @@ func (s *Store) PatchFiles() ([]PatchFile, []string) {
 
 	sort.Slice(files, func(i, j int) bool { return strings.ToLower(files[i].Path) < strings.ToLower(files[j].Path) })
 	return files, notes
+}
+
+// files never deleted from players' clients: Spire builds them, or the client
+// cannot run without them
+var keptOnClients = map[string]string{
+	"uifiles/default/equi.xml":            "the client's UI cannot load without it",
+	"uifiles/default/equi_animations.xml": "the client's UI cannot load without it",
+}
+
+// cleanClientPath is a path inside the client folder, / separated
+func cleanClientPath(p string) (string, error) {
+	clean, err := cleanClientFolder(p)
+	if err == nil && clean == "" {
+		err = errors.New("no file named")
+	}
+	return clean, err
+}
+
+// removable says why a file may not be deleted from players' clients, or nil
+func removable(path string) error {
+	lower := strings.ToLower(path)
+	base := strings.ToLower(filepath.Base(path))
+	if table, ok := generatedFiles[base]; ok {
+		return fmt.Errorf("%v is built from the database (%v): players need it", path, table)
+	}
+	if refusedExtensions[filepath.Ext(base)] {
+		return fmt.Errorf("%v: programs are not deleted from players", path)
+	}
+	if why, ok := keptOnClients[lower]; ok {
+		return fmt.Errorf("%v: %v", path, why)
+	}
+	if m := sheetName.FindStringSubmatch(base); m != nil && strings.HasPrefix(lower, "uifiles/default/") {
+		if n, _ := strconv.Atoi(m[1]); n <= Rof2DragItemSheets {
+			return fmt.Errorf("%v is a stock icon sheet: deleting it blanks those icons for every player", path)
+		}
+	}
+	return nil
+}
+
+// SetRemove switches a file in the patch between sent to players (false)
+// and deleted from their clients if found (true). Spire keeps its copy
+// either way.
+func (s *Store) SetRemove(path string, remove bool) error {
+	path, err := cleanClientPath(path)
+	if err != nil {
+		return err
+	}
+	if remove {
+		if err := removable(path); err != nil {
+			return err
+		}
+	}
+	lower := strings.ToLower(path)
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	idx := s.loadLocked()
+	switch {
+	case idx.Files[lower] != nil:
+		f := idx.Files[lower]
+		if !remove && f.Size == 0 {
+			return fmt.Errorf("Spire keeps no copy of %v: upload it to send it", path)
+		}
+		f.Remove = remove
+	case !strings.Contains(path, "/") && idx.Archives[lower] != nil:
+		idx.Archives[lower].Remove = remove
+	default:
+		m := sheetName.FindStringSubmatch(filepath.Base(path))
+		n := 0
+		if m != nil && strings.HasPrefix(lower, "uifiles/default/") {
+			n, _ = strconv.Atoi(m[1])
+		}
+		if idx.Sheets[n] == nil {
+			return fmt.Errorf("%v is not in the patch", path)
+		}
+		idx.Sheets[n].Remove = remove
+	}
+	return s.saveLocked()
+}
+
+// AddRemoval deletes a file from players' clients if they have it: one that
+// went out by mistake, or that Spire never held
+func (s *Store) AddRemoval(path string) (string, error) {
+	path, err := cleanClientPath(path)
+	if err != nil {
+		return "", err
+	}
+	if err := removable(path); err != nil {
+		return "", err
+	}
+	// a file the patch holds is switched to Remove
+	if s.SetRemove(path, true) == nil {
+		return path + ": removed from players (Spire keeps its copy)", nil
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	idx := s.loadLocked()
+	idx.Files[strings.ToLower(path)] = &ClientFile{File: filepath.Base(path), Path: path, Updated: time.Now().Unix(), Remove: true}
+	if err := s.saveLocked(); err != nil {
+		return "", err
+	}
+	return path + ": deleted from players' clients if found", nil
+}
+
+// replacesFileLocked drops a client file kept at a path an icon sheet or item
+// model archive now takes, a removal included: the new one is sent
+func (s *Store) replacesFileLocked(idx *Index, path string) {
+	key := strings.ToLower(path)
+	if f := idx.Files[key]; f != nil {
+		_ = os.Remove(filepath.Join(s.dirLocked(), "files", filepath.FromSlash(f.Path)))
+		delete(idx.Files, key)
+	}
 }

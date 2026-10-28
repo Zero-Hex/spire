@@ -33,13 +33,16 @@ type Manifest struct {
 	Version   string         `json:"version"`
 	Published int64          `json:"published"`
 	Files     []ManifestFile `json:"files"`
+	Deletes   []string       `json:"deletes"` // deleted from players' clients if found
 	Notes     []string       `json:"notes"`
 }
 
 type PublishDiff struct {
 	Added     []string `json:"added"`
 	Changed   []string `json:"changed"`
-	Removed   []string `json:"removed"`
+	Removed   []string `json:"removed"`   // no longer sent (players keep theirs)
+	Deleted   []string `json:"deleted"`   // newly deleted from players' clients
+	Undeleted []string `json:"undeleted"` // no longer deleted
 	Unchanged int      `json:"unchanged"`
 }
 
@@ -97,7 +100,7 @@ func (p *Publisher) currentLocked() *Manifest {
 
 // Publish stores the files and makes them the published patch. Publishing
 // the same files again changes nothing, so patchers see no new patch.
-func (p *Publisher) Publish(sources []publishSource, notes []string) (Manifest, PublishDiff, error) {
+func (p *Publisher) Publish(sources []publishSource, deletes []string, notes []string) (Manifest, PublishDiff, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -124,16 +127,29 @@ func (p *Publisher) Publish(sources []publishSource, notes []string) (Manifest, 
 		byPath[strings.ToLower(s.Path)] = ManifestFile{Path: s.Path, MD5: hash, Size: int64(len(data)), Date: today, Source: s.Source}
 	}
 
-	m := Manifest{Published: time.Now().Unix(), Notes: notes}
+	m := Manifest{Published: time.Now().Unix(), Notes: notes, Deletes: []string{}}
 	for _, f := range byPath {
 		m.Files = append(m.Files, f)
 	}
 	sort.Slice(m.Files, func(i, j int) bool { return strings.ToLower(m.Files[i].Path) < strings.ToLower(m.Files[j].Path) })
+	// a file sent is not also deleted
+	seen := map[string]bool{}
+	for _, d := range deletes {
+		key := strings.ToLower(d)
+		if _, sent := byPath[key]; !sent && !seen[key] {
+			seen[key] = true
+			m.Deletes = append(m.Deletes, d)
+		}
+	}
+	sort.Slice(m.Deletes, func(i, j int) bool { return strings.ToLower(m.Deletes[i]) < strings.ToLower(m.Deletes[j]) })
 
 	// the version is the content: the same files publish as the same version
 	h := md5.New()
 	for _, f := range m.Files {
 		fmt.Fprintf(h, "%s\t%s\n", strings.ToLower(f.Path), f.MD5)
+	}
+	for _, d := range m.Deletes {
+		fmt.Fprintf(h, "delete\t%s\n", strings.ToLower(d))
 	}
 	m.Version = hex.EncodeToString(h.Sum(nil))[:12]
 
@@ -189,7 +205,7 @@ func (p *Publisher) pruneLocked() {
 }
 
 func diffManifests(old, cur *Manifest) PublishDiff {
-	d := PublishDiff{Added: []string{}, Changed: []string{}, Removed: []string{}}
+	d := PublishDiff{Added: []string{}, Changed: []string{}, Removed: []string{}, Deleted: []string{}, Undeleted: []string{}}
 	before := map[string]ManifestFile{}
 	if old != nil {
 		for _, f := range old.Files {
@@ -213,6 +229,26 @@ func diffManifests(old, cur *Manifest) PublishDiff {
 		d.Removed = append(d.Removed, f.Path)
 	}
 	sort.Strings(d.Removed)
+
+	was := map[string]bool{}
+	if old != nil {
+		for _, p := range old.Deletes {
+			was[strings.ToLower(p)] = true
+		}
+	}
+	for _, p := range cur.Deletes {
+		if !was[strings.ToLower(p)] {
+			d.Deleted = append(d.Deleted, p)
+		}
+		delete(was, strings.ToLower(p))
+	}
+	if old != nil {
+		for _, p := range old.Deletes {
+			if was[strings.ToLower(p)] {
+				d.Undeleted = append(d.Undeleted, p)
+			}
+		}
+	}
 	return d
 }
 
@@ -230,13 +266,20 @@ func (p *Publisher) Open(path string) (ManifestFile, string, bool) {
 	return ManifestFile{}, "", false
 }
 
-// Filelist is the published patch as eqemupatcher's filelist_rof.yml. Files
-// left out of a later publish are not deleted from players' clients: a file
-// may have replaced one the client ships with.
+// Filelist is the published patch as eqemupatcher's filelist_rof.yml. A file
+// left out of a later publish is only deleted from players' clients when it
+// is marked Remove: it may have replaced one the client ships with.
 func Filelist(m *Manifest, downloadPrefix string) []byte {
 	var b strings.Builder
 	b.WriteString("version: " + yamlString(m.Version) + "\n")
-	b.WriteString("deletes: []\n")
+	if len(m.Deletes) == 0 {
+		b.WriteString("deletes: []\n")
+	} else {
+		b.WriteString("deletes:\n")
+		for _, d := range m.Deletes {
+			b.WriteString("- name: " + yamlString(d) + "\n")
+		}
+	}
 	b.WriteString("downloadprefix: " + yamlString(downloadPrefix) + "\n")
 	b.WriteString("downloads:\n")
 	for _, f := range m.Files {

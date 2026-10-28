@@ -74,6 +74,10 @@ func (a *Controller) Routes() []*routes.Route {
 		routes.RegisterRoute(http.MethodDelete, "client-assets/sheet/:sheet", a.removeSheet, nil),
 		routes.RegisterRoute(http.MethodDelete, "client-assets/archive/:name", a.removeArchive, nil),
 		routes.RegisterRoute(http.MethodDelete, "client-assets/client-file/*", a.removeClientFile, nil),
+		routes.RegisterRoute(http.MethodPost, "client-assets/zip", a.stageZip, nil),
+		routes.RegisterRoute(http.MethodPost, "client-assets/zip/:id/import", a.importZip, nil),
+		routes.RegisterRoute(http.MethodPut, "client-assets/remove", a.setRemove, nil),
+		routes.RegisterRoute(http.MethodPost, "client-assets/removal", a.addRemoval, nil),
 	}
 }
 
@@ -194,4 +198,66 @@ func (a *Controller) removeClientFile(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, echo.Map{"error": err.Error()})
 	}
 	return c.JSON(http.StatusOK, echo.Map{"index": a.store.Index()})
+}
+
+// stageZip keeps an uploaded zip (multipart field "file") and lists it
+func (a *Controller) stageZip(c echo.Context) error {
+	fh, err := c.FormFile("file")
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, echo.Map{"error": err.Error()})
+	}
+	f, err := fh.Open()
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, echo.Map{"error": err.Error()})
+	}
+	defer f.Close()
+	l, err := a.store.StageZip(fh.Filename, f)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, echo.Map{"error": err.Error()})
+	}
+	return c.JSON(http.StatusOK, l)
+}
+
+func (a *Controller) importZip(c echo.Context) error {
+	var r struct {
+		Picks []ZipPick `json:"picks"`
+	}
+	if err := c.Bind(&r); err != nil {
+		return c.JSON(http.StatusBadRequest, echo.Map{"error": err.Error()})
+	}
+	results, err := a.store.ImportZip(c.Param("id"), r.Picks)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, echo.Map{"error": err.Error()})
+	}
+	return c.JSON(http.StatusOK, echo.Map{"results": results, "index": a.store.Index()})
+}
+
+type removeRequest struct {
+	Path   string `json:"path"`
+	Remove bool   `json:"remove"`
+}
+
+// setRemove switches a file between sent to players and deleted from them
+func (a *Controller) setRemove(c echo.Context) error {
+	var r removeRequest
+	if err := c.Bind(&r); err != nil {
+		return c.JSON(http.StatusBadRequest, echo.Map{"error": err.Error()})
+	}
+	if err := a.store.SetRemove(r.Path, r.Remove); err != nil {
+		return c.JSON(http.StatusBadRequest, echo.Map{"error": err.Error()})
+	}
+	return c.JSON(http.StatusOK, echo.Map{"ok": true})
+}
+
+// addRemoval deletes a path from players' clients if found
+func (a *Controller) addRemoval(c echo.Context) error {
+	var r removeRequest
+	if err := c.Bind(&r); err != nil {
+		return c.JSON(http.StatusBadRequest, echo.Map{"error": err.Error()})
+	}
+	msg, err := a.store.AddRemoval(r.Path)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, echo.Map{"error": err.Error()})
+	}
+	return c.JSON(http.StatusOK, echo.Map{"result": msg})
 }
