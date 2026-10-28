@@ -56,12 +56,18 @@
         <b-form-input size="sm" v-model="templates" style="max-width: 360px" class="mr-2"
                       :placeholder="usualTemplates()" @input="replanSoon()"/>
         <span class="mr-2">IDs from</span>
-        <b-form-input size="sm" type="number" v-model.number="start" style="max-width: 110px" @input="replanSoon()"/>
+        <b-form-input size="sm" type="number" v-model.number="start" style="max-width: 110px" class="mr-2"
+                      @input="replanSoon()"/>
+        <span class="mr-2">up to</span>
+        <b-form-input size="sm" type="number" v-model.number="end" style="max-width: 110px" placeholder="no limit"
+                      @input="replanSoon()"/>
       </div>
       <div class="text-muted gen-hint mb-2">
         Item IDs to copy, comma separated; empty uses {{ usualTemplates() }}. Each new item is the copy with the
         name, icon and {{ kind === "weapon" ? "item model" : "Heroes' Forge model (set × 100 + slot)" }} changed: edit
-        the rest in the item editor.
+        the rest in the item editor. New IDs follow the highest ID already used between the two; ornaments and other
+        augments stay at or below 1,048,573, and 1,048,574 and 1,048,575 are never used (the server's item links
+        reserve them).
       </div>
 
       <div v-for="(w, i) in (plan ? plan.warnings : [])" :key="'w' + i" class="text-warning">
@@ -82,7 +88,7 @@
         </thead>
         <tbody>
         <tr v-for="(r, i) in plan.rows" :key="i">
-          <td>{{ plan.first_id + i }}</td>
+          <td>{{ plan.ids[i] }}</td>
           <td>{{ r.slot_label || r.idfile }}</td>
           <td><b-form-input size="sm" v-model="r.name" maxlength="64"/></td>
           <td class="text-nowrap">
@@ -136,12 +142,13 @@ import ItemIconSelector from "@/views/items/components/ItemIconSelector";
 import util             from "util";
 
 const START_KEY = "spire-item-gen-start"
+const END_KEY   = "spire-item-gen-end"
 
-function storedStart() {
+function stored(key, otherwise) {
   try {
-    return parseInt(localStorage.getItem(START_KEY)) || 300000
+    return parseInt(localStorage.getItem(key)) || otherwise
   } catch (e) {
-    return 300000
+    return otherwise
   }
 }
 
@@ -158,7 +165,8 @@ export default {
       icon: null,
       set: null,
       templates: "",
-      start: storedStart(),
+      start: stored(START_KEY, 300000),
+      end: stored(END_KEY, 999999), // the custom block; empty: as far as IDs go
       plan: null,
       planning: false,
       busy: false,
@@ -237,6 +245,7 @@ export default {
         name: this.name,
         icon: parseInt(this.icon) || 0,
         start: parseInt(this.start) || 0,
+        end: parseInt(this.end) || 0,
       }
     },
     replanSoon() {
@@ -280,11 +289,13 @@ export default {
           archive: this.archive ? this.archive.file : "",
           set: this.plan.set,
           start: parseInt(this.start) || 0,
+          end: parseInt(this.end) || 0,
           rows: this.plan.rows,
         })
         this.created = r.data.created
         try {
           localStorage.setItem(START_KEY, String(parseInt(this.start) || 300000))
+          localStorage.setItem(END_KEY, String(parseInt(this.end) || ""))
         } catch (e) {
           // the start stays as typed
         }

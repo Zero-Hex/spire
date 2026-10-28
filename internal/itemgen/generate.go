@@ -3,6 +3,7 @@ package itemgen
 import (
 	"errors"
 	"fmt"
+	"math"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -23,11 +24,21 @@ const (
 	KindOrnament = "ornament"
 
 	FirstID = 300000
-	// RoF2 item links write the item id as 5 hex digits
-	MaxID = 0xFFFFF
+	// items.id is an int. The server links items past 5 hex digits through
+	// the link's hash (extended item links, common/say_link.cpp).
+	MaxID = math.MaxInt32
+	// an augment's id in a link is still 5 hex digits, and the two above it
+	// are reserved
+	MaxAugmentID = 0xFFFFD
 
 	nameLimit = 64 // items.Name
 )
+
+// ids the server's links use as markers (common/features.h): never an item's
+var reservedIDs = map[int]bool{
+	0xFFFFE: true, // EXTENDED_ITEM_LINK_ID
+	0xFFFFF: true, // SAYLINK_ITEM_ID
+}
 
 // the templates used unless others are given
 var (
@@ -44,7 +55,14 @@ type Template struct {
 	Idfile          string `json:"idfile" gorm:"column:idfile"`
 	Slots           int    `json:"slots" gorm:"column:slots"`
 	Herosforgemodel int    `json:"herosforgemodel" gorm:"column:herosforgemodel"`
+	Augtype         int    `json:"augtype" gorm:"column:augtype"`
+	Itemtype        int    `json:"itemtype" gorm:"column:itemtype"`
 }
+
+// an augment (ornaments are) must keep an id a link can carry
+func (t Template) augment() bool { return t.Augtype > 0 || t.Itemtype == itemtypeAugment }
+
+const itemtypeAugment = 54
 
 type PlanRequest struct {
 	Kind      string `json:"kind"`
@@ -55,6 +73,7 @@ type PlanRequest struct {
 	Name      string `json:"name"`      // weapon: its name; sets: put before each piece's name
 	Icon      int    `json:"icon"`      // weapon: its icon
 	Start     int    `json:"start"`     // number from here (FirstID)
+	End       int    `json:"end"`       // and no further (0: as far as ids go)
 }
 
 // Row is one item to make
@@ -75,6 +94,7 @@ type Plan struct {
 	Set      int      `json:"set"`
 	Rows     []Row    `json:"rows"`
 	FirstID  int      `json:"first_id"`
+	IDs      []int    `json:"ids"` // the id each row would get
 	Warnings []string `json:"warnings"`
 }
 
@@ -93,11 +113,15 @@ func (g *Generator) Plan(db *gorm.DB, req PlanRequest) (Plan, error) {
 		return Plan{}, fmt.Errorf("%q is not weapon, armor or ornament", req.Kind)
 	}
 	idx := g.assets.Index()
-	start, err := checkStart(req.Start)
+	templates, err := loadTemplates(db, req)
 	if err != nil {
 		return Plan{}, err
 	}
-	templates, err := loadTemplates(db, req)
+	augment := false
+	for _, t := range templates {
+		augment = augment || t.augment()
+	}
+	ids, err := checkRange(req.Start, req.End, augment)
 	if err != nil {
 		return Plan{}, err
 	}
@@ -177,18 +201,43 @@ func (g *Generator) Plan(db *gorm.DB, req PlanRequest) (Plan, error) {
 		}
 	}
 
-	plan.FirstID, err = nextID(db, start, len(plan.Rows))
-	return plan, err
+	plan.IDs, err = nextIDs(db, ids, len(plan.Rows))
+	if err != nil {
+		return Plan{}, err
+	}
+	if len(plan.IDs) > 0 {
+		plan.FirstID = plan.IDs[0]
+	}
+	return plan, nil
 }
 
-func checkStart(start int) (int, error) {
+type idRange struct {
+	start, end int
+	augment    bool
+}
+
+// checkRange is where new ids go: from start (FirstID) to end (as far as ids
+// go, or an augment's limit)
+func checkRange(start, end int, augment bool) (idRange, error) {
 	if start == 0 {
 		start = FirstID
 	}
-	if start < 1 || start > MaxID {
-		return 0, fmt.Errorf("item ids go up to %d: RoF2 item links cannot hold more", MaxID)
+	limit := MaxID
+	if augment {
+		limit = MaxAugmentID
 	}
-	return start, nil
+	if end == 0 || end > limit {
+		end = limit
+	}
+	switch {
+	case start < 1:
+		return idRange{}, errors.New("item ids start at 1")
+	case augment && start > MaxAugmentID:
+		return idRange{}, fmt.Errorf("these are augments, and an augment's id in an item link is 5 hex digits: start at or below %d", MaxAugmentID)
+	case start > end:
+		return idRange{}, fmt.Errorf("the ids run from %d up to %d: the start is past the end", start, end)
+	}
+	return idRange{start: start, end: end, augment: augment}, nil
 }
 
 // findSet is the set by its number: as NewArmorTagData.txt names it, or
@@ -284,7 +333,7 @@ func setRows(kind string, templates []Template, set int, slots []int, name strin
 // loadTemplates reads the items to copy: those asked for, in that order, or
 // the usual ones for the kind
 func loadTemplates(db *gorm.DB, req PlanRequest) ([]Template, error) {
-	cols := "id, Name, icon, idfile, slots, herosforgemodel"
+	cols := "id, Name, icon, idfile, slots, herosforgemodel, augtype, itemtype"
 	if len(req.Templates) > 0 {
 		var found []Template
 		if err := db.Table("items").Select(cols).Where("id IN ?", req.Templates).Find(&found).Error; err != nil {
@@ -341,21 +390,35 @@ func templatesNamed(db *gorm.DB, cols string, names []string) ([]Template, error
 	return out, nil
 }
 
-// nextID is the first of n free ids from start: past the highest id in use
-// at or above it
-func nextID(db *gorm.DB, start, n int) (int, error) {
+// nextIDs are n free ids in the range: past the highest id in use in it,
+// skipping the ids links reserve
+func nextIDs(db *gorm.DB, r idRange, n int) ([]int, error) {
 	var highest *int
-	if err := db.Table("items").Select("MAX(id)").Where("id >= ? AND id <= ?", start, MaxID).Scan(&highest).Error; err != nil {
-		return 0, err
+	if err := db.Table("items").Select("MAX(id)").Where("id >= ? AND id <= ?", r.start, r.end).Scan(&highest).Error; err != nil {
+		return nil, err
 	}
-	next := start
+	next := r.start
 	if highest != nil {
 		next = *highest + 1
 	}
-	if next+n-1 > MaxID {
-		return 0, fmt.Errorf("no %d free item ids from %d up to %d", n, start, MaxID)
+	return takeIDs(next, r, n)
+}
+
+func takeIDs(next int, r idRange, n int) ([]int, error) {
+	ids := []int{}
+	for id := next; len(ids) < n; id++ {
+		if id > r.end {
+			why := ""
+			if r.augment && r.end == MaxAugmentID {
+				why = " (augments, ornaments included, stay at or below it)"
+			}
+			return nil, fmt.Errorf("no %d free item ids from %d up to %d%v", n, next, r.end, why)
+		}
+		if !reservedIDs[id] {
+			ids = append(ids, id)
+		}
 	}
-	return next, nil
+	return ids, nil
 }
 
 type CreateRequest struct {
@@ -363,6 +426,7 @@ type CreateRequest struct {
 	Archive string `json:"archive"` // weapon
 	Set     int    `json:"set"`     // armor, ornament
 	Start   int    `json:"start"`
+	End     int    `json:"end"`
 	Rows    []Row  `json:"rows"`
 }
 
@@ -373,10 +437,6 @@ type Created struct {
 
 // Create makes the items, numbered on from the highest at or above start
 func (g *Generator) Create(db *gorm.DB, req CreateRequest) ([]Created, error) {
-	start, err := checkStart(req.Start)
-	if err != nil {
-		return nil, err
-	}
 	if len(req.Rows) == 0 {
 		return nil, errors.New("no items to make")
 	}
@@ -404,13 +464,27 @@ func (g *Generator) Create(db *gorm.DB, req CreateRequest) ([]Created, error) {
 		return nil, errors.New("there is no items table")
 	}
 
+	var templateIDs []int
+	for _, r := range req.Rows {
+		templateIDs = append(templateIDs, r.TemplateID)
+	}
+	var augments int64
+	if err := db.Table("items").Where("id IN ? AND (augtype > 0 OR itemtype = ?)", templateIDs, itemtypeAugment).Count(&augments).Error; err != nil {
+		return nil, err
+	}
+	ids, err := checkRange(req.Start, req.End, augments > 0)
+	if err != nil {
+		return nil, err
+	}
+
 	var created []Created
 	err = db.Transaction(func(tx *gorm.DB) error {
-		id, err := nextID(tx, start, len(req.Rows))
+		newIDs, err := nextIDs(tx, ids, len(req.Rows))
 		if err != nil {
 			return err
 		}
-		for _, r := range req.Rows {
+		for i, r := range req.Rows {
+			id := newIDs[i]
 			from := req.Archive
 			if req.Kind != KindWeapon {
 				from = fmt.Sprintf("Heroes' Forge set %d", req.Set)
@@ -433,7 +507,6 @@ func (g *Generator) Create(db *gorm.DB, req CreateRequest) ([]Created, error) {
 				return fmt.Errorf("%v: there is no item %d to copy", r.Name, r.TemplateID)
 			}
 			created = append(created, Created{ID: id, Name: strings.TrimSpace(r.Name)})
-			id++
 		}
 		return nil
 	})

@@ -1,6 +1,7 @@
 package itemgen
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -69,4 +70,49 @@ func TestCopySQLCopiesEveryColumn(t *testing.T) {
 	if len(args) != 6 || args[0] != 300000 || args[5] != 1002 {
 		t.Errorf("%v", args)
 	}
+}
+
+func TestIDRange(t *testing.T) {
+	r, err := checkRange(0, 0, false)
+	if err != nil || r.start != FirstID || r.end != MaxID {
+		t.Fatalf("%+v %v", r, err)
+	}
+	// augments (ornaments) keep ids a link can carry
+	if r, _ := checkRange(0, 0, true); r.end != MaxAugmentID {
+		t.Errorf("augment end %d", r.end)
+	}
+	if r, _ := checkRange(300000, 2000000, true); r.end != MaxAugmentID {
+		t.Errorf("augment end past the limit: %d", r.end)
+	}
+	if _, err := checkRange(1101000, 0, true); err == nil || !strings.Contains(err.Error(), "augment") {
+		t.Errorf("augment start past the limit: %v", err)
+	}
+	if _, err := checkRange(500000, 400000, false); err == nil {
+		t.Error("start past the end")
+	}
+	if r, _ := checkRange(300000, 999999, false); r.end != 999999 {
+		t.Errorf("end %d", r.end)
+	}
+}
+
+func TestIDsSkipTheLinkMarkers(t *testing.T) {
+	ids, err := takeIDs(0xFFFFC, idRange{start: 300000, end: MaxID}, 4)
+	if err != nil || strings.Join(itoas(ids), ",") != "1048572,1048573,1048576,1048577" {
+		t.Fatalf("%v %v", ids, err)
+	}
+	// an ornament set past the augment limit is refused, not wrapped
+	if _, err := takeIDs(0xFFFFB, idRange{start: 300000, end: MaxAugmentID, augment: true}, 7); err == nil || !strings.Contains(err.Error(), "augments") {
+		t.Errorf("%v", err)
+	}
+	if _, err := takeIDs(999995, idRange{start: 300000, end: 999999}, 7); err == nil {
+		t.Error("past the end")
+	}
+}
+
+func itoas(n []int) []string {
+	var out []string
+	for _, i := range n {
+		out = append(out, fmt.Sprint(i))
+	}
+	return out
 }
