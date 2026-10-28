@@ -204,8 +204,17 @@ func (s *Store) describe(f *zip.File, shown string) ZipEntry {
 	}
 
 	if strings.HasSuffix(lower, ".eqg") && dir == "" {
-		if models := zipModels(f); len(models) > 0 {
-			e.Kind, e.Note = "models", "item models "+strings.Join(models, ", ")
+		if ids, names := zipModels(f); len(ids) > 0 {
+			e.Kind = "models"
+			if kind, _ := classifyArchive(names, ids); kind == ArchiveArmor {
+				e.Note = fmt.Sprintf("armor set, %d pieces (IT%d-IT%d)", len(ids), ids[0], ids[len(ids)-1])
+			} else {
+				labels := make([]string, len(ids))
+				for i, id := range ids {
+					labels[i] = "IT" + strconv.Itoa(id)
+				}
+				e.Note = "item models " + strings.Join(labels, ", ")
+			}
 			return e
 		}
 	}
@@ -229,28 +238,30 @@ func (s *Store) describe(f *zip.File, shown string) ZipEntry {
 	return e
 }
 
-func zipModels(f *zip.File) []string {
+// zipModels is the IT models in an archive in a zip, and its file names
+func zipModels(f *zip.File) ([]int, []string) {
 	rc, err := f.Open()
 	if err != nil {
-		return nil
+		return nil, nil
 	}
 	defer rc.Close()
 	data, err := io.ReadAll(io.LimitReader(rc, maxUploadBytes))
 	if err != nil {
-		return nil
+		return nil, nil
 	}
 	names, err := pfsFileNames(data)
 	if err != nil {
-		return nil
+		return nil, nil
 	}
-	var out []string
+	var ids []int
 	for _, n := range names {
 		if m := modelName.FindStringSubmatch(n); m != nil {
-			out = append(out, "IT"+m[1])
+			id, _ := strconv.Atoi(m[1])
+			ids = append(ids, id)
 		}
 	}
-	sort.Strings(out)
-	return out
+	sort.Ints(ids)
+	return ids, names
 }
 
 // ImportZip imports the picked files of a staged zip

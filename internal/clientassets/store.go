@@ -71,7 +71,12 @@ type Archive struct {
 	File    string `json:"file"`
 	Models  []int  `json:"models"`
 	Updated int64  `json:"updated"`
-	Remove  bool   `json:"remove,omitempty"` // deleted from players' clients, not sent
+	// "armor" for a Heroes' Forge armor set (a piece per slot and race, none
+	// of which renders alone), "items" for item models; "" not yet looked at
+	Kind    string `json:"kind,omitempty"`
+	Texture string `json:"texture,omitempty"` // armor: the colour texture shown for the set
+	Swatch  bool   `json:"swatch,omitempty"`  // armor: models/set_<file>.png holds that texture
+	Remove  bool   `json:"remove,omitempty"`  // deleted from players' clients, not sent
 }
 
 const (
@@ -170,6 +175,7 @@ func (s *Store) loadLocked() *Index {
 		idx.Files = map[string]*ClientFile{}
 	}
 	s.migrateFilesLocked(idx)
+	s.classifyArchivesLocked(idx)
 	s.index = idx
 	return idx
 }
@@ -323,16 +329,21 @@ func (s *Store) importArchive(name string, data []byte) (string, error) {
 			}
 		}
 	}
-	idx.Archives[strings.ToLower(name)] = &Archive{File: name, Models: ids, Updated: now}
+	a := &Archive{File: name, Models: ids, Updated: now}
+	a.Kind, a.Texture = classifyArchive(names, ids)
+	idx.Archives[strings.ToLower(name)] = a
 	for _, id := range ids {
 		// the archive changed, so its previews are redrawn
 		_ = os.Remove(filepath.Join(s.dirLocked(), "models", fmt.Sprintf("CTN_%d.png", id)))
-		idx.Models[id] = &ModelInfo{Id: id, Archive: name, Updated: now}
 	}
+	s.applyKindLocked(idx, a, data)
 	if err := s.saveLocked(); err != nil {
 		return "", err
 	}
 
+	if a.Kind == ArchiveArmor {
+		return fmt.Sprintf("%v: armor set, %d pieces (IT%d-IT%d)", name, len(ids), ids[0], ids[len(ids)-1]), nil
+	}
 	labels := make([]string, len(ids))
 	for i, id := range ids {
 		labels[i] = fmt.Sprintf("IT%d", id)

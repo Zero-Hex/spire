@@ -105,8 +105,12 @@
             <b-button size="sm" variant="outline-warning" class="mr-1" @click="redraw(a)" :disabled="!!rendering" title="Redraw previews">
               <i class="fa fa-refresh"></i> Redraw previews
             </b-button>
-            <b-button size="sm" variant="outline-danger" @click="removeArchive(a)" title="Remove this archive">
+            <b-button size="sm" variant="outline-danger" class="mr-1" @click="removeArchive(a)" title="Remove this archive">
               <i class="fa fa-trash"></i> Remove
+            </b-button>
+            <b-button size="sm" variant="outline-secondary" @click="setKind(a, 'armor')"
+                      title="A Heroes' Forge armor set: show it as one set, not item models">
+              Armor set
             </b-button>
           </div>
           <div class="starfall-models">
@@ -114,6 +118,39 @@
               <span v-if="hasPreview(id)" :class="'object-ctn-' + id" />
               <div v-else class="starfall-model-empty">no preview yet</div>
               <div>IT{{ id }}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </eq-window-simple>
+
+    <eq-window-simple class="mt-3" title="Armor sets" v-if="armorSets().length > 0">
+      <div class="text-muted mb-2" style="font-size: 13px">
+        A Heroes' Forge armor archive holds a model for each slot, race and gender, none of which shows anything alone:
+        each set is one card, with its texture.
+      </div>
+      <div class="starfall-archives">
+        <div v-for="a in armorSets()" :key="a.file" class="starfall-archive starfall-armor">
+          <div class="d-flex">
+            <img v-if="a.swatch" :src="swatchUrl(a)" :alt="a.texture" class="starfall-swatch mr-2" :title="a.texture">
+            <div v-else class="starfall-model-empty starfall-swatch mr-2">no texture</div>
+            <div class="starfall-archive-body">
+              <div class="starfall-archive-name font-weight-bold" :title="a.file">{{ a.file }}</div>
+              <div>{{ a.models.length }} pieces<span v-if="a.texture">, texture <code>{{ a.texture }}</code></span></div>
+              <div class="starfall-armor-groups mt-1">
+                <span v-for="g in groups(a.models)" :key="g.from" class="badge badge-secondary mr-1 mb-1">
+                  IT{{ g.from }}<span v-if="g.to !== g.from">&ndash;{{ g.to }}</span> ({{ g.count }})
+                </span>
+              </div>
+              <div class="mt-1">
+                <b-button size="sm" variant="outline-secondary" class="mr-1" @click="setKind(a, 'items')"
+                          title="Not armor: show its models as item models, with previews">
+                  Item models
+                </b-button>
+                <b-button size="sm" variant="outline-danger" @click="removeArchive(a)">
+                  <i class="fa fa-trash"></i> Remove
+                </b-button>
+              </div>
             </div>
           </div>
         </div>
@@ -172,7 +209,40 @@ export default {
     // smallest first, so one-model archives (the toolkit's usual output)
     // pack into rows instead of being split up by wide ones
     archives() {
-      return Object.values(this.index.archives || {}).sort((a, b) => (a.models.length - b.models.length) || a.file.localeCompare(b.file))
+      return Object.values(this.index.archives || {}).filter((a) => a.kind !== "armor").sort((a, b) => (a.models.length - b.models.length) || a.file.localeCompare(b.file))
+    },
+    armorSets() {
+      return Object.values(this.index.archives || {}).filter((a) => a.kind === "armor").sort((a, b) => a.file.localeCompare(b.file))
+    },
+    // runs of model numbers: a set's slots are numbered in blocks
+    groups(ids) {
+      const out = []
+      for (const id of [...ids].sort((a, b) => a - b)) {
+        const last = out[out.length - 1]
+        if (last && id === last.to + 1) {
+          last.to = id
+          last.count++
+        } else {
+          out.push({ from: id, to: id, count: 1 })
+        }
+      }
+      return out
+    },
+    swatchUrl(a) {
+      const name = "set_" + a.file.toLowerCase().replace(/\.[^.]*$/, "") + ".png"
+      return SpireApi.getBasePath() + "/api/v1/client-assets/file/models/" + name + "?v=" + this.index.version
+    },
+    async setKind(a, kind) {
+      try {
+        const r    = await SpireApi.v1().put("client-assets/archive/" + encodeURIComponent(a.file) + "/kind", { kind: kind })
+        this.index = r.data.index
+        await ClientAssets.refresh()
+      } catch (e) {
+        this.showError(e)
+      }
+      if (kind === "items") {
+        await this.renderMissing()
+      }
     },
     hasPreview(id) {
       const m = (this.index.models || {})[id]
@@ -318,7 +388,8 @@ export default {
     },
 
     async removeArchive(a) {
-      if (!confirm("Remove " + a.file + " and the previews of its " + a.models.length + " models?")) {
+      const what = a.kind === "armor" ? "the armor set " + a.file + " (" + a.models.length + " pieces)" : a.file + " and the previews of its " + a.models.length + " models"
+      if (!confirm("Remove " + what + "?")) {
         return
       }
       try {
@@ -357,6 +428,21 @@ export default {
   flex-wrap: wrap;
   align-items: flex-start;
   gap: 12px;
+}
+
+.starfall-swatch {
+  width: 125px;
+  height: 125px;
+  flex: none;
+  border-radius: 4px;
+}
+
+.starfall-armor .starfall-archive-body {
+  min-width: 0;
+}
+
+.starfall-armor-groups {
+  max-width: 420px;
 }
 
 .starfall-archive {

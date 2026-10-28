@@ -34,7 +34,7 @@ func (p *PublicController) Routes() []*routes.Route {
 }
 
 // only these are served; archives are not public
-var publicFile = regexp.MustCompile(`^(client-assets\.css|icons/item_\d+\.png|models/CTN_\d+\.png)$`)
+var publicFile = regexp.MustCompile(`^(client-assets\.css|icons/item_\d+\.png|models/CTN_\d+\.png|models/set_[a-z0-9_.-]+\.png)$`)
 
 func (p *PublicController) version(c echo.Context) error {
 	return c.JSON(http.StatusOK, echo.Map{"version": p.store.Index().Version})
@@ -74,6 +74,7 @@ func (a *Controller) Routes() []*routes.Route {
 		routes.RegisterRoute(http.MethodDelete, "client-assets/sheet/:sheet", a.removeSheet, nil),
 		routes.RegisterRoute(http.MethodDelete, "client-assets/archive/:name", a.removeArchive, nil),
 		routes.RegisterRoute(http.MethodDelete, "client-assets/client-file/*", a.removeClientFile, nil),
+		routes.RegisterRoute(http.MethodPut, "client-assets/archive/:name/kind", a.setArchiveKind, nil),
 		routes.RegisterRoute(http.MethodPost, "client-assets/zip", a.stageZip, nil),
 		routes.RegisterRoute(http.MethodPost, "client-assets/zip/:id/import", a.importZip, nil),
 		routes.RegisterRoute(http.MethodPut, "client-assets/remove", a.setRemove, nil),
@@ -260,4 +261,18 @@ func (a *Controller) addRemoval(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, echo.Map{"error": err.Error()})
 	}
 	return c.JSON(http.StatusOK, echo.Map{"result": msg})
+}
+
+// setArchiveKind shows an archive as an armor set or as item models
+func (a *Controller) setArchiveKind(c echo.Context) error {
+	var r struct {
+		Kind string `json:"kind"`
+	}
+	if err := c.Bind(&r); err != nil {
+		return c.JSON(http.StatusBadRequest, echo.Map{"error": err.Error()})
+	}
+	if err := a.store.SetArchiveKind(c.Param("name"), r.Kind); err != nil {
+		return c.JSON(http.StatusBadRequest, echo.Map{"error": err.Error()})
+	}
+	return c.JSON(http.StatusOK, echo.Map{"index": a.store.Index()})
 }
