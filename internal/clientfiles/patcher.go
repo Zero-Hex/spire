@@ -15,6 +15,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/EQEmu/spire/internal/pathmgmt"
 )
 
 // The patcher program (eqemupatcher) is built here from its source on this
@@ -60,14 +62,36 @@ type PatcherStatus struct {
 
 type Patcher struct {
 	publisher *Publisher
+	pathmgmt  *pathmgmt.PathManagement
 	mu        sync.Mutex
 	running   bool
 	log       bytes.Buffer
 	lastError string
 }
 
-func NewPatcher(publisher *Publisher) *Patcher {
-	return &Patcher{publisher: publisher}
+func NewPatcher(publisher *Publisher, pathmgmt *pathmgmt.PathManagement) *Patcher {
+	return &Patcher{publisher: publisher, pathmgmt: pathmgmt}
+}
+
+// DotnetInstallDir is where the page suggests installing the .NET SDK: in the
+// server folder, which in akk-stack is kept outside the container, unlike the
+// rest of the container's home folder
+func (p *Patcher) DotnetInstallDir() string {
+	if p.pathmgmt == nil {
+		return ""
+	}
+	if dir := p.pathmgmt.GetEQEmuServerPath(); dir != "" {
+		return filepath.Join(dir, ".dotnet")
+	}
+	return ""
+}
+
+// Dotnet is the dotnet builds use, or ""
+func (p *Patcher) Dotnet() string {
+	if dir := p.DotnetInstallDir(); dir != "" {
+		return FindDotnet(filepath.Join(dir, "dotnet"))
+	}
+	return FindDotnet()
 }
 
 func (p *Patcher) dir() string {
@@ -165,7 +189,7 @@ func (p *Patcher) Build() error {
 	case set.PublicURL == "":
 		return errors.New("set the public address first")
 	}
-	if FindDotnet() == "" {
+	if p.Dotnet() == "" {
 		return errors.New("the .NET SDK (dotnet) is not installed where Spire runs")
 	}
 
@@ -236,7 +260,7 @@ func (p *Patcher) build(set PatcherSettings, version string) error {
 	}
 	defer os.RemoveAll(out)
 
-	dotnet := FindDotnet()
+	dotnet := p.Dotnet()
 	p.logf("$ build.sh (version %v, %v, with %v)\n", version, set.PublicURL, dotnet)
 	cmd := exec.CommandContext(ctx, "sh", filepath.Join(set.SourceDir, "build.sh"), out)
 	cmd.Dir = set.SourceDir
@@ -326,9 +350,10 @@ func (p *Patcher) Release() (*PatcherBuild, error) {
 	return st.Released, nil
 }
 
-// FindDotnet is the .NET SDK's dotnet: on the PATH, or where Microsoft's
-// dotnet-install.sh and packages put it. "" when there is none.
-func FindDotnet() string {
+// FindDotnet is the .NET SDK's dotnet: on the PATH, in DOTNET_ROOT, in one
+// of the given places, or where Microsoft's dotnet-install.sh and packages
+// put it. "" when there is none.
+func FindDotnet(also ...string) string {
 	if p, err := exec.LookPath("dotnet"); err == nil {
 		return p
 	}
@@ -336,6 +361,7 @@ func FindDotnet() string {
 	if root := os.Getenv("DOTNET_ROOT"); root != "" {
 		places = append(places, filepath.Join(root, "dotnet"))
 	}
+	places = append(places, also...)
 	if home, err := os.UserHomeDir(); err == nil {
 		places = append(places, filepath.Join(home, ".dotnet", "dotnet"))
 	}

@@ -31,12 +31,21 @@ func (p *PatcherController) Routes() []*routes.Route {
 
 type patcherStatus struct {
 	PatcherStatus
-	SuggestedURL string `json:"suggested_url"` // this Spire's patch address, as this browser reaches it
-	Dotnet       bool   `json:"dotnet"`
+	SuggestedURL     string `json:"suggested_url"` // this Spire's patch address, as this browser reaches it
+	Dotnet           bool   `json:"dotnet"`
+	DotnetPath       string `json:"dotnet_path"`        // the dotnet builds use
+	DotnetInstallDir string `json:"dotnet_install_dir"` // where to install it
 }
 
 func (p *PatcherController) status(c echo.Context) error {
-	return c.JSON(http.StatusOK, patcherStatus{PatcherStatus: p.patcher.Status(), SuggestedURL: patcherURL(c), Dotnet: FindDotnet() != ""})
+	dotnet := p.patcher.Dotnet()
+	return c.JSON(http.StatusOK, patcherStatus{
+		PatcherStatus:    p.patcher.Status(),
+		SuggestedURL:     patcherURL(c),
+		Dotnet:           dotnet != "",
+		DotnetPath:       dotnet,
+		DotnetInstallDir: p.patcher.DotnetInstallDir(),
+	})
 }
 
 func (p *PatcherController) settings(c echo.Context) error {

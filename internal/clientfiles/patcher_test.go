@@ -44,7 +44,7 @@ func waitBuilt(t *testing.T, p *Patcher) PatcherStatus {
 }
 
 func TestPatcherSettingsAreChecked(t *testing.T) {
-	p := NewPatcher(&Publisher{dir: t.TempDir()})
+	p := NewPatcher(&Publisher{dir: t.TempDir()}, nil)
 	src := fakeSource(t)
 	for _, bad := range []PatcherSettings{
 		{FileName: "../evil", ServerName: "x"},
@@ -68,7 +68,7 @@ func TestPatcherSettingsAreChecked(t *testing.T) {
 
 func TestPatcherIsBuiltStagedAndReleased(t *testing.T) {
 	pub := &Publisher{dir: t.TempDir()}
-	p := NewPatcher(pub)
+	p := NewPatcher(pub, nil)
 	if err := p.Build(); err == nil {
 		t.Fatal("built with no settings")
 	}
@@ -129,7 +129,7 @@ func TestPatcherIsBuiltStagedAndReleased(t *testing.T) {
 }
 
 func TestPatcherBuildFailureIsReported(t *testing.T) {
-	p := NewPatcher(&Publisher{dir: t.TempDir()})
+	p := NewPatcher(&Publisher{dir: t.TempDir()}, nil)
 	src := fakeSource(t)
 	_ = os.WriteFile(filepath.Join(src, "build.sh"), []byte("#!/bin/sh\necho 'error CS1002: ; expected'\nexit 1\n"), 0755)
 	_ = p.SaveSettings(PatcherSettings{FileName: "starfall", ServerName: "S", PublicURL: "http://h/api/v1/patch/", SourceDir: src})
@@ -155,6 +155,18 @@ func TestDotnetIsFoundInHome(t *testing.T) {
 	t.Setenv("DOTNET_ROOT", "")
 	t.Setenv("HOME", home)
 	if got := FindDotnet(); got != filepath.Join(home, ".dotnet", "dotnet") {
+		t.Errorf("found %q", got)
+	}
+}
+
+// the server folder is checked too: in akk-stack it outlives the container
+func TestDotnetIsFoundInTheGivenPlace(t *testing.T) {
+	dir := t.TempDir()
+	_ = os.WriteFile(filepath.Join(dir, "dotnet"), []byte("#!/bin/sh\n"), 0755)
+	t.Setenv("PATH", t.TempDir())
+	t.Setenv("DOTNET_ROOT", "")
+	t.Setenv("HOME", t.TempDir())
+	if got := FindDotnet(filepath.Join(dir, "dotnet")); got != filepath.Join(dir, "dotnet") {
 		t.Errorf("found %q", got)
 	}
 }

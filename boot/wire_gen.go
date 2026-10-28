@@ -98,7 +98,7 @@ func InitializeApplication() (App, error) {
 	store := clientassets.NewStore(appLogger, pathManagement)
 	publisher := clientfiles.NewPublisher(store)
 	clientfilesController := clientfiles.NewController(exporter, importer, resolver, store, publisher, pathManagement)
-	patcher := clientfiles.NewPatcher(publisher)
+	patcher := clientfiles.NewPatcher(publisher, pathManagement)
 	publicController := clientfiles.NewPublicController(publisher, patcher)
 	patcherController := clientfiles.NewPatcherController(patcher)
 	staticMapController := staticmaps.NewStaticMapController(resolver, store)

@@ -90,10 +90,14 @@
             <i class="fa fa-upload mr-1"></i> Upload one built elsewhere
           </b-button>
           <input ref="patcherPicker" type="file" accept=".exe" style="display: none" @change="uploadPatcher">
-          <span v-if="!patcher.dotnet" class="text-warning">
+          <span v-if="patcher.dotnet" class="text-muted" style="font-size: 13px">
+            .NET SDK: <code>{{ patcher.dotnet_path }}</code>
+          </span>
+          <span v-else class="text-warning">
             The .NET SDK is not installed where Spire runs, so it cannot build here. As the user Spire runs as (in
-            akk-stack, inside the eqemu-server container):
-            <code>curl -sSL https://dot.net/v1/dotnet-install.sh | bash -s -- --channel 8.0</code>
+            akk-stack, inside the eqemu-server container), install it in the server folder, which outlives the
+            container:
+            <code>curl -sSL https://dot.net/v1/dotnet-install.sh | bash -s -- --channel 8.0{{ patcher.dotnet_install_dir ? " --install-dir " + patcher.dotnet_install_dir : "" }}</code>
           </span>
         </div>
 
