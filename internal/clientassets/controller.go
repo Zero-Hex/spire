@@ -77,7 +77,7 @@ func (a *Controller) Routes() []*routes.Route {
 		routes.RegisterRoute(http.MethodPut, "client-assets/archive/:name/kind", a.setArchiveKind, nil),
 		routes.RegisterRoute(http.MethodPost, "client-assets/zip", a.stageZip, nil),
 		routes.RegisterRoute(http.MethodPost, "client-assets/zip/:id/import", a.importZip, nil),
-		routes.RegisterRoute(http.MethodPut, "client-assets/remove", a.setRemove, nil),
+		routes.RegisterRoute(http.MethodPut, "client-assets/mode", a.setMode, nil),
 		routes.RegisterRoute(http.MethodPost, "client-assets/removal", a.addRemoval, nil),
 	}
 }
@@ -108,6 +108,8 @@ func (a *Controller) upload(c echo.Context) error {
 	if v := form.Value["folder"]; len(v) > 0 {
 		folder = v[0]
 	}
+	// kept out of the client patch: a beta build, say
+	ignore := len(form.Value["ignore"]) > 0 && (form.Value["ignore"][0] == "1" || form.Value["ignore"][0] == "true")
 	paths := form.Value["paths"]
 
 	var results []uploadResult
@@ -124,7 +126,7 @@ func (a *Controller) upload(c echo.Context) error {
 		if err != nil {
 			r.Error = err.Error()
 		} else {
-			r.Result, err = a.store.ImportReaderAt(dir, fh.Filename, f)
+			r.Result, err = a.store.ImportReaderAt(dir, fh.Filename, f, ignore)
 			_ = f.Close()
 			if err != nil {
 				r.Error = err.Error()
@@ -234,17 +236,17 @@ func (a *Controller) importZip(c echo.Context) error {
 }
 
 type removeRequest struct {
-	Path   string `json:"path"`
-	Remove bool   `json:"remove"`
+	Path string `json:"path"`
+	Mode string `json:"mode"`
 }
 
-// setRemove switches a file between sent to players and deleted from them
-func (a *Controller) setRemove(c echo.Context) error {
+// setMode sets what the patch does with a file: add, ignore or remove
+func (a *Controller) setMode(c echo.Context) error {
 	var r removeRequest
 	if err := c.Bind(&r); err != nil {
 		return c.JSON(http.StatusBadRequest, echo.Map{"error": err.Error()})
 	}
-	if err := a.store.SetRemove(r.Path, r.Remove); err != nil {
+	if err := a.store.SetMode(r.Path, r.Mode); err != nil {
 		return c.JSON(http.StatusBadRequest, echo.Map{"error": err.Error()})
 	}
 	return c.JSON(http.StatusOK, echo.Map{"ok": true})

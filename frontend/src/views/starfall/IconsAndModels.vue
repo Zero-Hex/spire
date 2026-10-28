@@ -33,6 +33,9 @@
           @change="onPick"
         >
       </div>
+      <b-form-checkbox v-model="beta" class="mt-2">
+        Don't send these to players (beta): Spire shows them, and the client patch leaves them out (Ignore on Client Patch)
+      </b-form-checkbox>
 
       <div class="mt-2" v-if="results.length > 0">
         <div v-for="(r, i) in results" :key="i" :class="r.error ? 'text-danger' : 'text-success'">
@@ -71,7 +74,7 @@
         </thead>
         <tbody>
         <tr v-for="s in sheets()" :key="s.sheet">
-          <td>{{ s.sheet }}</td>
+          <td>{{ s.sheet }} <b-badge v-if="s.ignore" variant="warning" title="Kept out of the client patch (Ignore)">not sent</b-badge></td>
           <td>{{ s.file }}<div class="text-muted" v-if="s.sheet <= 178">replaces a stock sheet</div></td>
           <td>{{ s.first_icon }}&ndash;{{ s.last_icon }}</td>
           <td>
@@ -100,7 +103,9 @@
       <!-- one card per archive; cards sit side by side and wrap -->
       <div class="starfall-archives">
         <div v-for="a in archives()" :key="a.file" class="starfall-archive">
-          <div class="starfall-archive-name font-weight-bold" :title="a.file">{{ a.file }}</div>
+          <div class="starfall-archive-name font-weight-bold" :title="a.file">
+            {{ a.file }} <b-badge v-if="a.ignore" variant="warning" title="Kept out of the client patch (Ignore)">not sent</b-badge>
+          </div>
           <div class="mt-1 mb-2">
             <b-button size="sm" variant="outline-warning" class="mr-1" @click="redraw(a)" :disabled="!!rendering" title="Redraw previews">
               <i class="fa fa-refresh"></i> Redraw previews
@@ -135,7 +140,9 @@
             <img v-if="a.swatch" :src="swatchUrl(a)" :alt="a.texture" class="starfall-swatch mr-2" :title="a.texture">
             <div v-else class="starfall-model-empty starfall-swatch mr-2">no texture</div>
             <div class="starfall-archive-body">
-              <div class="starfall-archive-name font-weight-bold" :title="a.file">{{ a.file }}</div>
+              <div class="starfall-archive-name font-weight-bold" :title="a.file">
+                {{ a.file }} <b-badge v-if="a.ignore" variant="warning" title="Kept out of the client patch (Ignore)">not sent</b-badge>
+              </div>
               <div>{{ a.models.length }} pieces<span v-if="a.texture">, texture <code>{{ a.texture }}</code></span></div>
               <div class="starfall-armor-groups mt-1">
                 <span v-for="g in groups(a.models)" :key="g.from" class="badge badge-secondary mr-1 mb-1">
@@ -191,6 +198,7 @@ export default {
       uploading: false,
       rendering: "",
       results: [],
+      beta: false, // uploads are kept out of the client patch
       notification: "",
       error: "",
     }
@@ -284,6 +292,9 @@ export default {
       try {
         const form = new FormData()
         files.forEach((f) => form.append("files", f, f.name))
+        if (this.beta) {
+          form.append("ignore", "1")
+        }
         const r      = await SpireApi.v1().post("client-assets/upload", form)
         this.results = r.data.results || []
         this.index   = r.data.index

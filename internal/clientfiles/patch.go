@@ -73,6 +73,9 @@ func (f *Controller) patchSources(c echo.Context) ([]publishSource, []string, []
 	var deletes []string
 	assets, assetNotes := f.assets.PatchFiles()
 	for _, a := range assets {
+		if a.Ignore {
+			continue // kept in Spire only: neither sent nor deleted
+		}
 		if a.Remove {
 			deletes = append(deletes, a.Path)
 			continue

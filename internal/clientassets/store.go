@@ -58,6 +58,7 @@ type SheetInfo struct {
 	LastIcon  int    `json:"last_icon"`
 	Updated   int64  `json:"updated"`
 	Remove    bool   `json:"remove,omitempty"` // deleted from players' clients, not sent
+	Ignore    bool   `json:"ignore,omitempty"` // kept in Spire only: neither sent nor deleted
 }
 
 type ModelInfo struct {
@@ -76,6 +77,7 @@ type Archive struct {
 	Kind    string `json:"kind,omitempty"`
 	Texture string `json:"texture,omitempty"` // armor: the colour texture shown for the set
 	Swatch  bool   `json:"swatch,omitempty"`  // armor: models/set_<file>.png holds that texture
+	Ignore  bool   `json:"ignore,omitempty"`  // kept in Spire only: neither sent nor deleted
 	Remove  bool   `json:"remove,omitempty"`  // deleted from players' clients, not sent
 }
 
@@ -210,11 +212,13 @@ func (s *Store) Import(name string, data []byte) (string, error) {
 
 // ImportReader is Import for request bodies and files, with a size cap
 func (s *Store) ImportReader(name string, r io.Reader) (string, error) {
-	return s.ImportReaderAt("", name, r)
+	return s.ImportReaderAt("", name, r, false)
 }
 
 // ImportReaderAt is ImportAt for request bodies and files, with a size cap
-func (s *Store) ImportReaderAt(folder, name string, r io.Reader) (string, error) {
+// ImportReaderAt is ImportAt for request bodies and files, with a size cap;
+// ignore keeps the file out of the client patch (a beta build, say)
+func (s *Store) ImportReaderAt(folder, name string, r io.Reader, ignore bool) (string, error) {
 	data, err := io.ReadAll(io.LimitReader(r, maxUploadBytes+1))
 	if err != nil {
 		return "", err
@@ -222,13 +226,13 @@ func (s *Store) ImportReaderAt(folder, name string, r io.Reader) (string, error)
 	if len(data) > maxUploadBytes {
 		return "", fmt.Errorf("%v is larger than %v MB", name, maxUploadBytes>>20)
 	}
-	return s.ImportAt(folder, name, data)
+	return s.importInto(folder, name, data, false, ignore)
 }
 
 // importSheet cuts a 256x256 icon sheet into its 36 icons. Sheet N is the
 // N-th <Frames> entry of A_DragItem in EQUI_Animations.xml; the client fills
 // a sheet column by column, so cell c is column c/6, row c%6.
-func (s *Store) importSheet(name string, data []byte) (string, error) {
+func (s *Store) importSheet(name string, data []byte, ignore bool) (string, error) {
 	n, _ := strconv.Atoi(sheetName.FindStringSubmatch(name)[1])
 	if n < 1 {
 		return "", fmt.Errorf("%v: sheet numbers start at 1", name)
@@ -277,8 +281,10 @@ func (s *Store) importSheet(name string, data []byte) (string, error) {
 	}
 
 	idx := s.loadLocked()
+	// a sheet kept out of the patch stays out when it is uploaded again
+	ignore = ignore || (idx.Sheets[n] != nil && idx.Sheets[n].Ignore) || s.ignoredFileLocked(idx, "uifiles/default/"+sheetFile(n))
 	s.replacesFileLocked(idx, "uifiles/default/"+sheetFile(n))
-	idx.Sheets[n] = &SheetInfo{Sheet: n, File: name, FirstIcon: first, LastIcon: first + iconsPerSheet - 1, Updated: time.Now().Unix()}
+	idx.Sheets[n] = &SheetInfo{Ignore: ignore, Sheet: n, File: name, FirstIcon: first, LastIcon: first + iconsPerSheet - 1, Updated: time.Now().Unix()}
 	if err := s.saveLocked(); err != nil {
 		return "", err
 	}
@@ -291,7 +297,7 @@ func (s *Store) importSheet(name string, data []byte) (string, error) {
 }
 
 // importArchive keeps an .eqg and lists the IT models in it
-func (s *Store) importArchive(name string, data []byte) (string, error) {
+func (s *Store) importArchive(name string, data []byte, ignore bool) (string, error) {
 	names, err := pfsFileNames(data)
 	if err != nil {
 		return "", fmt.Errorf("%v: %v", name, err)
@@ -307,7 +313,7 @@ func (s *Store) importArchive(name string, data []byte) (string, error) {
 	sort.Ints(ids)
 	if len(ids) == 0 {
 		// a race or zone archive: not an item model, but the client still needs it
-		return s.importClientFile("", name, data, true)
+		return s.importClientFile("", name, data, true, ignore)
 	}
 
 	s.mu.Lock()
@@ -318,6 +324,11 @@ func (s *Store) importArchive(name string, data []byte) (string, error) {
 	}
 
 	idx := s.loadLocked()
+	// an archive kept out of the patch stays out when it is uploaded again
+	if old := idx.Archives[strings.ToLower(name)]; old != nil && old.Ignore {
+		ignore = true
+	}
+	ignore = ignore || s.ignoredFileLocked(idx, name)
 	s.replacesFileLocked(idx, name)
 	now := time.Now().Unix()
 
@@ -329,7 +340,7 @@ func (s *Store) importArchive(name string, data []byte) (string, error) {
 			}
 		}
 	}
-	a := &Archive{File: name, Models: ids, Updated: now}
+	a := &Archive{File: name, Models: ids, Updated: now, Ignore: ignore}
 	a.Kind, a.Texture = classifyArchive(names, ids)
 	idx.Archives[strings.ToLower(name)] = a
 	for _, id := range ids {

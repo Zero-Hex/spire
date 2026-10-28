@@ -149,6 +149,9 @@
         <span v-if="folder"> &rarr; <code>{{ folder }}/</code></span>
         <input ref="picker" type="file" multiple style="display: none" @change="onPick">
       </div>
+      <b-form-checkbox v-model="beta" class="mt-2">
+        Don't send these to players (beta): Spire keeps and uses them, and they are set to Ignore
+      </b-form-checkbox>
       <div class="mt-2 d-flex align-items-center flex-wrap">
         <span class="mr-2">Into folder</span>
         <b-form-input size="sm" v-model="folder" placeholder="the usual one (e.g. uifiles/default)" style="max-width: 320px" class="mr-3"/>
@@ -194,7 +197,7 @@
           <tr v-for="e in zip.entries" :key="e.entry" :class="e.kind === 'refused' ? 'text-muted' : ''">
             <td><code>{{ e.path }}</code> <span class="text-muted">{{ size(e.size) }}</span></td>
             <td>
-              <b-form-select v-if="e.kind !== 'refused'" size="sm" v-model="e.action" :options="zipActions" style="width: 160px"/>
+              <b-form-select v-if="e.kind !== 'refused'" size="sm" v-model="e.action" :options="zipActions" style="width: 190px"/>
               <span v-else>&mdash;</span>
             </td>
             <td>
@@ -233,15 +236,18 @@
         </tr>
         </thead>
         <tbody>
-        <tr v-for="f in contents.files" :key="f.path" :class="f.remove ? 'client-patch-removed' : ''">
+        <tr v-for="f in contents.files" :key="f.path"
+            :class="f.remove ? 'client-patch-removed' : f.ignore ? 'client-patch-ignored' : ''">
           <td><code>{{ f.path }}</code></td>
           <td class="text-nowrap">
             <span v-if="f.kind === 'database'" class="text-muted">add</span>
             <div v-else class="btn-group btn-group-sm">
-              <b-button size="sm" :variant="f.remove ? 'outline-secondary' : 'success'" :disabled="f.kind === 'removal'"
-                        @click="setRemove(f, false)" title="Send it to players">Add</b-button>
-              <b-button size="sm" :variant="f.remove ? 'danger' : 'outline-secondary'"
-                        @click="setRemove(f, true)" title="Delete it from players' clients if they have it">Remove</b-button>
+              <b-button size="sm" :variant="mode(f) === 'add' ? 'success' : 'outline-secondary'" :disabled="f.kind === 'removal'"
+                        @click="setMode(f, 'add')" title="Send it to players">Add</b-button>
+              <b-button size="sm" :variant="mode(f) === 'ignore' ? 'warning' : 'outline-secondary'" :disabled="f.kind === 'removal'"
+                        @click="setMode(f, 'ignore')" title="Keep it in Spire only (a beta build): neither sent nor deleted">Ignore</b-button>
+              <b-button size="sm" :variant="mode(f) === 'remove' ? 'danger' : 'outline-secondary'"
+                        @click="setMode(f, 'remove')" title="Delete it from players' clients if they have it">Remove</b-button>
             </div>
           </td>
           <td>{{ f.source }}</td>
@@ -283,9 +289,11 @@ export default {
       removalPath: "",
       zipActions: [
         { value: "add", text: "Add" },
+        { value: "ignore", text: "Add, don't send (beta)" },
         { value: "remove", text: "Remove if found" },
         { value: "", text: "Leave out" },
       ],
+      beta: false, // uploads are kept out of the patch
       dragging: false,
       uploading: false,
       results: [],
@@ -479,6 +487,9 @@ export default {
         if (!paths && this.folder.trim()) {
           form.append("folder", this.folder.trim())
         }
+        if (this.beta) {
+          form.append("ignore", "1")
+        }
         const r      = await SpireApi.v1().post("client-assets/upload", form)
         this.results = r.data.results || []
       } catch (e) {
@@ -487,15 +498,18 @@ export default {
       this.uploading = false
       await this.load()
     },
-    async setRemove(f, remove) {
-      if (f.remove === remove) {
+    mode(f) {
+      return f.remove ? "remove" : f.ignore ? "ignore" : "add"
+    },
+    async setMode(f, mode) {
+      if (this.mode(f) === mode) {
         return
       }
-      if (remove && !confirm("Remove " + f.path + " from players? The next publish deletes it from their clients if they have it.")) {
+      if (mode === "remove" && !confirm("Remove " + f.path + " from players? The next publish deletes it from their clients if they have it.")) {
         return
       }
       try {
-        await SpireApi.v1().put("client-assets/remove", { path: f.path, remove: remove })
+        await SpireApi.v1().put("client-assets/mode", { path: f.path, mode: mode })
       } catch (e) {
         this.showError(e)
       }
@@ -531,7 +545,7 @@ export default {
         form.append("file", f, f.name)
         const r = await SpireApi.v1().post("client-assets/zip", form)
         r.data.entries.forEach((e) => {
-          e.action    = e.kind === "refused" || e.needs_folder ? "" : "add"
+          e.action    = e.kind === "refused" || e.needs_folder ? "" : this.beta ? "ignore" : "add"
           e.folderSet = false
         })
         this.zip = r.data
@@ -552,6 +566,7 @@ export default {
         // "/" chooses next to eqgame.exe
         folder: (e.folder || "").trim() === "/" ? "" : (e.folder || "").trim(),
         remove: e.action === "remove",
+        ignore: e.action === "ignore",
       }))
     },
     async importZip() {
@@ -639,6 +654,10 @@ export default {
   border: 1px solid rgba(255, 193, 7, .45);
   border-radius: 8px;
   padding: 12px;
+}
+
+.client-patch-ignored td {
+  opacity: .6;
 }
 
 .client-patch-removed code {

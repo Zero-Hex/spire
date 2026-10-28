@@ -32,6 +32,7 @@ type ClientFile struct {
 	// deleted from players' clients if they have it, not sent; a removal
 	// with no copy kept has Size 0
 	Remove bool `json:"remove,omitempty"`
+	Ignore bool `json:"ignore,omitempty"` // kept in Spire only: neither sent nor deleted
 }
 
 // PatchFile is one file of the client patch
@@ -42,6 +43,7 @@ type PatchFile struct {
 	Size    int64  `json:"size"`
 	Updated int64  `json:"updated"`
 	Remove  bool   `json:"remove"` // deleted from players' clients if found, not sent
+	Ignore  bool   `json:"ignore"` // kept in Spire only: neither sent nor deleted
 
 	read func() ([]byte, error)
 }
@@ -104,12 +106,12 @@ func cleanClientFolder(folder string) (string, error) {
 // such; anything else is kept for the client patch as it is. With no folder,
 // the usual one for the file is used.
 func (s *Store) ImportAt(folder, name string, data []byte) (string, error) {
-	return s.importInto(folder, name, data, false)
+	return s.importInto(folder, name, data, false, false)
 }
 
 // importInto is ImportAt; placed says the folder was chosen for this file,
 // so "" puts it next to eqgame.exe rather than in its usual folder
-func (s *Store) importInto(folder, name string, data []byte, placed bool) (string, error) {
+func (s *Store) importInto(folder, name string, data []byte, placed, ignore bool) (string, error) {
 	base := filepath.Base(strings.ReplaceAll(name, "\\", "/"))
 	folder, err := cleanClientFolder(folder)
 	if err != nil {
@@ -117,15 +119,15 @@ func (s *Store) importInto(folder, name string, data []byte, placed bool) (strin
 	}
 	switch {
 	case sheetName.MatchString(base) && (folder == "" || strings.EqualFold(folder, "uifiles/default")):
-		return s.importSheet(base, data)
+		return s.importSheet(base, data, ignore)
 	case strings.EqualFold(filepath.Ext(base), ".eqg") && folder == "":
-		return s.importArchive(base, data)
+		return s.importArchive(base, data, ignore)
 	}
-	return s.importClientFile(folder, base, data, placed || folder != "")
+	return s.importClientFile(folder, base, data, placed || folder != "", ignore)
 }
 
 // importClientFile keeps a file for the patch as it is, at folder/name
-func (s *Store) importClientFile(folder, name string, data []byte, explicit bool) (string, error) {
+func (s *Store) importClientFile(folder, name string, data []byte, explicit, ignore bool) (string, error) {
 	lower := strings.ToLower(name)
 	if table, ok := generatedFiles[lower]; ok {
 		return "", fmt.Errorf("%v is built from the database (%v) when the patch is: change it there", name, table)
@@ -154,6 +156,8 @@ func (s *Store) importClientFile(folder, name string, data []byte, explicit bool
 	// the client folder is not case-sensitive: a new upload replaces any spelling
 	if old := idx.Files[key]; old != nil {
 		_ = os.Remove(filepath.Join(files, filepath.FromSlash(old.Path)))
+		// kept out of the patch, it stays out when it is uploaded again
+		ignore = ignore || old.Ignore
 	}
 	disk := filepath.Join(files, filepath.FromSlash(path))
 	if err := os.MkdirAll(filepath.Dir(disk), 0755); err != nil {
@@ -162,7 +166,7 @@ func (s *Store) importClientFile(folder, name string, data []byte, explicit bool
 	if err := os.WriteFile(disk, data, 0644); err != nil {
 		return "", err
 	}
-	idx.Files[key] = &ClientFile{File: name, Path: path, Size: int64(len(data)), Updated: time.Now().Unix()}
+	idx.Files[key] = &ClientFile{File: name, Path: path, Size: int64(len(data)), Updated: time.Now().Unix(), Ignore: ignore}
 	if err := s.saveLocked(); err != nil {
 		return "", err
 	}
@@ -362,21 +366,21 @@ func (s *Store) PatchFiles() ([]PatchFile, []string) {
 		}
 		files = append(files, PatchFile{
 			Path: "uifiles/default/" + sheetFile(n), Source: source, Kind: "sheet", Size: size, Updated: idx.Sheets[n].Updated,
-			Remove: idx.Sheets[n].Remove,
-			read:   func() ([]byte, error) { return s.SheetDDS(n) },
+			Remove: idx.Sheets[n].Remove, Ignore: idx.Sheets[n].Ignore,
+			read: func() ([]byte, error) { return s.SheetDDS(n) },
 		})
 	}
 
-	keep := func(path, source, kind, file string, updated int64, remove bool) {
+	keep := func(path, source, kind, file string, updated int64, remove, ignore bool) {
 		size := int64(0)
 		if fi, err := os.Stat(file); err == nil {
 			size = fi.Size()
 		}
-		files = append(files, PatchFile{Path: path, Source: source, Kind: kind, Size: size, Updated: updated, Remove: remove,
+		files = append(files, PatchFile{Path: path, Source: source, Kind: kind, Size: size, Updated: updated, Remove: remove, Ignore: ignore,
 			read: func() ([]byte, error) { return os.ReadFile(file) }})
 	}
 	for _, a := range idx.Archives {
-		keep(a.File, modelsLabel(a.Kind, a.Models), "models", filepath.Join(dir, "archives", a.File), a.Updated, a.Remove)
+		keep(a.File, modelsLabel(a.Kind, a.Models), "models", filepath.Join(dir, "archives", a.File), a.Updated, a.Remove, a.Ignore)
 	}
 
 	var animations *ClientFile
@@ -386,17 +390,17 @@ func (s *Store) PatchFiles() ([]PatchFile, []string) {
 				Updated: f.Updated, Remove: true})
 			continue
 		}
-		if strings.EqualFold(f.Path, "uifiles/default/EQUI_Animations.xml") && !f.Remove {
+		if strings.EqualFold(f.Path, "uifiles/default/EQUI_Animations.xml") && !f.Remove && !f.Ignore {
 			animations = f
 			continue
 		}
-		keep(f.Path, "uploaded", "file", filepath.Join(dir, "files", filepath.FromSlash(f.Path)), f.Updated, f.Remove)
+		keep(f.Path, "uploaded", "file", filepath.Join(dir, "files", filepath.FromSlash(f.Path)), f.Updated, f.Remove, f.Ignore)
 	}
 
 	// frames are added for the sheets players get
 	sent := sheets[:0:0]
 	for _, n := range sheets {
-		if !idx.Sheets[n].Remove {
+		if !idx.Sheets[n].Remove && !idx.Sheets[n].Ignore {
 			sent = append(sent, n)
 		}
 	}
@@ -476,19 +480,30 @@ func removable(path string) error {
 	return nil
 }
 
-// SetRemove switches a file in the patch between sent to players (false)
-// and deleted from their clients if found (true). Spire keeps its copy
-// either way.
-func (s *Store) SetRemove(path string, remove bool) error {
+// Modes of a file in the client patch
+const (
+	ModeAdd    = "add"    // sent to players
+	ModeIgnore = "ignore" // kept in Spire only: neither sent nor deleted
+	ModeRemove = "remove" // deleted from players' clients if found
+)
+
+// SetMode sets what the patch does with a file: send it, leave it out
+// (Spire keeps using it), or delete it from players' clients. Spire keeps
+// its copy either way, so the mode can be changed back.
+func (s *Store) SetMode(path, mode string) error {
+	if mode != ModeAdd && mode != ModeIgnore && mode != ModeRemove {
+		return fmt.Errorf("%q is not add, ignore or remove", mode)
+	}
 	path, err := cleanClientPath(path)
 	if err != nil {
 		return err
 	}
-	if remove {
+	if mode == ModeRemove {
 		if err := removable(path); err != nil {
 			return err
 		}
 	}
+	remove, ignore := mode == ModeRemove, mode == ModeIgnore
 	lower := strings.ToLower(path)
 
 	s.mu.Lock()
@@ -497,12 +512,12 @@ func (s *Store) SetRemove(path string, remove bool) error {
 	switch {
 	case idx.Files[lower] != nil:
 		f := idx.Files[lower]
-		if !remove && f.Size == 0 {
-			return fmt.Errorf("Spire keeps no copy of %v: upload it to send it", path)
+		if mode != ModeRemove && f.Size == 0 {
+			return fmt.Errorf("Spire keeps no copy of %v: upload it to send or keep it", path)
 		}
-		f.Remove = remove
+		f.Remove, f.Ignore = remove, ignore
 	case !strings.Contains(path, "/") && idx.Archives[lower] != nil:
-		idx.Archives[lower].Remove = remove
+		idx.Archives[lower].Remove, idx.Archives[lower].Ignore = remove, ignore
 	default:
 		m := sheetName.FindStringSubmatch(filepath.Base(path))
 		n := 0
@@ -512,9 +527,24 @@ func (s *Store) SetRemove(path string, remove bool) error {
 		if idx.Sheets[n] == nil {
 			return fmt.Errorf("%v is not in the patch", path)
 		}
-		idx.Sheets[n].Remove = remove
+		idx.Sheets[n].Remove, idx.Sheets[n].Ignore = remove, ignore
 	}
 	return s.saveLocked()
+}
+
+// SetRemove is SetMode remove (true) or add (false)
+func (s *Store) SetRemove(path string, remove bool) error {
+	if remove {
+		return s.SetMode(path, ModeRemove)
+	}
+	return s.SetMode(path, ModeAdd)
+}
+
+// ignoredFileLocked says whether a client file kept at path is kept out of
+// the patch
+func (s *Store) ignoredFileLocked(idx *Index, path string) bool {
+	f := idx.Files[strings.ToLower(path)]
+	return f != nil && f.Ignore
 }
 
 // AddRemoval deletes a file from players' clients if they have it: one that

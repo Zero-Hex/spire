@@ -256,3 +256,68 @@ func TestOldClientFilesAreMoved(t *testing.T) {
 		t.Error("not keyed by path")
 	}
 }
+
+// a beta build: kept and used in Spire, neither sent nor deleted, and still
+// kept out when a newer build of it is uploaded
+func TestIgnoredFilesStayOutOfThePatch(t *testing.T) {
+	s := testStore(t)
+	if _, err := s.ImportReaderAt("", "IT9001.eqg", bytes.NewReader(buildPFS(t, []string{"it9001.mod"})), true); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.ImportReaderAt("", "dragitem181.png", bytes.NewReader(testSheet(t)), true); err != nil {
+		t.Fatal(err)
+	}
+	_, _ = s.ImportAt("uifiles/default", "EQUI_Beta.xml", []byte("<x/>"))
+	if err := s.SetMode("uifiles/default/EQUI_Beta.xml", ModeIgnore); err != nil {
+		t.Fatal(err)
+	}
+	if s.Index().Models[9001] == nil {
+		t.Error("an ignored archive's models are still item models in Spire")
+	}
+
+	mode := func() map[string]string {
+		files, _ := s.PatchFiles()
+		out := map[string]string{}
+		for _, f := range files {
+			switch {
+			case f.Ignore:
+				out[f.Path] = ModeIgnore
+			case f.Remove:
+				out[f.Path] = ModeRemove
+			default:
+				out[f.Path] = ModeAdd
+			}
+		}
+		return out
+	}
+	want := map[string]string{"IT9001.eqg": "ignore", "uifiles/default/dragitem181.dds": "ignore", "uifiles/default/EQUI_Beta.xml": "ignore"}
+	for p, m := range want {
+		if mode()[p] != m {
+			t.Errorf("%v: %v", p, mode()[p])
+		}
+	}
+
+	// a newer beta build stays out
+	if _, err := s.Import("IT9001.eqg", buildPFS(t, []string{"it9001.mod", "new.dds"})); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.ImportAt("uifiles/default", "EQUI_Beta.xml", []byte("<y/>")); err != nil {
+		t.Fatal(err)
+	}
+	if m := mode(); m["IT9001.eqg"] != "ignore" || m["uifiles/default/EQUI_Beta.xml"] != "ignore" {
+		t.Errorf("re-uploads: %v", m)
+	}
+
+	// released: sent from now on
+	if err := s.SetMode("IT9001.eqg", ModeAdd); err != nil || mode()["IT9001.eqg"] != "add" {
+		t.Errorf("add: %v %v", err, mode())
+	}
+	if err := s.SetMode("IT9001.eqg", "maybe"); err == nil {
+		t.Error("a made-up mode was taken")
+	}
+	// a removal with no copy cannot be ignored or added
+	_, _ = s.AddRemoval("old.eqg")
+	if err := s.SetMode("old.eqg", ModeIgnore); err == nil {
+		t.Error("ignored a removal Spire has no copy of")
+	}
+}

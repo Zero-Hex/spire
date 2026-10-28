@@ -43,6 +43,7 @@ type ZipPick struct {
 	Entry  string `json:"entry"`
 	Folder string `json:"folder"`
 	Remove bool   `json:"remove"`
+	Ignore bool   `json:"ignore"` // added, but kept out of the patch (a beta build)
 }
 
 type ZipResult struct {
@@ -291,7 +292,7 @@ func (s *Store) ImportZip(id string, picks []ZipPick) ([]ZipResult, error) {
 			data, err = readZipFile(f)
 		}
 		if err == nil {
-			r.Result, err = s.importInto(p.Folder, path.Base(strings.ReplaceAll(f.Name, "\\", "/")), data, true)
+			r.Result, err = s.importInto(p.Folder, path.Base(strings.ReplaceAll(f.Name, "\\", "/")), data, true, p.Ignore)
 		}
 		if err != nil {
 			r.Error = err.Error()
