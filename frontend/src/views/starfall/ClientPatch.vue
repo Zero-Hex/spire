@@ -101,6 +101,11 @@
           </span>
         </div>
 
+        <div v-if="published && !published.manifest" class="mt-2 text-warning">
+          <i class="fa fa-exclamation-triangle mr-1"></i>
+          Nothing is published yet: a patcher stops with "Failed to fetch filelist" until you
+          <b>Publish for the patcher</b> above.
+        </div>
         <div v-if="patcher.staged" class="mt-2 d-flex align-items-center flex-wrap">
           <span class="mr-3">
             Staged <b>{{ patcher.staged.version }}</b> ({{ patcher.staged.source }} {{ when(patcher.staged.built) }},

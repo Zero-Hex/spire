@@ -336,6 +336,10 @@ func (p *Patcher) Release() (*PatcherBuild, error) {
 	if st.Staged == nil {
 		return nil, errors.New("nothing is staged: build or upload a patcher first")
 	}
+	// a patcher with no file list to read stops ("Failed to fetch filelist")
+	if p.publisher.Current() == nil {
+		return nil, errors.New("publish the client patch first: the patcher stops when it finds no file list")
+	}
 	exe, err := os.ReadFile(p.stagedExe())
 	if err != nil {
 		return nil, err

@@ -106,6 +106,13 @@ func TestPatcherIsBuiltStagedAndReleased(t *testing.T) {
 		t.Errorf("unreleased hash: %v", code)
 	}
 
+	// players' patchers stop without a file list: no release before a publish
+	if _, err := p.Release(); err == nil || !strings.Contains(err.Error(), "publish the client patch first") {
+		t.Fatalf("released with nothing published: %v", err)
+	}
+	if _, _, err := pub.Publish([]publishSource{src("spells_us.txt", "x")}, nil); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := p.Release(); err != nil {
 		t.Fatal(err)
 	}
