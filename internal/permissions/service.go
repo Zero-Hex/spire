@@ -47,9 +47,11 @@ func NewService(
 // these are routes that manipulate the database that do not fall under CRUD routes
 func (s *Service) RegisterManualResources() map[string][]string {
 	return map[string][]string{
-		"Client Files":  {"client-file"},
+		"Client Files":  {"client-file", "client-files"},
 		"Client Assets": {"client-assets"},
 		"Quest Scripts": {"quest-files"},
+		// builds the patcher program by running its build.sh on this server
+		"Patcher Build": {"patcher-build"},
 
 		// admin server
 		"Server Configuration":    {"admin/serverconfig"},

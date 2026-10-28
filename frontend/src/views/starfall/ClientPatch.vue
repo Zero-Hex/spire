@@ -41,6 +41,78 @@
         </div>
       </div>
 
+      <!-- the patcher program: built here, and what players' patchers update to -->
+      <div class="client-patch-publish mt-3" v-if="patcher">
+        <div class="d-flex align-items-center flex-wrap">
+          <b class="mr-3">Patcher program</b>
+          <span v-if="patcher.released" class="mr-3">
+            Players update to <b>{{ patcher.released.version }}</b>
+            (<code>{{ patcher.released.file_name }}.exe</code>, {{ when(patcher.released.built) }})
+          </span>
+          <span v-else class="mr-3 text-muted">None released: players' patchers keep the one they have.</span>
+        </div>
+
+        <div class="mt-2 patcher-settings">
+          <div class="d-flex align-items-center mb-1">
+            <span class="patcher-label">Source folder</span>
+            <b-form-input size="sm" v-model="patcherSettings.source_dir" placeholder="/home/eqemu/starfall-patcher (a checkout with build.sh)"/>
+          </div>
+          <div class="d-flex align-items-center mb-1">
+            <span class="patcher-label">Public address</span>
+            <b-form-input size="sm" v-model="patcherSettings.public_url" :placeholder="patcher.suggested_url"/>
+            <b-button size="sm" variant="outline-secondary" class="ml-2 text-nowrap" @click="patcherSettings.public_url = patcher.suggested_url">
+              This Spire
+            </b-button>
+          </div>
+          <div class="d-flex align-items-center mb-1">
+            <span class="patcher-label">Server name</span>
+            <b-form-input size="sm" v-model="patcherSettings.server_name" style="max-width: 280px" class="mr-3"/>
+            <span class="mr-2 text-nowrap">File name</span>
+            <b-form-input size="sm" v-model="patcherSettings.file_name" style="max-width: 200px"/>
+            <span class="ml-1">.exe</span>
+          </div>
+          <div class="d-flex align-items-center">
+            <b-form-checkbox v-model="patcherSettings.git_pull" class="mr-3">git pull before building</b-form-checkbox>
+            <b-button size="sm" variant="outline-warning" @click="savePatcherSettings()">Save settings</b-button>
+          </div>
+          <div class="text-muted mt-1" style="font-size: 13px">
+            The public address is baked into the patcher: it reads the file list there and updates itself from it, so it
+            must be how players reach this Spire, not how you do.
+          </div>
+        </div>
+
+        <div class="mt-2 d-flex align-items-center flex-wrap">
+          <b-button variant="outline-success" class="mr-2" @click="buildPatcher()" :disabled="patcher.running || !patcher.dotnet">
+            <i :class="'fa ' + (patcher.running ? 'fa-cog fa-spin' : 'fa-wrench') + ' mr-1'"></i>
+            {{ patcher.running ? "Building..." : "Build patcher" }}
+          </b-button>
+          <b-button variant="outline-secondary" class="mr-2" @click="$refs.patcherPicker.click()" :disabled="patcher.running">
+            <i class="fa fa-upload mr-1"></i> Upload one built elsewhere
+          </b-button>
+          <input ref="patcherPicker" type="file" accept=".exe" style="display: none" @change="uploadPatcher">
+          <span v-if="!patcher.dotnet" class="text-warning">
+            The .NET SDK is not installed on this server (<code>apt install dotnet-sdk-8.0</code>), so it cannot build here.
+          </span>
+        </div>
+
+        <div v-if="patcher.staged" class="mt-2 d-flex align-items-center flex-wrap">
+          <span class="mr-3">
+            Staged <b>{{ patcher.staged.version }}</b> ({{ patcher.staged.source }} {{ when(patcher.staged.built) }},
+            reads <code>{{ patcher.staged.public_url }}</code>)
+          </span>
+          <b-button size="sm" variant="outline-secondary" class="mr-2" @click="downloadStaged()">
+            <i class="fa fa-download mr-1"></i> Download to try
+          </b-button>
+          <b-button size="sm" variant="success" @click="releasePatcher()"
+                    :disabled="patcher.released && patcher.released.md5 === patcher.staged.md5">
+            <i class="fa fa-paper-plane mr-1"></i> Release to players
+          </b-button>
+        </div>
+
+        <div v-if="patcher.last_error" class="mt-2 text-danger">{{ patcher.last_error }}</div>
+        <pre v-if="patcher.log" ref="patcherLog" class="patcher-log mt-2">{{ patcher.log }}</pre>
+      </div>
+
       <div class="mt-3 d-flex align-items-center flex-wrap">
         <b-button variant="warning" class="mr-3" @click="download()" :disabled="!contents">
           <i class="fa fa-cloud-download mr-1"></i> Download client patch
@@ -128,6 +200,9 @@ export default {
   data() {
     return {
       contents: null,
+      patcher: null,         // null when this user may not build the patcher
+      patcherSettings: {},
+      patcherTimer: null,
       published: null,
       publishing: false,
       publishResult: null,
@@ -152,6 +227,82 @@ export default {
     },
     when(unix) {
       return unix ? new Date(unix * 1000).toLocaleString() : ""
+    },
+
+    // ------------------------------------------------------------ patcher program
+    async loadPatcher() {
+      try {
+        const r      = await SpireApi.v1().get("patcher-build")
+        const first  = !this.patcher
+        this.patcher = r.data
+        if (first) {
+          this.patcherSettings = Object.assign({}, r.data.settings)
+        }
+        this.$nextTick(() => {
+          const log = this.$refs.patcherLog
+          if (log) {
+            log.scrollTop = log.scrollHeight
+          }
+        })
+        clearTimeout(this.patcherTimer)
+        if (r.data.running) {
+          this.patcherTimer = setTimeout(() => this.loadPatcher(), 2000)
+        }
+      } catch (e) {
+        this.patcher = null // no Patcher Build permission: the panel is not shown
+      }
+    },
+    async savePatcherSettings() {
+      try {
+        const r              = await SpireApi.v1().put("patcher-build/settings", this.patcherSettings)
+        this.patcher         = r.data
+        this.patcherSettings = Object.assign({}, r.data.settings)
+        this.notification    = "Patcher settings saved"
+      } catch (e) {
+        this.showError(e)
+      }
+    },
+    async buildPatcher() {
+      this.error = ""
+      try {
+        await SpireApi.v1().post("patcher-build/build")
+      } catch (e) {
+        this.showError(e)
+      }
+      await this.loadPatcher()
+    },
+    async uploadPatcher(e) {
+      const f = e.target.files[0]
+      e.target.value = ""
+      if (!f) {
+        return
+      }
+      try {
+        const form = new FormData()
+        form.append("file", f, f.name)
+        await SpireApi.v1().post("patcher-build/upload", form)
+        this.notification = f.name + " staged"
+      } catch (err) {
+        this.showError(err)
+      }
+      await this.loadPatcher()
+    },
+    downloadStaged() {
+      const q = SpireApi.getAccessTokenQueryString()
+      window.open(SpireApi.getBaseV1Path() + "/patcher-build/staged.exe" + (q.jwt ? "?jwt=" + encodeURIComponent(q.jwt) : ""), "_blank")
+    },
+    async releasePatcher() {
+      const s = this.patcher.staged
+      if (!confirm("Release patcher " + s.version + "? Every player's patcher updates itself to it the next time it runs. Try it first.")) {
+        return
+      }
+      try {
+        await SpireApi.v1().post("patcher-build/release")
+        this.notification = "Patcher " + s.version + " released"
+      } catch (e) {
+        this.showError(e)
+      }
+      await this.loadPatcher()
     },
 
     async load() {
@@ -266,6 +417,10 @@ export default {
   },
   mounted() {
     this.load()
+    this.loadPatcher()
+  },
+  beforeDestroy() {
+    clearTimeout(this.patcherTimer)
   },
 }
 </script>
@@ -288,6 +443,20 @@ export default {
   border: 1px solid rgba(40, 167, 69, .45);
   border-radius: 8px;
   padding: 12px;
+}
+
+.patcher-label {
+  min-width: 120px;
+}
+
+.patcher-log {
+  max-height: 260px;
+  overflow: auto;
+  background: rgba(0, 0, 0, .45);
+  color: #ccc;
+  padding: 8px;
+  font-size: 12px;
+  white-space: pre-wrap;
 }
 
 .client-patch-files td {

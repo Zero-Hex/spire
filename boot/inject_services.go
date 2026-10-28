@@ -39,6 +39,7 @@ var serviceSet = wire.NewSet(
 	clientfiles.NewExporter,
 	clientfiles.NewImporter,
 	clientfiles.NewPublisher,
+	clientfiles.NewPatcher,
 	eqemuserverconfig.NewConfig,
 	eqemuloginserver.NewConfig,
 	pathmgmt.NewPathManagement,

@@ -166,13 +166,16 @@ func (f *Controller) publish(c echo.Context) error {
 }
 
 // PublicController serves the published patch to players' patchers, with no
-// login: <api>/patch/rof/filelist_rof.yml and <api>/patch/rof/<file>
+// login: <api>/patch/rof/filelist_rof.yml and <api>/patch/rof/<file>, and the
+// released patcher they update themselves to: <api>/patch/<name>-hash.txt and
+// <api>/patch/<name>.exe
 type PublicController struct {
 	publisher *Publisher
+	patcher   *Patcher
 }
 
-func NewPublicController(publisher *Publisher) *PublicController {
-	return &PublicController{publisher: publisher}
+func NewPublicController(publisher *Publisher, patcher *Patcher) *PublicController {
+	return &PublicController{publisher: publisher, patcher: patcher}
 }
 
 func (p *PublicController) Routes() []*routes.Route {
@@ -203,6 +206,19 @@ func (p *PublicController) serve(c echo.Context) error {
 		}
 		c.Response().Header().Set("Cache-Control", "no-cache")
 		return c.Blob(http.StatusOK, "text/yaml; charset=utf-8", Filelist(m, c.Scheme()+"://"+c.Request().Host+prefix+"rof/"))
+	}
+
+	// the patcher asks for <url><name>-hash.txt, then <url>/<name>.exe
+	if released, exe := p.patcher.Released(); released != nil {
+		name := strings.ToLower(released.FileName)
+		switch lower {
+		case name + "-hash.txt":
+			c.Response().Header().Set("Cache-Control", "no-cache")
+			return c.String(http.StatusOK, released.MD5)
+		case name + ".exe":
+			c.Response().Header().Set("Cache-Control", "no-cache")
+			return c.Attachment(exe, released.FileName+".exe")
+		}
 	}
 
 	if !strings.HasPrefix(lower, "rof/") {

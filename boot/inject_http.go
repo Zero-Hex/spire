@@ -53,6 +53,7 @@ var httpSet = wire.NewSet(
 	eqemuchangelog.NewController,
 	clientfiles.NewController,
 	clientfiles.NewPublicController,
+	clientfiles.NewPatcherController,
 	assets.NewController,
 	permissions.NewController,
 	user.NewController,
@@ -189,6 +190,7 @@ func provideControllers(
 	query *query.Controller,
 	clientFilesController *clientfiles.Controller,
 	clientFilesPublicController *clientfiles.PublicController,
+	patcherController *clientfiles.PatcherController,
 	staticMaps *staticmaps.StaticMapController,
 	analyticsController *eqemuanalytics.Controller,
 	authedAnalyticsController *eqemuanalytics.AuthedController,
@@ -232,6 +234,7 @@ func provideControllers(
 			authedAnalyticsController,
 			clientAssetsController,
 			questFilesController,
+			patcherController,
 		},
 		v1controllersNoAuth: []routes.Controller{
 			quest,
