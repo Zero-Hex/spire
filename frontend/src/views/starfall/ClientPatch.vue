@@ -12,79 +12,127 @@
         are kept as you upload them.
       </div>
 
-      <!-- the patcher -->
-      <div class="client-patch-publish mt-3">
-        <div class="d-flex align-items-center flex-wrap">
-          <b-button variant="success" class="mr-3" @click="publish()" :disabled="publishing">
-            <i :class="'fa ' + (publishing ? 'fa-cog fa-spin' : 'fa-paper-plane') + ' mr-1'"></i>
-            {{ publishing ? "Publishing..." : "Publish for the patcher" }}
-          </b-button>
-          <span v-if="published && published.manifest">
-            Published <b>{{ published.manifest.version.slice(0, 8) }}</b>
-            {{ when(published.manifest.published) }}: {{ published.manifest.files.length }} files,
-            {{ size(publishedSize()) }}
-          </span>
-          <span v-else-if="published" class="text-muted">Nothing is published yet.</span>
-        </div>
-        <div class="mt-2 text-muted" v-if="published">
-          Players' patchers only get what is published. Build the patcher with
-          <code>FILELIST_URL</code> = <code>{{ published.filelist_url }}</code>; it reads
-          <a :href="published.filelist_url + 'rof/filelist_rof.yml'" target="_blank">filelist_rof.yml</a> there and
-          downloads only the files whose MD5 differs. Removing a file here does not delete it from players' clients.
-        </div>
-        <div v-if="publishResult" class="mt-2">
-          <div v-if="nothingChanged()" class="text-muted">Nothing changed since the last publish.</div>
-          <div v-for="(list, kind) in changeLists()" :key="kind">
-            <span :class="kind === 'deleted from players' || kind === 'no longer sent' ? 'text-warning' : 'text-success'">{{ kind }} ({{ list.length }}):</span>
-            <code v-for="f in list" :key="f" class="mr-2">{{ f }}</code>
+      <!-- the channels: beta is published from here, live is promoted from beta -->
+      <div class="client-patch-channels mt-3" v-if="published">
+        <div class="client-patch-publish client-patch-beta-panel">
+          <div class="d-flex align-items-center flex-wrap">
+            <b class="mr-3">Beta</b>
+            <b-button variant="info" class="mr-3" @click="publish('beta')" :disabled="publishing !== ''">
+              <i :class="'fa ' + (publishing === 'beta' ? 'fa-cog fa-spin' : 'fa-paper-plane') + ' mr-1'"></i>
+              {{ publishing === "beta" ? "Publishing..." : "Publish to Beta" }}
+            </b-button>
+            <span v-if="published.beta.manifest">
+              <b>{{ published.beta.manifest.version.slice(0, 8) }}</b> {{ when(published.beta.manifest.published) }}:
+              {{ published.beta.manifest.files.length }} files, {{ size(manifestSize(published.beta.manifest)) }}
+              <span v-if="betaOnlyCount()">({{ betaOnlyCount() }} beta only)</span>
+            </span>
+            <span v-else class="text-muted">Nothing published yet.</span>
           </div>
+          <div class="mt-2 text-muted client-patch-hint">
+            Testers' patchers read <a :href="published.beta.filelist_url + 'rof/filelist_rof.yml'" target="_blank">{{ published.beta.filelist_url }}</a>.
+            Everything set to Add or Beta goes here.
+          </div>
+          <publish-result v-if="publishResult && publishResult.channel === 'beta'" :diff="publishResult.diff"/>
+        </div>
+
+        <div class="client-patch-publish">
+          <div class="d-flex align-items-center flex-wrap">
+            <b class="mr-3">Live</b>
+            <b-button variant="success" class="mr-3" @click="previewPromote()" :disabled="publishing !== '' || !published.beta.manifest">
+              <i :class="'fa ' + (publishing === 'live' ? 'fa-cog fa-spin' : 'fa-level-up') + ' mr-1'"></i>
+              {{ publishing === "live" ? "Promoting..." : "Promote Beta to Live" }}
+            </b-button>
+            <span v-if="published.live.manifest">
+              <b>{{ published.live.manifest.version.slice(0, 8) }}</b> {{ when(published.live.manifest.published) }}:
+              {{ published.live.manifest.files.length }} files, {{ size(manifestSize(published.live.manifest)) }}
+              <span v-if="published.live.manifest.promoted" class="text-muted">
+                (beta {{ published.live.manifest.promoted.slice(0, 8) }})
+              </span>
+            </span>
+            <span v-else class="text-muted">Nothing published yet.</span>
+          </div>
+          <div class="mt-2 text-muted client-patch-hint">
+            Every player's patcher reads <a :href="published.live.filelist_url + 'rof/filelist_rof.yml'" target="_blank">{{ published.live.filelist_url }}</a>.
+            Promoting sends players exactly what Beta has published, without the Beta only files.
+            <a href="#" @click.prevent="publishLive()" class="ml-1">Publish straight to Live</a>
+            (skips beta: for urgent fixes).
+          </div>
+
+          <!-- what promoting would do, before it is done -->
+          <div v-if="promotePreview" class="client-patch-preview mt-2">
+            <publish-result :diff="promotePreview.diff" empty="Live already has what Beta has published."/>
+            <div v-if="promotePreview.left_out.length">
+              <span class="text-info">beta only, left out ({{ promotePreview.left_out.length }}):</span>
+              <code v-for="f in promotePreview.left_out" :key="f" class="mr-2">{{ f }}</code>
+            </div>
+            <div class="mt-2">
+              <b-button size="sm" variant="success" class="mr-2" @click="promote()" :disabled="changeCount(promotePreview.diff) === 0">
+                Promote beta {{ promotePreview.beta.version.slice(0, 8) }} to every player
+              </b-button>
+              <b-button size="sm" variant="outline-secondary" @click="promotePreview = null">Cancel</b-button>
+            </div>
+          </div>
+          <publish-result v-if="publishResult && publishResult.channel === 'live'" :diff="publishResult.diff"/>
         </div>
       </div>
 
-      <!-- the patcher program: built here, and what players' patchers update to -->
+      <!-- the patcher programs: built here, and what players' patchers update to -->
       <div class="client-patch-publish mt-3" v-if="patcher">
         <div class="d-flex align-items-center flex-wrap">
           <b class="mr-3">Patcher program</b>
-          <span v-if="patcher.released" class="mr-3">
-            Players update to <b>{{ patcher.released.version }}</b>
-            (<code>{{ patcher.released.file_name }}.exe</code>, {{ when(patcher.released.built) }})
+          <div class="btn-group btn-group-sm mr-3">
+            <b-button v-for="ch in ['live', 'beta']" :key="ch" size="sm"
+                      :variant="patcherChannel === ch ? (ch === 'beta' ? 'info' : 'success') : 'outline-secondary'"
+                      @click="patcherChannel = ch">
+              {{ ch === "beta" ? "Beta" : "Live" }}
+            </b-button>
+          </div>
+          <span v-if="pc().released" class="mr-3">
+            {{ patcherChannel === "beta" ? "Testers" : "Players" }} update to <b>{{ pc().released.version }}</b>
+            (<code>{{ pc().released.file_name }}.exe</code>, {{ when(pc().released.built) }})
           </span>
-          <span v-else class="mr-3 text-muted">None released: players' patchers keep the one they have.</span>
+          <span v-else class="mr-3 text-muted">None released: {{ patcherChannel === "beta" ? "testers" : "players" }}' patchers keep the one they have.</span>
+        </div>
+        <div v-if="patcherChannel === 'beta'" class="mt-2 text-info client-patch-hint">
+          <i class="fa fa-info-circle mr-1"></i>
+          Testers run the beta patcher in a <b>copy of the client folder</b> of its own. The live patcher puts back the
+          files both channels send, but leaves Beta only files where it finds them.
         </div>
 
         <div class="mt-2 patcher-settings">
           <div class="d-flex align-items-center mb-1">
             <span class="patcher-label">Source folder</span>
-            <b-form-input size="sm" v-model="patcherSettings.source_dir" placeholder="/home/eqemu/starfall-patcher (a checkout with build.sh)"/>
+            <b-form-input size="sm" v-model="ps().source_dir" placeholder="/home/eqemu/starfall-patcher (a checkout with build.sh)"/>
           </div>
           <div class="d-flex align-items-center mb-1">
             <span class="patcher-label">Public address</span>
-            <b-form-input size="sm" v-model="patcherSettings.public_url" :placeholder="patcher.suggested_url"/>
-            <b-button size="sm" variant="outline-secondary" class="ml-2 text-nowrap" @click="patcherSettings.public_url = patcher.suggested_url">
+            <b-form-input size="sm" v-model="ps().public_url" :placeholder="patcher.suggested_urls[patcherChannel]"/>
+            <b-button size="sm" variant="outline-secondary" class="ml-2 text-nowrap" @click="ps().public_url = patcher.suggested_urls[patcherChannel]">
               This Spire
             </b-button>
           </div>
           <div class="d-flex align-items-center mb-1">
             <span class="patcher-label">Server name</span>
-            <b-form-input size="sm" v-model="patcherSettings.server_name" style="max-width: 280px" class="mr-3"/>
+            <b-form-input size="sm" v-model="ps().server_name" style="max-width: 280px" class="mr-3"/>
             <span class="mr-2 text-nowrap">File name</span>
-            <b-form-input size="sm" v-model="patcherSettings.file_name" style="max-width: 200px"/>
+            <b-form-input size="sm" v-model="ps().file_name" style="max-width: 200px"/>
             <span class="ml-1">.exe</span>
           </div>
           <div class="d-flex align-items-center">
-            <b-form-checkbox v-model="patcherSettings.git_pull" class="mr-3">git pull before building</b-form-checkbox>
-            <b-button size="sm" variant="outline-warning" @click="savePatcherSettings()">Save settings</b-button>
+            <b-form-checkbox v-model="ps().git_pull" class="mr-3">git pull before building</b-form-checkbox>
+            <b-button size="sm" variant="outline-warning" @click="savePatcherSettings()">Save {{ patcherChannel }} settings</b-button>
           </div>
           <div class="text-muted mt-1" style="font-size: 13px">
             The public address is baked into the patcher: it reads the file list there and updates itself from it, so it
             must be how players reach this Spire, not how you do.
+            <span v-if="patcherChannel === 'beta'">The beta patcher's ends in <code>/patch/beta/</code>, and its file name differs from live's.</span>
           </div>
         </div>
 
         <div class="mt-2 d-flex align-items-center flex-wrap">
           <b-button variant="outline-success" class="mr-2" @click="buildPatcher()" :disabled="patcher.running || !patcher.dotnet">
             <i :class="'fa ' + (patcher.running ? 'fa-cog fa-spin' : 'fa-wrench') + ' mr-1'"></i>
-            {{ patcher.running ? "Building..." : "Build patcher" }}
+            {{ patcher.running ? "Building the " + patcher.building + " patcher..." : "Build " + patcherChannel + " patcher" }}
           </b-button>
           <b-button variant="outline-secondary" class="mr-2" @click="$refs.patcherPicker.click()" :disabled="patcher.running">
             <i class="fa fa-upload mr-1"></i> Upload one built elsewhere
@@ -101,33 +149,35 @@
           </span>
         </div>
 
-        <div v-if="published && !published.manifest" class="mt-2 text-warning">
+        <div v-if="!published[patcherChannel].manifest" class="mt-2 text-warning">
           <i class="fa fa-exclamation-triangle mr-1"></i>
-          Nothing is published yet: a patcher stops with "Failed to fetch filelist" until you
-          <b>Publish for the patcher</b> above.
+          Nothing is published to {{ patcherChannel }} yet: its patcher stops with "Failed to fetch filelist" until you
+          <b>{{ patcherChannel === "beta" ? "Publish to Beta" : "Promote Beta to Live" }}</b> above.
         </div>
-        <div v-if="patcher.staged" class="mt-2 d-flex align-items-center flex-wrap">
+        <div v-if="pc().staged" class="mt-2 d-flex align-items-center flex-wrap">
           <span class="mr-3">
-            Staged <b>{{ patcher.staged.version }}</b> ({{ patcher.staged.source }} {{ when(patcher.staged.built) }},
-            reads <code>{{ patcher.staged.public_url }}</code>)
+            Staged <b>{{ pc().staged.version }}</b> ({{ pc().staged.source }} {{ when(pc().staged.built) }},
+            reads <code>{{ pc().staged.public_url }}</code>)
           </span>
           <b-button size="sm" variant="outline-secondary" class="mr-2" @click="downloadStaged()">
             <i class="fa fa-download mr-1"></i> Download to try
           </b-button>
           <b-button size="sm" variant="success" @click="releasePatcher()"
-                    :disabled="patcher.released && patcher.released.md5 === patcher.staged.md5">
-            <i class="fa fa-paper-plane mr-1"></i> Release to players
+                    :disabled="pc().released && pc().released.md5 === pc().staged.md5">
+            <i class="fa fa-paper-plane mr-1"></i> Release to {{ patcherChannel === "beta" ? "testers" : "players" }}
           </b-button>
         </div>
 
-        <div v-if="patcher.last_error" class="mt-2 text-danger">{{ patcher.last_error }}</div>
+        <div v-if="patcher.last_error" class="mt-2 text-danger">{{ patcher.building }} patcher: {{ patcher.last_error }}</div>
         <pre v-if="patcher.log" ref="patcherLog" class="patcher-log mt-2">{{ patcher.log }}</pre>
       </div>
 
       <div class="mt-3 d-flex align-items-center flex-wrap">
-        <b-button variant="warning" class="mr-3" @click="download()" :disabled="!contents">
+        <b-button variant="warning" class="mr-2" @click="download()" :disabled="!contents">
           <i class="fa fa-cloud-download mr-1"></i> Download client patch
         </b-button>
+        <b-form-select size="sm" v-model="downloadChannel" style="width: 110px" class="mr-3"
+                       :options="[{ value: 'live', text: 'as live' }, { value: 'beta', text: 'as beta' }]"/>
         <span class="text-muted" v-if="contents">
           {{ contents.files.length }} files<span v-if="totalSize()">, {{ size(totalSize()) }} before the spells and strings</span>
         </span>
@@ -149,9 +199,11 @@
         <span v-if="folder"> &rarr; <code>{{ folder }}/</code></span>
         <input ref="picker" type="file" multiple style="display: none" @change="onPick">
       </div>
-      <b-form-checkbox v-model="beta" class="mt-2">
-        Don't send these to players (beta): Spire keeps and uses them, and they are set to Ignore
-      </b-form-checkbox>
+      <div class="mt-2 d-flex align-items-center">
+        <span class="mr-2">Send uploads to</span>
+        <b-form-select size="sm" v-model="hold" :options="holds" style="max-width: 260px" class="mr-2"/>
+        <span class="text-muted" style="font-size: 13px">Spire keeps and uses them either way</span>
+      </div>
       <div class="mt-2 d-flex align-items-center flex-wrap">
         <span class="mr-2">Into folder</span>
         <b-form-input size="sm" v-model="folder" placeholder="the usual one (e.g. uifiles/default)" style="max-width: 320px" class="mr-3"/>
@@ -237,17 +289,19 @@
         </thead>
         <tbody>
         <tr v-for="f in contents.files" :key="f.path"
-            :class="f.remove ? 'client-patch-removed' : f.ignore ? 'client-patch-ignored' : ''">
+            :class="f.remove ? 'client-patch-removed' : f.ignore ? 'client-patch-ignored' : f.beta ? 'client-patch-beta' : ''">
           <td><code>{{ f.path }}</code></td>
           <td class="text-nowrap">
-            <span v-if="f.kind === 'database'" class="text-muted">add</span>
+            <span v-if="f.kind === 'database'" class="text-muted">add (from the database)</span>
             <div v-else class="btn-group btn-group-sm">
               <b-button size="sm" :variant="mode(f) === 'add' ? 'success' : 'outline-secondary'" :disabled="f.kind === 'removal'"
-                        @click="setMode(f, 'add')" title="Send it to players">Add</b-button>
+                        @click="setMode(f, 'add')" title="Send it to players, live and beta">Add</b-button>
+              <b-button size="sm" :variant="mode(f) === 'beta' ? 'info' : 'outline-secondary'" :disabled="f.kind === 'removal'"
+                        @click="setMode(f, 'beta')" title="Send it to the beta channel only; promoting to live leaves it out">Beta</b-button>
               <b-button size="sm" :variant="mode(f) === 'ignore' ? 'warning' : 'outline-secondary'" :disabled="f.kind === 'removal'"
-                        @click="setMode(f, 'ignore')" title="Keep it in Spire only (a beta build): neither sent nor deleted">Ignore</b-button>
+                        @click="setMode(f, 'ignore')" title="Keep it in Spire only: neither sent nor deleted, on live or beta">Ignore</b-button>
               <b-button size="sm" :variant="mode(f) === 'remove' ? 'danger' : 'outline-secondary'"
-                        @click="setMode(f, 'remove')" title="Delete it from players' clients if they have it">Remove</b-button>
+                        @click="setMode(f, 'remove')" title="Delete it from players' clients if they have it, live and beta">Remove</b-button>
             </div>
           </td>
           <td>{{ f.source }}</td>
@@ -271,29 +325,39 @@ import EqWindowSimple  from "@/components/eq-ui/EQWindowSimple";
 import InfoErrorBanner from "@/components/InfoErrorBanner";
 import {SpireApi}      from "@/app/api/spire-api";
 import {ROUTE}         from "@/routes";
+import PublishResult, {changeCount} from "./PublishResult";
 
 export default {
   name: "StarfallClientPatch",
-  components: { EqWindowSimple, InfoErrorBanner },
+  components: { EqWindowSimple, InfoErrorBanner, PublishResult },
   data() {
     return {
       contents: null,
       patcher: null,         // null when this user may not build the patcher
-      patcherSettings: {},
+      patcherChannel: "live",
+      patcherSettings: { live: {}, beta: {} }, // edited per channel
       patcherTimer: null,
-      published: null,
-      publishing: false,
+      published: null,     // { live: {manifest, filelist_url}, beta: ... }
+      publishing: "",      // the channel being published to
       publishResult: null,
+      promotePreview: null,
+      downloadChannel: "live",
       folder: "",
       zip: null,
       removalPath: "",
       zipActions: [
         { value: "add", text: "Add" },
-        { value: "ignore", text: "Add, don't send (beta)" },
+        { value: "beta", text: "Add, beta only" },
+        { value: "ignore", text: "Add, don't send (Ignore)" },
         { value: "remove", text: "Remove if found" },
         { value: "", text: "Leave out" },
       ],
-      beta: false, // uploads are kept out of the patch
+      hold: "", // how uploads are held back from players: "", "beta" or "ignore"
+      holds: [
+        { value: "", text: "Live and beta" },
+        { value: "beta", text: "Beta only" },
+        { value: "ignore", text: "Neither (Ignore)" },
+      ],
       dragging: false,
       uploading: false,
       results: [],
@@ -317,13 +381,23 @@ export default {
     },
 
     // ------------------------------------------------------------ patcher program
+    // the shown channel's patcher, and the settings being edited for it
+    pc() {
+      return this.patcher.channels[this.patcherChannel]
+    },
+    ps() {
+      return this.patcherSettings[this.patcherChannel]
+    },
     async loadPatcher() {
       try {
         const r      = await SpireApi.v1().get("patcher-build")
         const first  = !this.patcher
         this.patcher = r.data
         if (first) {
-          this.patcherSettings = Object.assign({}, r.data.settings)
+          this.patcherSettings = {
+            live: Object.assign({}, r.data.channels.live.settings),
+            beta: Object.assign({}, r.data.channels.beta.settings),
+          }
         }
         this.$nextTick(() => {
           const log = this.$refs.patcherLog
@@ -339,12 +413,16 @@ export default {
         this.patcher = null // no Patcher Build permission: the panel is not shown
       }
     },
+    patcherPath(action) {
+      return "patcher-build/" + action + "?channel=" + this.patcherChannel
+    },
     async savePatcherSettings() {
+      const ch = this.patcherChannel
       try {
-        const r              = await SpireApi.v1().put("patcher-build/settings", this.patcherSettings)
-        this.patcher         = r.data
-        this.patcherSettings = Object.assign({}, r.data.settings)
-        this.notification    = "Patcher settings saved"
+        const r                  = await SpireApi.v1().put(this.patcherPath("settings"), this.ps())
+        this.patcher             = r.data
+        this.patcherSettings[ch] = Object.assign({}, r.data.channels[ch].settings)
+        this.notification        = "The " + ch + " patcher's settings are saved"
       } catch (e) {
         this.showError(e)
       }
@@ -352,7 +430,7 @@ export default {
     async buildPatcher() {
       this.error = ""
       try {
-        await SpireApi.v1().post("patcher-build/build")
+        await SpireApi.v1().post(this.patcherPath("build"))
       } catch (e) {
         this.showError(e)
       }
@@ -367,8 +445,8 @@ export default {
       try {
         const form = new FormData()
         form.append("file", f, f.name)
-        await SpireApi.v1().post("patcher-build/upload", form)
-        this.notification = f.name + " staged"
+        await SpireApi.v1().post(this.patcherPath("upload"), form)
+        this.notification = f.name + " staged as the " + this.patcherChannel + " patcher"
       } catch (err) {
         this.showError(err)
       }
@@ -376,16 +454,17 @@ export default {
     },
     downloadStaged() {
       const q = SpireApi.getAccessTokenQueryString()
-      window.open(SpireApi.getBaseV1Path() + "/patcher-build/staged.exe" + (q.jwt ? "?jwt=" + encodeURIComponent(q.jwt) : ""), "_blank")
+      window.open(SpireApi.getBaseV1Path() + "/" + this.patcherPath("staged.exe") + (q.jwt ? "&jwt=" + encodeURIComponent(q.jwt) : ""), "_blank")
     },
     async releasePatcher() {
-      const s = this.patcher.staged
-      if (!confirm("Release patcher " + s.version + "? Every player's patcher updates itself to it the next time it runs. Try it first.")) {
+      const s   = this.pc().staged
+      const who = this.patcherChannel === "beta" ? "tester's beta patcher" : "player's patcher"
+      if (!confirm("Release the " + this.patcherChannel + " patcher " + s.version + "? Every " + who + " updates itself to it the next time it runs. Try it first.")) {
         return
       }
       try {
-        await SpireApi.v1().post("patcher-build/release")
-        this.notification = "Patcher " + s.version + " released"
+        await SpireApi.v1().post(this.patcherPath("release"))
+        this.notification = "The " + this.patcherChannel + " patcher " + s.version + " is released"
       } catch (e) {
         this.showError(e)
       }
@@ -404,42 +483,55 @@ export default {
         this.showError(e)
       }
     },
-    publishedSize() {
-      return this.published.manifest.files.reduce((t, f) => t + f.size, 0)
+    manifestSize(m) {
+      return m.files.reduce((t, f) => t + f.size, 0)
     },
-    async publish() {
-      this.publishing    = true
-      this.publishResult = null
-      this.error         = ""
+    betaOnlyCount() {
+      return this.published.beta.manifest.files.filter((f) => f.beta).length
+    },
+    changeCount,
+    async publish(channel) {
+      this.publishing     = channel
+      this.publishResult  = null
+      this.promotePreview = null
+      this.error          = ""
       try {
-        const r            = await SpireApi.v1().post("client-files/patch/publish")
+        const r            = await SpireApi.v1().post("client-files/patch/publish?channel=" + channel)
         this.publishResult = r.data
         ;(r.data.manifest.notes || []).forEach((n) => (this.notification = n))
       } catch (e) {
         this.showError(e)
       }
-      this.publishing = false
+      this.publishing = ""
       await this.load()
     },
-    changeLists() {
-      const d   = this.publishResult.diff
-      const out = {}
-      const labels = {
-        added: "added",
-        changed: "changed",
-        removed: "no longer sent",
-        deleted: "deleted from players",
-        undeleted: "no longer deleted",
+    publishLive() {
+      if (confirm("Publish straight to Live? Every player gets what Spire holds now (Beta only files left out), without it being tried on beta first.")) {
+        this.publish("live")
       }
-      for (const kind of Object.keys(labels)) {
-        if (d[kind] && d[kind].length) {
-          out[labels[kind]] = d[kind]
-        }
-      }
-      return out
     },
-    nothingChanged() {
-      return Object.keys(this.changeLists()).length === 0
+    async previewPromote() {
+      this.error         = ""
+      this.publishResult = null
+      try {
+        const r             = await SpireApi.v1().get("client-files/patch/promote")
+        this.promotePreview = r.data
+      } catch (e) {
+        this.showError(e)
+      }
+    },
+    async promote() {
+      this.publishing = "live"
+      this.error      = ""
+      try {
+        const r             = await SpireApi.v1().post("client-files/patch/promote")
+        this.publishResult  = r.data
+        this.promotePreview = null
+      } catch (e) {
+        this.showError(e)
+      }
+      this.publishing = ""
+      await this.load()
     },
     skipped(r) {
       return r.error && r.error.includes("built from the database")
@@ -450,7 +542,7 @@ export default {
     // a link, so the browser saves the zip as it streams
     download() {
       const q = SpireApi.getAccessTokenQueryString()
-      window.open(SpireApi.getBaseV1Path() + "/client-files/patch" + (q.jwt ? "?jwt=" + encodeURIComponent(q.jwt) : ""), "_blank")
+      window.open(SpireApi.getBaseV1Path() + "/client-files/patch?channel=" + this.downloadChannel + (q.jwt ? "&jwt=" + encodeURIComponent(q.jwt) : ""), "_blank")
     },
 
     onDrop(e) {
@@ -487,8 +579,8 @@ export default {
         if (!paths && this.folder.trim()) {
           form.append("folder", this.folder.trim())
         }
-        if (this.beta) {
-          form.append("ignore", "1")
+        if (this.hold) {
+          form.append(this.hold, "1")
         }
         const r      = await SpireApi.v1().post("client-assets/upload", form)
         this.results = r.data.results || []
@@ -499,13 +591,13 @@ export default {
       await this.load()
     },
     mode(f) {
-      return f.remove ? "remove" : f.ignore ? "ignore" : "add"
+      return f.remove ? "remove" : f.ignore ? "ignore" : f.beta ? "beta" : "add"
     },
     async setMode(f, mode) {
       if (this.mode(f) === mode) {
         return
       }
-      if (mode === "remove" && !confirm("Remove " + f.path + " from players? The next publish deletes it from their clients if they have it.")) {
+      if (mode === "remove" && !confirm("Remove " + f.path + " from players? The next publish deletes it from their clients if they have it (beta first, then live when you promote).")) {
         return
       }
       try {
@@ -545,7 +637,7 @@ export default {
         form.append("file", f, f.name)
         const r = await SpireApi.v1().post("client-assets/zip", form)
         r.data.entries.forEach((e) => {
-          e.action    = e.kind === "refused" || e.needs_folder ? "" : this.beta ? "ignore" : "add"
+          e.action    = e.kind === "refused" || e.needs_folder ? "" : this.hold || "add"
           e.folderSet = false
         })
         this.zip = r.data
@@ -567,6 +659,7 @@ export default {
         folder: (e.folder || "").trim() === "/" ? "" : (e.folder || "").trim(),
         remove: e.action === "remove",
         ignore: e.action === "ignore",
+        beta: e.action === "beta",
       }))
     },
     async importZip() {
@@ -634,6 +727,29 @@ export default {
   border: 1px solid rgba(40, 167, 69, .45);
   border-radius: 8px;
   padding: 12px;
+}
+
+.client-patch-channels {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+  gap: 12px;
+}
+
+.client-patch-beta-panel {
+  border-color: rgba(23, 162, 184, .55);
+}
+
+.client-patch-hint {
+  font-size: 13px;
+}
+
+.client-patch-preview {
+  border-top: 1px solid rgba(255, 255, 255, .15);
+  padding-top: 8px;
+}
+
+.client-patch-beta code {
+  color: #17a2b8;
 }
 
 .patcher-label {

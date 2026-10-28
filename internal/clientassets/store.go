@@ -59,6 +59,7 @@ type SheetInfo struct {
 	Updated   int64  `json:"updated"`
 	Remove    bool   `json:"remove,omitempty"` // deleted from players' clients, not sent
 	Ignore    bool   `json:"ignore,omitempty"` // kept in Spire only: neither sent nor deleted
+	Beta      bool   `json:"beta,omitempty"`   // sent to the beta channel only
 }
 
 type ModelInfo struct {
@@ -79,6 +80,7 @@ type Archive struct {
 	Swatch  bool   `json:"swatch,omitempty"`  // armor: models/set_<file>.png holds that texture
 	Ignore  bool   `json:"ignore,omitempty"`  // kept in Spire only: neither sent nor deleted
 	Remove  bool   `json:"remove,omitempty"`  // deleted from players' clients, not sent
+	Beta    bool   `json:"beta,omitempty"`    // sent to the beta channel only
 }
 
 const (
@@ -212,13 +214,13 @@ func (s *Store) Import(name string, data []byte) (string, error) {
 
 // ImportReader is Import for request bodies and files, with a size cap
 func (s *Store) ImportReader(name string, r io.Reader) (string, error) {
-	return s.ImportReaderAt("", name, r, false)
+	return s.ImportReaderAt("", name, r, "")
 }
 
-// ImportReaderAt is ImportAt for request bodies and files, with a size cap
 // ImportReaderAt is ImportAt for request bodies and files, with a size cap;
-// ignore keeps the file out of the client patch (a beta build, say)
-func (s *Store) ImportReaderAt(folder, name string, r io.Reader, ignore bool) (string, error) {
+// hold keeps the file from players: ModeBeta sends it to the beta channel
+// only, ModeIgnore to neither ("" sends it)
+func (s *Store) ImportReaderAt(folder, name string, r io.Reader, hold string) (string, error) {
 	data, err := io.ReadAll(io.LimitReader(r, maxUploadBytes+1))
 	if err != nil {
 		return "", err
@@ -226,13 +228,13 @@ func (s *Store) ImportReaderAt(folder, name string, r io.Reader, ignore bool) (s
 	if len(data) > maxUploadBytes {
 		return "", fmt.Errorf("%v is larger than %v MB", name, maxUploadBytes>>20)
 	}
-	return s.importInto(folder, name, data, false, ignore)
+	return s.importInto(folder, name, data, false, hold)
 }
 
 // importSheet cuts a 256x256 icon sheet into its 36 icons. Sheet N is the
 // N-th <Frames> entry of A_DragItem in EQUI_Animations.xml; the client fills
 // a sheet column by column, so cell c is column c/6, row c%6.
-func (s *Store) importSheet(name string, data []byte, ignore bool) (string, error) {
+func (s *Store) importSheet(name string, data []byte, hold string) (string, error) {
 	n, _ := strconv.Atoi(sheetName.FindStringSubmatch(name)[1])
 	if n < 1 {
 		return "", fmt.Errorf("%v: sheet numbers start at 1", name)
@@ -281,10 +283,16 @@ func (s *Store) importSheet(name string, data []byte, ignore bool) (string, erro
 	}
 
 	idx := s.loadLocked()
-	// a sheet kept out of the patch stays out when it is uploaded again
-	ignore = ignore || (idx.Sheets[n] != nil && idx.Sheets[n].Ignore) || s.ignoredFileLocked(idx, "uifiles/default/"+sheetFile(n))
+	// a sheet held back from players stays held back when it is uploaded again
+	if hold == "" && idx.Sheets[n] != nil {
+		hold = holdMode(idx.Sheets[n].Ignore, idx.Sheets[n].Beta)
+	}
+	if hold == "" {
+		hold = s.heldFileLocked(idx, "uifiles/default/"+sheetFile(n))
+	}
 	s.replacesFileLocked(idx, "uifiles/default/"+sheetFile(n))
-	idx.Sheets[n] = &SheetInfo{Ignore: ignore, Sheet: n, File: name, FirstIcon: first, LastIcon: first + iconsPerSheet - 1, Updated: time.Now().Unix()}
+	idx.Sheets[n] = &SheetInfo{Ignore: hold == ModeIgnore, Beta: hold == ModeBeta,
+		Sheet: n, File: name, FirstIcon: first, LastIcon: first + iconsPerSheet - 1, Updated: time.Now().Unix()}
 	if err := s.saveLocked(); err != nil {
 		return "", err
 	}
@@ -297,7 +305,7 @@ func (s *Store) importSheet(name string, data []byte, ignore bool) (string, erro
 }
 
 // importArchive keeps an .eqg and lists the IT models in it
-func (s *Store) importArchive(name string, data []byte, ignore bool) (string, error) {
+func (s *Store) importArchive(name string, data []byte, hold string) (string, error) {
 	names, err := pfsFileNames(data)
 	if err != nil {
 		return "", fmt.Errorf("%v: %v", name, err)
@@ -313,7 +321,7 @@ func (s *Store) importArchive(name string, data []byte, ignore bool) (string, er
 	sort.Ints(ids)
 	if len(ids) == 0 {
 		// a race or zone archive: not an item model, but the client still needs it
-		return s.importClientFile("", name, data, true, ignore)
+		return s.importClientFile("", name, data, true, hold)
 	}
 
 	s.mu.Lock()
@@ -324,11 +332,13 @@ func (s *Store) importArchive(name string, data []byte, ignore bool) (string, er
 	}
 
 	idx := s.loadLocked()
-	// an archive kept out of the patch stays out when it is uploaded again
-	if old := idx.Archives[strings.ToLower(name)]; old != nil && old.Ignore {
-		ignore = true
+	// an archive held back from players stays held back when it is uploaded again
+	if old := idx.Archives[strings.ToLower(name)]; old != nil && hold == "" {
+		hold = holdMode(old.Ignore, old.Beta)
 	}
-	ignore = ignore || s.ignoredFileLocked(idx, name)
+	if hold == "" {
+		hold = s.heldFileLocked(idx, name)
+	}
 	s.replacesFileLocked(idx, name)
 	now := time.Now().Unix()
 
@@ -340,7 +350,7 @@ func (s *Store) importArchive(name string, data []byte, ignore bool) (string, er
 			}
 		}
 	}
-	a := &Archive{File: name, Models: ids, Updated: now, Ignore: ignore}
+	a := &Archive{File: name, Models: ids, Updated: now, Ignore: hold == ModeIgnore, Beta: hold == ModeBeta}
 	a.Kind, a.Texture = classifyArchive(names, ids)
 	idx.Archives[strings.ToLower(name)] = a
 	for _, id := range ids {

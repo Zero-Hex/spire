@@ -26,6 +26,10 @@ import (
 //
 // A build is staged first, so it can be tried before players get it; Release
 // makes it the one players' patchers update to.
+//
+// Each channel has its own patcher program: the beta one reads the beta
+// channel and updates itself from there, under its own file name, so testers
+// keep it (and its client folder) apart from the live one.
 
 type PatcherSettings struct {
 	SourceDir  string `json:"source_dir"`  // the starfall-patcher checkout, with build.sh
@@ -53,11 +57,13 @@ type PatcherState struct {
 	Released *PatcherBuild   `json:"released"`
 }
 
+// PatcherStatus is both channels' patchers, and the build: one at a time
 type PatcherStatus struct {
-	PatcherState
-	Running   bool   `json:"running"`
-	Log       string `json:"log"`
-	LastError string `json:"last_error"`
+	Channels  map[string]PatcherState `json:"channels"`
+	Running   bool                    `json:"running"`
+	Building  string                  `json:"building"` // the channel of the running or last build
+	Log       string                  `json:"log"`
+	LastError string                  `json:"last_error"`
 }
 
 type Patcher struct {
@@ -65,6 +71,7 @@ type Patcher struct {
 	pathmgmt  *pathmgmt.PathManagement
 	mu        sync.Mutex
 	running   bool
+	building  string
 	log       bytes.Buffer
 	lastError string
 }
@@ -94,20 +101,43 @@ func (p *Patcher) Dotnet() string {
 	return FindDotnet()
 }
 
-func (p *Patcher) dir() string {
-	return filepath.Join(p.publisher.root(), "patcher")
+func (p *Patcher) dir(ch string) string {
+	return filepath.Join(p.publisher.channelDir(ch), "patcher")
 }
 
-func (p *Patcher) stagedExe() string   { return filepath.Join(p.dir(), "staged.exe") }
-func (p *Patcher) releasedExe() string { return filepath.Join(p.dir(), "released.exe") }
+func (p *Patcher) stagedExe(ch string) string   { return filepath.Join(p.dir(ch), "staged.exe") }
+func (p *Patcher) releasedExe(ch string) string { return filepath.Join(p.dir(ch), "released.exe") }
 
-func (p *Patcher) loadLocked() PatcherState {
+func (p *Patcher) readLocked(ch string) (PatcherState, bool) {
 	var s PatcherState
-	if b, err := os.ReadFile(filepath.Join(p.dir(), "state.json")); err == nil {
+	b, err := os.ReadFile(filepath.Join(p.dir(ch), "state.json"))
+	if err == nil {
 		_ = json.Unmarshal(b, &s)
+	}
+	return s, err == nil
+}
+
+// loadLocked is a channel's patcher. Beta's settings start as live's, with
+// its own file name, title and address.
+func (p *Patcher) loadLocked(ch string) PatcherState {
+	s, saved := p.readLocked(ch)
+	if ch == ChannelBeta && !saved {
+		live := p.loadLocked(ChannelLive).Settings
+		s.Settings = PatcherSettings{
+			SourceDir:  live.SourceDir,
+			GitPull:    live.GitPull,
+			FileName:   live.FileName + "-beta",
+			ServerName: live.ServerName + " Beta",
+		}
+		if live.PublicURL != "" {
+			s.Settings.PublicURL = live.PublicURL + "beta/"
+		}
 	}
 	if s.Settings.FileName == "" {
 		s.Settings.FileName = "eqemupatcher"
+		if ch == ChannelBeta {
+			s.Settings.FileName = "eqemupatcher-beta"
+		}
 	}
 	if s.Settings.ServerName == "" {
 		s.Settings.ServerName = "EQEmu Patcher"
@@ -115,25 +145,28 @@ func (p *Patcher) loadLocked() PatcherState {
 	return s
 }
 
-func (p *Patcher) saveLocked(s PatcherState) error {
-	if err := os.MkdirAll(p.dir(), 0755); err != nil {
+func (p *Patcher) saveLocked(ch string, s PatcherState) error {
+	if err := os.MkdirAll(p.dir(ch), 0755); err != nil {
 		return err
 	}
 	b, _ := json.MarshalIndent(s, "", "  ")
-	return writeAtomic(filepath.Join(p.dir(), "state.json"), b)
+	return writeAtomic(filepath.Join(p.dir(ch), "state.json"), b)
 }
 
 func (p *Patcher) Status() PatcherStatus {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	return PatcherStatus{PatcherState: p.loadLocked(), Running: p.running, Log: p.log.String(), LastError: p.lastError}
+	return PatcherStatus{
+		Channels: map[string]PatcherState{ChannelLive: p.loadLocked(ChannelLive), ChannelBeta: p.loadLocked(ChannelBeta)},
+		Running:  p.running, Building: p.building, Log: p.log.String(), LastError: p.lastError,
+	}
 }
 
-// Released is the patcher players update to, or nil
-func (p *Patcher) Released() (*PatcherBuild, string) {
+// Released is the patcher a channel's players update to, or nil
+func (p *Patcher) Released(ch string) (*PatcherBuild, string) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	return p.loadLocked().Released, p.releasedExe()
+	return p.loadLocked(ch).Released, p.releasedExe(ch)
 }
 
 var (
@@ -141,7 +174,10 @@ var (
 	publicURLPattern = regexp.MustCompile(`^https?://[^\s/]+(/[^\s]*)?/$`)
 )
 
-func (p *Patcher) SaveSettings(s PatcherSettings) error {
+func (p *Patcher) SaveSettings(ch string, s PatcherSettings) error {
+	if err := checkChannel(ch); err != nil {
+		return err
+	}
 	s.FileName = strings.TrimSuffix(strings.TrimSpace(s.FileName), ".exe")
 	s.PublicURL = strings.TrimSpace(s.PublicURL)
 	s.ServerName = strings.TrimSpace(s.ServerName)
@@ -154,6 +190,14 @@ func (p *Patcher) SaveSettings(s PatcherSettings) error {
 	}
 	if s.PublicURL != "" && !publicURLPattern.MatchString(s.PublicURL) {
 		return errors.New("the public address must be like http://host:3000/api/v1/patch/")
+	}
+	// a patcher reads its own channel, and updates itself from there
+	isBeta := strings.HasSuffix(strings.ToLower(s.PublicURL), "/beta/")
+	if s.PublicURL != "" && ch == ChannelBeta && !isBeta {
+		return errors.New("the beta patcher's public address is the beta channel's: it ends in /patch/beta/")
+	}
+	if ch == ChannelLive && isBeta {
+		return errors.New("that is the beta channel's address: the live patcher reads the patch address, without beta/")
 	}
 	if s.ServerName == "" || strings.ContainsAny(s.ServerName, "\"\r\n") {
 		return errors.New("the server name must be one line, with no quotes")
@@ -169,19 +213,31 @@ func (p *Patcher) SaveSettings(s PatcherSettings) error {
 
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	st := p.loadLocked()
+	// both may sit in a player's downloads, and each updates itself by name
+	other := ChannelBeta
+	if ch == ChannelBeta {
+		other = ChannelLive
+	}
+	if strings.EqualFold(p.loadLocked(other).Settings.FileName, s.FileName) {
+		return fmt.Errorf("the %v patcher is already %v.exe: give this one its own file name", other, s.FileName)
+	}
+	st := p.loadLocked(ch)
 	st.Settings = s
-	return p.saveLocked(st)
+	return p.saveLocked(ch, st)
 }
 
-// Build starts a build in the background; Status follows it
-func (p *Patcher) Build() error {
+// Build starts a build of a channel's patcher in the background; Status
+// follows it
+func (p *Patcher) Build(ch string) error {
+	if err := checkChannel(ch); err != nil {
+		return err
+	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if p.running {
 		return errors.New("a build is already running")
 	}
-	st := p.loadLocked()
+	st := p.loadLocked(ch)
 	set := st.Settings
 	switch {
 	case set.SourceDir == "":
@@ -194,10 +250,11 @@ func (p *Patcher) Build() error {
 	}
 
 	p.running = true
+	p.building = ch
 	p.lastError = ""
 	p.log.Reset()
 	version := fmt.Sprintf("1.1.%d", st.Builds+1)
-	go p.run(set, version)
+	go p.run(ch, set, version)
 	return nil
 }
 
@@ -226,8 +283,8 @@ func (w logWriter) Write(b []byte) (int, error) {
 	return len(b), nil
 }
 
-func (p *Patcher) run(set PatcherSettings, version string) {
-	err := p.build(set, version)
+func (p *Patcher) run(ch string, set PatcherSettings, version string) {
+	err := p.build(ch, set, version)
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.running = false
@@ -235,11 +292,11 @@ func (p *Patcher) run(set PatcherSettings, version string) {
 		p.lastError = err.Error()
 		p.appendLocked("\nFailed: " + err.Error() + "\n")
 	} else {
-		p.appendLocked("\nBuilt " + version + ". Try it, then Release it to players.\n")
+		p.appendLocked("\nBuilt the " + ch + " patcher " + version + ". Try it, then Release it to players.\n")
 	}
 }
 
-func (p *Patcher) build(set PatcherSettings, version string) error {
+func (p *Patcher) build(ch string, set PatcherSettings, version string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
 	defer cancel()
 
@@ -261,7 +318,7 @@ func (p *Patcher) build(set PatcherSettings, version string) error {
 	defer os.RemoveAll(out)
 
 	dotnet := p.Dotnet()
-	p.logf("$ build.sh (version %v, %v, with %v)\n", version, set.PublicURL, dotnet)
+	p.logf("$ build.sh (%v patcher %v, %v, with %v)\n", ch, version, set.PublicURL, dotnet)
 	cmd := exec.CommandContext(ctx, "sh", filepath.Join(set.SourceDir, "build.sh"), out)
 	cmd.Dir = set.SourceDir
 	cmd.Env = append(os.Environ(),
@@ -278,7 +335,8 @@ func (p *Patcher) build(set PatcherSettings, version string) error {
 	)
 	if os.Getenv("HOME") == "" {
 		// dotnet keeps its package cache under HOME
-		cmd.Env = append(cmd.Env, "HOME="+filepath.Join(p.dir(), "home"), "DOTNET_CLI_HOME="+filepath.Join(p.dir(), "home"))
+		home := filepath.Join(p.dir(ChannelLive), "home")
+		cmd.Env = append(cmd.Env, "HOME="+home, "DOTNET_CLI_HOME="+home)
 	}
 	cmd.Stdout, cmd.Stderr = logWriter{p}, logWriter{p}
 	if err := cmd.Run(); err != nil {
@@ -289,24 +347,27 @@ func (p *Patcher) build(set PatcherSettings, version string) error {
 	if err != nil {
 		return errors.New("build.sh made no eqemupatcher.exe")
 	}
-	return p.stage(exe, PatcherBuild{
+	return p.stage(ch, exe, PatcherBuild{
 		Version: version, PublicURL: set.PublicURL, ServerName: set.ServerName, FileName: set.FileName, Source: "built",
 	}, true)
 }
 
 // Upload stages a patcher built elsewhere. Its own settings are not known:
 // it is served under the current file name.
-func (p *Patcher) Upload(exe []byte) error {
+func (p *Patcher) Upload(ch string, exe []byte) error {
+	if err := checkChannel(ch); err != nil {
+		return err
+	}
 	if len(exe) < 2 || string(exe[:2]) != "MZ" {
 		return errors.New("that is not a Windows program")
 	}
 	p.mu.Lock()
-	set := p.loadLocked().Settings
+	set := p.loadLocked(ch).Settings
 	p.mu.Unlock()
-	return p.stage(exe, PatcherBuild{Version: "uploaded", PublicURL: set.PublicURL, ServerName: set.ServerName, FileName: set.FileName, Source: "uploaded"}, false)
+	return p.stage(ch, exe, PatcherBuild{Version: "uploaded", PublicURL: set.PublicURL, ServerName: set.ServerName, FileName: set.FileName, Source: "uploaded"}, false)
 }
 
-func (p *Patcher) stage(exe []byte, b PatcherBuild, numbered bool) error {
+func (p *Patcher) stage(ch string, exe []byte, b PatcherBuild, numbered bool) error {
 	sum := md5.Sum(exe)
 	b.MD5 = strings.ToUpper(hex.EncodeToString(sum[:]))
 	b.Size = int64(len(exe))
@@ -314,41 +375,45 @@ func (p *Patcher) stage(exe []byte, b PatcherBuild, numbered bool) error {
 
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if err := os.MkdirAll(p.dir(), 0755); err != nil {
+	if err := os.MkdirAll(p.dir(ch), 0755); err != nil {
 		return err
 	}
-	if err := writeAtomic(p.stagedExe(), exe); err != nil {
+	if err := writeAtomic(p.stagedExe(ch), exe); err != nil {
 		return err
 	}
-	st := p.loadLocked()
+	st := p.loadLocked(ch)
 	if numbered {
 		st.Builds++
 	}
 	st.Staged = &b
-	return p.saveLocked(st)
+	return p.saveLocked(ch, st)
 }
 
-// Release makes the staged patcher the one players' patchers update to
-func (p *Patcher) Release() (*PatcherBuild, error) {
+// Release makes a channel's staged patcher the one its players' patchers
+// update to
+func (p *Patcher) Release(ch string) (*PatcherBuild, error) {
+	if err := checkChannel(ch); err != nil {
+		return nil, err
+	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	st := p.loadLocked()
+	st := p.loadLocked(ch)
 	if st.Staged == nil {
 		return nil, errors.New("nothing is staged: build or upload a patcher first")
 	}
 	// a patcher with no file list to read stops ("Failed to fetch filelist")
-	if p.publisher.Current() == nil {
-		return nil, errors.New("publish the client patch first: the patcher stops when it finds no file list")
+	if p.publisher.Current(ch) == nil {
+		return nil, fmt.Errorf("publish the client patch to %v first: the patcher stops when it finds no file list", ch)
 	}
-	exe, err := os.ReadFile(p.stagedExe())
+	exe, err := os.ReadFile(p.stagedExe(ch))
 	if err != nil {
 		return nil, err
 	}
-	if err := writeAtomic(p.releasedExe(), exe); err != nil {
+	if err := writeAtomic(p.releasedExe(ch), exe); err != nil {
 		return nil, err
 	}
 	st.Released = st.Staged
-	if err := p.saveLocked(st); err != nil {
+	if err := p.saveLocked(ch, st); err != nil {
 		return nil, err
 	}
 	return st.Released, nil

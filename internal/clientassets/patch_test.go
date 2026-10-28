@@ -96,7 +96,7 @@ func TestClientFilesGoWhereTheClientReadsThem(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	files, notes := s.PatchFiles()
+	files, notes := s.PatchFiles(false)
 	var paths []string
 	for _, f := range files {
 		paths = append(paths, f.Path)
@@ -173,14 +173,14 @@ func TestPatchWarnsAboutSheetsTheClientCannotShow(t *testing.T) {
 	if _, err := s.Import("dragitem179.png", testSheet(t)); err != nil {
 		t.Fatal(err)
 	}
-	_, notes := s.PatchFiles()
+	_, notes := s.PatchFiles(false)
 	if len(notes) != 1 || !strings.Contains(notes[0], "EQUI_Animations.xml") {
 		t.Fatalf("notes %v", notes)
 	}
 	if _, err := s.Import("EQUI_Animations.xml", []byte(animations)); err != nil {
 		t.Fatal(err)
 	}
-	files, notes := s.PatchFiles()
+	files, notes := s.PatchFiles(false)
 	var anim PatchFile
 	for _, f := range files {
 		if strings.HasSuffix(f.Path, "EQUI_Animations.xml") {
@@ -211,7 +211,7 @@ func TestClientFilesInAnyFolder(t *testing.T) {
 			t.Fatalf("%v/%v: %v", f.folder, f.name, err)
 		}
 	}
-	files, _ := s.PatchFiles()
+	files, _ := s.PatchFiles(false)
 	var paths []string
 	for _, f := range files {
 		paths = append(paths, f.Path)
@@ -245,7 +245,7 @@ func TestOldClientFilesAreMoved(t *testing.T) {
 	_ = os.WriteFile(filepath.Join(s.dir, "files", "GlobalLoad.txt"), []byte("old"), 0644)
 	_ = os.WriteFile(filepath.Join(s.dir, "index.json"), []byte(`{"files":{"globalload.txt":{"file":"GlobalLoad.txt","path":"Resources/GlobalLoad.txt","size":3}}}`), 0644)
 
-	files, _ := s.PatchFiles()
+	files, _ := s.PatchFiles(false)
 	if len(files) != 1 || files[0].Path != "Resources/GlobalLoad.txt" {
 		t.Fatalf("%+v", files)
 	}
@@ -261,10 +261,10 @@ func TestOldClientFilesAreMoved(t *testing.T) {
 // kept out when a newer build of it is uploaded
 func TestIgnoredFilesStayOutOfThePatch(t *testing.T) {
 	s := testStore(t)
-	if _, err := s.ImportReaderAt("", "IT9001.eqg", bytes.NewReader(buildPFS(t, []string{"it9001.mod"})), true); err != nil {
+	if _, err := s.ImportReaderAt("", "IT9001.eqg", bytes.NewReader(buildPFS(t, []string{"it9001.mod"})), ModeIgnore); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.ImportReaderAt("", "dragitem181.png", bytes.NewReader(testSheet(t)), true); err != nil {
+	if _, err := s.ImportReaderAt("", "dragitem181.png", bytes.NewReader(testSheet(t)), ModeIgnore); err != nil {
 		t.Fatal(err)
 	}
 	_, _ = s.ImportAt("uifiles/default", "EQUI_Beta.xml", []byte("<x/>"))
@@ -276,7 +276,7 @@ func TestIgnoredFilesStayOutOfThePatch(t *testing.T) {
 	}
 
 	mode := func() map[string]string {
-		files, _ := s.PatchFiles()
+		files, _ := s.PatchFiles(false)
 		out := map[string]string{}
 		for _, f := range files {
 			switch {
@@ -319,5 +319,53 @@ func TestIgnoredFilesStayOutOfThePatch(t *testing.T) {
 	_, _ = s.AddRemoval("old.eqg")
 	if err := s.SetMode("old.eqg", ModeIgnore); err == nil {
 		t.Error("ignored a removal Spire has no copy of")
+	}
+}
+
+// beta only: sent to the beta channel, not live; its icon sheet gets its
+// A_DragItem frame in beta's EQUI_Animations.xml only, and it stays beta only
+// when a newer build is uploaded
+func TestBetaFilesGoToBetaOnly(t *testing.T) {
+	s := testStore(t)
+	if _, err := s.Import("EQUI_Animations.xml", []byte(animations)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.ImportReaderAt("", "dragitem3.png", bytes.NewReader(testSheet(t)), ModeBeta); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Import("IT9001.eqg", buildPFS(t, []string{"it9001.mod"})); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetMode("IT9001.eqg", ModeBeta); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Import("IT9001.eqg", buildPFS(t, []string{"it9001.mod", "new.dds"})); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, beta := range []bool{false, true} {
+		files, _ := s.PatchFiles(beta)
+		got := map[string]PatchFile{}
+		for _, f := range files {
+			got[f.Path] = f
+		}
+		if !got["uifiles/default/dragitem3.dds"].Beta || !got["IT9001.eqg"].Beta {
+			t.Errorf("beta %v: not beta only: %+v", beta, got)
+		}
+		anim := got["uifiles/default/EQUI_Animations.xml"]
+		b, _ := anim.Read()
+		if has := strings.Contains(string(b), "dragitem3.dds"); has != beta || anim.Beta {
+			t.Errorf("beta %v: frame for sheet 3 %v, animations %+v", beta, has, anim)
+		}
+		// beta's carries live's, for promoting
+		live, ok := anim.LiveVariant()
+		if ok != beta {
+			t.Fatalf("beta %v: live variant %v", beta, ok)
+		}
+		if ok {
+			if b, _ := live(); strings.Contains(string(b), "dragitem3.dds") {
+				t.Error("live's variant has the beta-only sheet's frame")
+			}
+		}
 	}
 }

@@ -54,6 +54,8 @@ func (f *Controller) Routes() []*routes.Route {
 		routes.RegisterRoute(http.MethodGet, "client-files/patch", f.patch, nil),
 		routes.RegisterRoute(http.MethodGet, "client-files/patch/published", f.published, nil),
 		routes.RegisterRoute(http.MethodPost, "client-files/patch/publish", f.publish, nil),
+		routes.RegisterRoute(http.MethodGet, "client-files/patch/promote", f.promotePreview, nil),
+		routes.RegisterRoute(http.MethodPost, "client-files/patch/promote", f.promote, nil),
 	}
 }
 

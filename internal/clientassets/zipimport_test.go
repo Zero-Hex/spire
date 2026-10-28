@@ -114,7 +114,7 @@ func TestRemovalRules(t *testing.T) {
 	if _, err := s.AddRemoval("IT1234.eqg"); err != nil {
 		t.Fatal(err)
 	}
-	files, _ := s.PatchFiles()
+	files, _ := s.PatchFiles(false)
 	state := map[string]string{}
 	for _, f := range files {
 		state[f.Path] = f.Kind
@@ -136,7 +136,7 @@ func TestRemovalRules(t *testing.T) {
 	if _, err := s.ImportAt("", "IT1234.eqg", buildPFS(t, []string{"it1234.mod"})); err != nil {
 		t.Fatal(err)
 	}
-	files, _ = s.PatchFiles()
+	files, _ = s.PatchFiles(false)
 	for _, f := range files {
 		if f.Remove && f.Path != "uifiles/default/dragitem180.dds" {
 			t.Errorf("still removed: %+v", f)

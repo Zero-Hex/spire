@@ -20,11 +20,11 @@ func blobs(t *testing.T, p *Publisher) int {
 
 func TestPublishOnlyChangesWhatChanged(t *testing.T) {
 	p := &Publisher{dir: t.TempDir()}
-	if p.Current() != nil {
+	if p.Current(ChannelLive) != nil {
 		t.Fatal("published before publishing")
 	}
 
-	m1, d1, err := p.Publish([]publishSource{
+	m1, d1, err := p.Publish(ChannelLive, []publishSource{
 		src("spells_us.txt", "spells v1"),
 		src("Resources/GlobalLoad.txt", "global"),
 		src("uifiles/default/EQUI.xml", "global"), // same content: stored once
@@ -40,7 +40,7 @@ func TestPublishOnlyChangesWhatChanged(t *testing.T) {
 	}
 
 	// the same files again: no new version, so patchers see no new patch
-	m2, d2, _ := p.Publish([]publishSource{
+	m2, d2, _ := p.Publish(ChannelLive, []publishSource{
 		src("spells_us.txt", "spells v1"),
 		src("resources/globalload.txt", "global"),
 		src("uifiles/default/EQUI.xml", "global"),
@@ -49,7 +49,7 @@ func TestPublishOnlyChangesWhatChanged(t *testing.T) {
 		t.Fatalf("republish: %v vs %v, %+v", m2.Version, m1.Version, d2)
 	}
 
-	m3, d3, _ := p.Publish([]publishSource{
+	m3, d3, _ := p.Publish(ChannelLive, []publishSource{
 		src("spells_us.txt", "spells v2"),
 		src("Resources/GlobalLoad.txt", "global"),
 		src("dinput8.dll", "dll"),
@@ -62,17 +62,17 @@ func TestPublishOnlyChangesWhatChanged(t *testing.T) {
 	if blobs(t, p) != 3 {
 		t.Errorf("blobs %d", blobs(t, p))
 	}
-	f, blob, ok := p.Open("SPELLS_US.TXT")
+	f, blob, ok := p.Open(ChannelLive, "SPELLS_US.TXT")
 	if b, _ := os.ReadFile(blob); !ok || string(b) != "spells v2" || f.Size != 9 {
 		t.Fatalf("open: %v %q %+v", ok, b, f)
 	}
-	if _, _, ok := p.Open("uifiles/default/EQUI.xml"); ok {
+	if _, _, ok := p.Open(ChannelLive, "uifiles/default/EQUI.xml"); ok {
 		t.Error("a file left out of the publish is still served")
 	}
 
 	// a new publisher (Spire restarted) reads the published patch back
 	again := &Publisher{dir: p.dir}
-	if c := again.Current(); c == nil || c.Version != m3.Version {
+	if c := again.Current(ChannelLive); c == nil || c.Version != m3.Version {
 		t.Fatal("not read back")
 	}
 }
@@ -105,9 +105,9 @@ func TestFilelistIsWhatThePatcherReads(t *testing.T) {
 
 func TestPublishDeletesFromClients(t *testing.T) {
 	p := &Publisher{dir: t.TempDir()}
-	m1, _, _ := p.Publish([]publishSource{src("spells_us.txt", "x")}, nil, nil)
+	m1, _, _ := p.Publish(ChannelLive, []publishSource{src("spells_us.txt", "x")}, nil, nil)
 
-	m2, d2, _ := p.Publish([]publishSource{src("spells_us.txt", "x")}, []string{"IT9.eqg", "spells_us.txt", "it9.eqg"}, nil)
+	m2, d2, _ := p.Publish(ChannelLive, []publishSource{src("spells_us.txt", "x")}, []string{"IT9.eqg", "spells_us.txt", "it9.eqg"}, nil)
 	if m2.Version == m1.Version {
 		t.Error("a new delete is not a new patch, so patchers would not run it")
 	}
@@ -124,8 +124,96 @@ func TestPublishDeletesFromClients(t *testing.T) {
 		t.Fatalf("%+v %v", got, err)
 	}
 
-	_, d3, _ := p.Publish([]publishSource{src("spells_us.txt", "x")}, nil, nil)
+	_, d3, _ := p.Publish(ChannelLive, []publishSource{src("spells_us.txt", "x")}, nil, nil)
 	if strings.Join(d3.Undeleted, ",") != "IT9.eqg" {
 		t.Errorf("%+v", d3)
+	}
+}
+
+// beta is published from Spire, beta-only files included; promoting makes
+// exactly that live, without them
+func TestPromoteMakesBetaLive(t *testing.T) {
+	p := &Publisher{dir: t.TempDir()}
+	if _, _, err := p.Promote(); err == nil {
+		t.Fatal("promoted with nothing on beta")
+	}
+	live1, _, _ := p.Publish(ChannelLive, []publishSource{src("spells_us.txt", "spells v1")}, nil, nil)
+
+	betaOnly := src("IT9001.eqg", "beta model")
+	betaOnly.Beta = true
+	sources := []publishSource{src("spells_us.txt", "spells v2"), betaOnly}
+	beta, _, err := p.Publish(ChannelBeta, sources, []string{"IT1.eqg"}, nil)
+	if err != nil || len(beta.Files) != 2 || !beta.Files[0].Beta {
+		t.Fatalf("%+v %v", beta, err)
+	}
+	// publishing beta leaves live as it was
+	if p.Current(ChannelLive).Version != live1.Version {
+		t.Fatal("live changed")
+	}
+	// a beta-only file is never published to live directly
+	if m, _, _ := p.Publish(ChannelLive, sources, nil, nil); len(m.Files) != 1 {
+		t.Errorf("live got %+v", m.Files)
+	}
+
+	d, left, err := p.PromotePreview()
+	if err != nil || strings.Join(left, ",") != "IT9001.eqg" || strings.Join(d.Deleted, ",") != "IT1.eqg" || d.Unchanged != 1 {
+		t.Fatalf("preview %+v %v %v", d, left, err)
+	}
+	live, d, err := p.Promote()
+	if err != nil || len(live.Files) != 1 || live.Files[0].Path != "spells_us.txt" || live.Promoted != beta.Version ||
+		strings.Join(live.Deletes, ",") != "IT1.eqg" {
+		t.Fatalf("%+v %+v %v", live, d, err)
+	}
+	if _, _, ok := p.Open(ChannelLive, "IT9001.eqg"); ok {
+		t.Error("live serves a beta-only file")
+	}
+	if _, blob, ok := p.Open(ChannelBeta, "IT9001.eqg"); !ok {
+		t.Error("beta lost its file")
+	} else if b, _ := os.ReadFile(blob); string(b) != "beta model" {
+		t.Errorf("beta file %q", b)
+	}
+	// stored files either channel lists are kept: spells v1 is gone, the rest stay
+	if blobs(t, p) != 2 {
+		t.Errorf("blobs %d", blobs(t, p))
+	}
+	// promoting again changes nothing
+	if again, _, _ := p.Promote(); again.Version != live.Version || again.Published != live.Published {
+		t.Error("a second promote made a new version")
+	}
+
+	// a file built differently for live (EQUI_Animations.xml) is promoted as
+	// live's
+	anim := src("uifiles/default/EQUI_Animations.xml", "frames 1-179")
+	anim.live = func() ([]byte, error) { return []byte("frames 1-178"), nil }
+	if _, _, err := p.Publish(ChannelBeta, []publishSource{anim}, nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, blob, _ := p.Open(ChannelBeta, "uifiles/default/EQUI_Animations.xml"); true {
+		if b, _ := os.ReadFile(blob); string(b) != "frames 1-179" {
+			t.Errorf("beta's %q", b)
+		}
+	}
+	if _, _, err := p.Promote(); err != nil {
+		t.Fatal(err)
+	}
+	f, blob, _ := p.Open(ChannelLive, "uifiles/default/EQUI_Animations.xml")
+	if b, _ := os.ReadFile(blob); string(b) != "frames 1-178" || f.Size != 12 || f.LiveMD5 != "" {
+		t.Errorf("live's %q %+v", b, f)
+	}
+	// published straight to live, it is live's too
+	m, _, _ := p.Publish(ChannelLive, []publishSource{anim}, nil, nil)
+	if _, blob, _ := p.Open(ChannelLive, "uifiles/default/EQUI_Animations.xml"); m.Files[0].LiveMD5 != "" {
+		t.Error("live has a live variant")
+	} else if b, _ := os.ReadFile(blob); string(b) != "frames 1-178" {
+		t.Errorf("straight to live: %q", b)
+	}
+
+	// making a file beta only, with no other change, is a new beta version, so
+	// a promote after it leaves the file out
+	plain := src("IT9001.eqg", "beta model")
+	b1, _, _ := p.Publish(ChannelBeta, []publishSource{src("spells_us.txt", "spells v2"), plain}, nil, nil)
+	b2, d2, _ := p.Publish(ChannelBeta, []publishSource{src("spells_us.txt", "spells v2"), betaOnly}, nil, nil)
+	if b2.Version == b1.Version || strings.Join(d2.BetaOnly, ",") != "IT9001.eqg" || d2.Unchanged != 1 {
+		t.Errorf("%v %+v", b2.Version, d2)
 	}
 }

@@ -108,8 +108,13 @@ func (a *Controller) upload(c echo.Context) error {
 	if v := form.Value["folder"]; len(v) > 0 {
 		folder = v[0]
 	}
-	// kept out of the client patch: a beta build, say
-	ignore := len(form.Value["ignore"]) > 0 && (form.Value["ignore"][0] == "1" || form.Value["ignore"][0] == "true")
+	// held back from players: "beta" sends them to the beta channel only,
+	// "ignore" to neither
+	set := func(key string) bool {
+		v := form.Value[key]
+		return len(v) > 0 && (v[0] == "1" || v[0] == "true")
+	}
+	hold := holdMode(set("ignore"), set("beta"))
 	paths := form.Value["paths"]
 
 	var results []uploadResult
@@ -126,7 +131,7 @@ func (a *Controller) upload(c echo.Context) error {
 		if err != nil {
 			r.Error = err.Error()
 		} else {
-			r.Result, err = a.store.ImportReaderAt(dir, fh.Filename, f, ignore)
+			r.Result, err = a.store.ImportReaderAt(dir, fh.Filename, f, hold)
 			_ = f.Close()
 			if err != nil {
 				r.Error = err.Error()
@@ -240,7 +245,7 @@ type removeRequest struct {
 	Mode string `json:"mode"`
 }
 
-// setMode sets what the patch does with a file: add, ignore or remove
+// setMode sets what the patch does with a file: add, beta, ignore or remove
 func (a *Controller) setMode(c echo.Context) error {
 	var r removeRequest
 	if err := c.Bind(&r); err != nil {

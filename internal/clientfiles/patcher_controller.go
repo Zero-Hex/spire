@@ -31,42 +31,60 @@ func (p *PatcherController) Routes() []*routes.Route {
 
 type patcherStatus struct {
 	PatcherStatus
-	SuggestedURL     string `json:"suggested_url"` // this Spire's patch address, as this browser reaches it
-	Dotnet           bool   `json:"dotnet"`
-	DotnetPath       string `json:"dotnet_path"`        // the dotnet builds use
-	DotnetInstallDir string `json:"dotnet_install_dir"` // where to install it
+	SuggestedURLs    map[string]string `json:"suggested_urls"` // each channel's patch address, as this browser reaches Spire
+	Dotnet           bool              `json:"dotnet"`
+	DotnetPath       string            `json:"dotnet_path"`        // the dotnet builds use
+	DotnetInstallDir string            `json:"dotnet_install_dir"` // where to install it
 }
 
 func (p *PatcherController) status(c echo.Context) error {
 	dotnet := p.patcher.Dotnet()
 	return c.JSON(http.StatusOK, patcherStatus{
 		PatcherStatus:    p.patcher.Status(),
-		SuggestedURL:     patcherURL(c),
+		SuggestedURLs:    map[string]string{ChannelLive: patcherURL(c, ChannelLive), ChannelBeta: patcherURL(c, ChannelBeta)},
 		Dotnet:           dotnet != "",
 		DotnetPath:       dotnet,
 		DotnetInstallDir: p.patcher.DotnetInstallDir(),
 	})
 }
 
+// the channel a request is for: ?channel=live or beta
+func channelOf(c echo.Context) (string, error) {
+	ch := c.QueryParam("channel")
+	return ch, checkChannel(ch)
+}
+
 func (p *PatcherController) settings(c echo.Context) error {
+	ch, err := channelOf(c)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, echo.Map{"error": err.Error()})
+	}
 	var s PatcherSettings
 	if err := c.Bind(&s); err != nil {
 		return c.JSON(http.StatusBadRequest, echo.Map{"error": err.Error()})
 	}
-	if err := p.patcher.SaveSettings(s); err != nil {
+	if err := p.patcher.SaveSettings(ch, s); err != nil {
 		return c.JSON(http.StatusBadRequest, echo.Map{"error": err.Error()})
 	}
 	return p.status(c)
 }
 
 func (p *PatcherController) build(c echo.Context) error {
-	if err := p.patcher.Build(); err != nil {
+	ch, err := channelOf(c)
+	if err == nil {
+		err = p.patcher.Build(ch)
+	}
+	if err != nil {
 		return c.JSON(http.StatusConflict, echo.Map{"error": err.Error()})
 	}
 	return p.status(c)
 }
 
 func (p *PatcherController) upload(c echo.Context) error {
+	ch, err := channelOf(c)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, echo.Map{"error": err.Error()})
+	}
 	fh, err := c.FormFile("file")
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, echo.Map{"error": err.Error()})
@@ -80,24 +98,32 @@ func (p *PatcherController) upload(c echo.Context) error {
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, echo.Map{"error": err.Error()})
 	}
-	if err := p.patcher.Upload(exe); err != nil {
+	if err := p.patcher.Upload(ch, exe); err != nil {
 		return c.JSON(http.StatusBadRequest, echo.Map{"error": err.Error()})
 	}
 	return p.status(c)
 }
 
 func (p *PatcherController) release(c echo.Context) error {
-	if _, err := p.patcher.Release(); err != nil {
+	ch, err := channelOf(c)
+	if err == nil {
+		_, err = p.patcher.Release(ch)
+	}
+	if err != nil {
 		return c.JSON(http.StatusBadRequest, echo.Map{"error": err.Error()})
 	}
 	return p.status(c)
 }
 
-// the staged patcher, to try before players get it
+// a channel's staged patcher, to try before players get it
 func (p *PatcherController) staged(c echo.Context) error {
-	st := p.patcher.Status()
+	ch, err := channelOf(c)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, echo.Map{"error": err.Error()})
+	}
+	st := p.patcher.Status().Channels[ch]
 	if st.Staged == nil {
 		return c.JSON(http.StatusNotFound, echo.Map{"error": "nothing is staged"})
 	}
-	return c.Attachment(p.patcher.stagedExe(), st.Staged.FileName+".exe")
+	return c.Attachment(p.patcher.stagedExe(ch), st.Staged.FileName+".exe")
 }

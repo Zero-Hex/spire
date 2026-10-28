@@ -47,7 +47,8 @@ func (f *Controller) databaseEntries(c echo.Context) []clientassets.PatchFile {
 }
 
 func (f *Controller) patchContents(c echo.Context) error {
-	files, notes := f.assets.PatchFiles()
+	// as beta gets it: every file that goes to either channel
+	files, notes := f.assets.PatchFiles(true)
 	files = append(f.databaseEntries(c), files...)
 	if _, err := os.Stat(f.pathmgmt.GetExportClientFilesBinPath()); err != nil {
 		notes = append(notes, "Spire did not find the server's export_client_files, so spells_us.txt and dbstr_us.txt come from its own export and SkillCaps.txt and BaseData.txt are left out.")
@@ -58,9 +59,9 @@ func (f *Controller) patchContents(c echo.Context) error {
 	return c.JSON(http.StatusOK, patchContents{Files: files, Notes: notes})
 }
 
-// everything in the patch, read as it is stored or published, and the files
-// deleted from players' clients
-func (f *Controller) patchSources(c echo.Context) ([]publishSource, []string, []string, error) {
+// everything in a channel's patch, read as it is stored or published, and the
+// files deleted from players' clients
+func (f *Controller) patchSources(c echo.Context, ch string) ([]publishSource, []string, []string, error) {
 	built, notes, err := f.databaseFiles(c)
 	if err != nil {
 		return nil, nil, notes, err
@@ -71,30 +72,44 @@ func (f *Controller) patchSources(c echo.Context) ([]publishSource, []string, []
 		out = append(out, publishSource{Path: b.Path, Source: b.Source, read: func() ([]byte, error) { return b.Data, nil }})
 	}
 	var deletes []string
-	assets, assetNotes := f.assets.PatchFiles()
+	assets, assetNotes := f.assets.PatchFiles(ch == ChannelBeta)
 	for _, a := range assets {
-		if a.Ignore {
-			continue // kept in Spire only: neither sent nor deleted
+		if a.Ignore || (a.Beta && ch != ChannelBeta) {
+			continue // kept from these players: neither sent nor deleted
 		}
 		if a.Remove {
 			deletes = append(deletes, a.Path)
 			continue
 		}
-		out = append(out, publishSource{Path: a.Path, Source: a.Source, read: a.Read})
+		s := publishSource{Path: a.Path, Source: a.Source, Beta: a.Beta, read: a.Read}
+		if live, ok := a.LiveVariant(); ok {
+			s.live = live
+		}
+		out = append(out, s)
 	}
 	return out, deletes, append(notes, assetNotes...), nil
 }
 
-// patch streams the zip
+// patch streams the zip of a channel's patch (?channel=, live by default)
 func (f *Controller) patch(c echo.Context) error {
+	ch := c.QueryParam("channel")
+	if ch == "" {
+		ch = ChannelLive
+	}
+	if err := checkChannel(ch); err != nil {
+		return c.JSON(http.StatusBadRequest, echo.Map{"error": err.Error()})
+	}
 	// built first: a failure here can still be an error page
-	sources, deletes, notes, err := f.patchSources(c)
+	sources, deletes, notes, err := f.patchSources(c, ch)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, echo.Map{"error": err.Error()})
 	}
 
 	built := time.Now()
 	name := "client-patch-" + built.Format("2006-01-02-1504") + ".zip"
+	if ch == ChannelBeta {
+		name = "client-patch-beta-" + built.Format("2006-01-02-1504") + ".zip"
+	}
 	res := c.Response()
 	res.Header().Set(echo.HeaderContentType, "application/zip")
 	res.Header().Set(echo.HeaderContentDisposition, fmt.Sprintf("attachment; filename=%q", name))
@@ -123,7 +138,7 @@ func (f *Controller) patch(c echo.Context) error {
 	}
 
 	readme := []string{
-		"Client patch built by Spire " + built.Format("2006-01-02 15:04 MST"),
+		"Client patch (" + ch + ") built by Spire " + built.Format("2006-01-02 15:04 MST"),
 		"",
 		"Unzip into the RoF2 client folder (the one with eqgame.exe), replacing files.",
 		"",
@@ -146,14 +161,22 @@ func (f *Controller) patch(c echo.Context) error {
 	return zw.Close()
 }
 
-// the public address the patcher is built with (FILELIST_URL)
-func patcherURL(c echo.Context) string {
+// a channel's public address, which its patcher is built with (FILELIST_URL
+// and PATCHER_URL): live at <api>/patch/, beta at <api>/patch/beta/
+func patcherURL(c echo.Context, ch string) string {
 	path := c.Request().URL.Path
 	base := "/api/v1/"
-	if i := strings.Index(path, "/client-files/"); i >= 0 {
-		base = path[:i+1]
+	for _, group := range []string{"/client-files/", "/patcher-build"} {
+		if i := strings.Index(path, group); i >= 0 {
+			base = path[:i+1]
+			break
+		}
 	}
-	return c.Scheme() + "://" + c.Request().Host + base + "patch/"
+	url := c.Scheme() + "://" + c.Request().Host + base + "patch/"
+	if ch == ChannelBeta {
+		url += "beta/"
+	}
+	return url
 }
 
 type publishedInfo struct {
@@ -162,28 +185,52 @@ type publishedInfo struct {
 }
 
 func (f *Controller) published(c echo.Context) error {
-	return c.JSON(http.StatusOK, publishedInfo{Manifest: f.publisher.Current(), FilelistURL: patcherURL(c)})
+	out := map[string]publishedInfo{}
+	for _, ch := range []string{ChannelLive, ChannelBeta} {
+		out[ch] = publishedInfo{Manifest: f.publisher.Current(ch), FilelistURL: patcherURL(c, ch)}
+	}
+	return c.JSON(http.StatusOK, out)
 }
 
+// publish publishes what Spire holds to a channel (?channel=live or beta)
 func (f *Controller) publish(c echo.Context) error {
-	sources, deletes, notes, err := f.patchSources(c)
+	ch := c.QueryParam("channel")
+	if err := checkChannel(ch); err != nil {
+		return c.JSON(http.StatusBadRequest, echo.Map{"error": err.Error()})
+	}
+	sources, deletes, notes, err := f.patchSources(c, ch)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, echo.Map{"error": err.Error()})
 	}
-	if notes == nil {
-		notes = []string{}
-	}
-	m, diff, err := f.publisher.Publish(sources, deletes, notes)
+	m, diff, err := f.publisher.Publish(ch, sources, deletes, notes)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, echo.Map{"error": err.Error()})
 	}
-	return c.JSON(http.StatusOK, echo.Map{"manifest": m, "diff": diff, "filelist_url": patcherURL(c)})
+	return c.JSON(http.StatusOK, echo.Map{"channel": ch, "manifest": m, "diff": diff, "filelist_url": patcherURL(c, ch)})
 }
 
-// PublicController serves the published patch to players' patchers, with no
-// login: <api>/patch/rof/filelist_rof.yml and <api>/patch/rof/<file>, and the
-// released patcher they update themselves to: <api>/patch/<name>-hash.txt and
-// <api>/patch/<name>.exe
+// promotePreview is what promoting beta would change on live
+func (f *Controller) promotePreview(c echo.Context) error {
+	diff, left, err := f.publisher.PromotePreview()
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, echo.Map{"error": err.Error()})
+	}
+	return c.JSON(http.StatusOK, echo.Map{"diff": diff, "left_out": left, "beta": f.publisher.Current(ChannelBeta)})
+}
+
+// promote makes beta's published patch live, without its beta-only files
+func (f *Controller) promote(c echo.Context) error {
+	m, diff, err := f.publisher.Promote()
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, echo.Map{"error": err.Error()})
+	}
+	return c.JSON(http.StatusOK, echo.Map{"channel": ChannelLive, "manifest": m, "diff": diff, "filelist_url": patcherURL(c, ChannelLive)})
+}
+
+// PublicController serves the published patches to players' patchers, with
+// no login. Live is at <api>/patch/ and beta at <api>/patch/beta/; under each,
+// rof/filelist_rof.yml and rof/<file>, and the released patcher the channel's
+// patchers update themselves to: <name>-hash.txt and <name>.exe.
 type PublicController struct {
 	publisher *Publisher
 	patcher   *Patcher
@@ -207,24 +254,31 @@ func (p *PublicController) serve(c echo.Context) error {
 	}
 	// the patcher asks for <url>rof/filelist_rof.yml, then <url>/filelist_rof.yml
 	name = strings.TrimLeft(strings.ReplaceAll(name, "\\", "/"), "/")
+	ch := ChannelLive
+	if strings.HasPrefix(strings.ToLower(name), "beta/") {
+		ch = ChannelBeta
+		name = strings.TrimLeft(name[len("beta/"):], "/")
+	}
 	lower := strings.ToLower(name)
 
 	if lower == "rof/filelist_rof.yml" || lower == "filelist_rof.yml" {
-		m := p.publisher.Current()
+		m := p.publisher.Current(ch)
 		if m == nil {
-			return c.String(http.StatusNotFound, "nothing is published yet")
+			return c.String(http.StatusNotFound, "nothing is published to "+ch+" yet")
 		}
-		reqPath := c.Request().URL.Path
-		prefix := strings.TrimSuffix(reqPath, raw)
+		prefix := strings.TrimSuffix(c.Request().URL.Path, raw)
 		if !strings.HasSuffix(prefix, "/") {
 			prefix += "/"
+		}
+		if ch == ChannelBeta {
+			prefix += "beta/"
 		}
 		c.Response().Header().Set("Cache-Control", "no-cache")
 		return c.Blob(http.StatusOK, "text/yaml; charset=utf-8", Filelist(m, c.Scheme()+"://"+c.Request().Host+prefix+"rof/"))
 	}
 
 	// the patcher asks for <url><name>-hash.txt, then <url>/<name>.exe
-	if released, exe := p.patcher.Released(); released != nil {
+	if released, exe := p.patcher.Released(ch); released != nil {
 		name := strings.ToLower(released.FileName)
 		switch lower {
 		case name + "-hash.txt":
@@ -239,7 +293,7 @@ func (p *PublicController) serve(c echo.Context) error {
 	if !strings.HasPrefix(lower, "rof/") {
 		return c.String(http.StatusNotFound, "not found")
 	}
-	file, blob, ok := p.publisher.Open(name[len("rof/"):])
+	file, blob, ok := p.publisher.Open(ch, name[len("rof/"):])
 	if !ok {
 		return c.String(http.StatusNotFound, "not in the published patch")
 	}

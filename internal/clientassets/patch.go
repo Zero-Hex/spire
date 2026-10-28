@@ -33,6 +33,7 @@ type ClientFile struct {
 	// with no copy kept has Size 0
 	Remove bool `json:"remove,omitempty"`
 	Ignore bool `json:"ignore,omitempty"` // kept in Spire only: neither sent nor deleted
+	Beta   bool `json:"beta,omitempty"`   // sent to the beta channel only
 }
 
 // PatchFile is one file of the client patch
@@ -44,11 +45,17 @@ type PatchFile struct {
 	Updated int64  `json:"updated"`
 	Remove  bool   `json:"remove"` // deleted from players' clients if found, not sent
 	Ignore  bool   `json:"ignore"` // kept in Spire only: neither sent nor deleted
+	Beta    bool   `json:"beta"`   // sent to the beta channel only
 
 	read func() ([]byte, error)
+	live func() ([]byte, error)
 }
 
 func (p PatchFile) Read() ([]byte, error) { return p.read() }
+
+// LiveVariant reads the file as live gets it, when that differs from the
+// beta listing's: EQUI_Animations.xml without the frames of beta-only sheets
+func (p PatchFile) LiveVariant() (func() ([]byte, error), bool) { return p.live, p.live != nil }
 
 // Rof2DragItemSheets is how many A_DragItem frames (icon sheets) the stock
 // RoF2 EQUI_Animations.xml declares
@@ -106,12 +113,12 @@ func cleanClientFolder(folder string) (string, error) {
 // such; anything else is kept for the client patch as it is. With no folder,
 // the usual one for the file is used.
 func (s *Store) ImportAt(folder, name string, data []byte) (string, error) {
-	return s.importInto(folder, name, data, false, false)
+	return s.importInto(folder, name, data, false, "")
 }
 
 // importInto is ImportAt; placed says the folder was chosen for this file,
 // so "" puts it next to eqgame.exe rather than in its usual folder
-func (s *Store) importInto(folder, name string, data []byte, placed, ignore bool) (string, error) {
+func (s *Store) importInto(folder, name string, data []byte, placed bool, hold string) (string, error) {
 	base := filepath.Base(strings.ReplaceAll(name, "\\", "/"))
 	folder, err := cleanClientFolder(folder)
 	if err != nil {
@@ -119,15 +126,15 @@ func (s *Store) importInto(folder, name string, data []byte, placed, ignore bool
 	}
 	switch {
 	case sheetName.MatchString(base) && (folder == "" || strings.EqualFold(folder, "uifiles/default")):
-		return s.importSheet(base, data, ignore)
+		return s.importSheet(base, data, hold)
 	case strings.EqualFold(filepath.Ext(base), ".eqg") && folder == "":
-		return s.importArchive(base, data, ignore)
+		return s.importArchive(base, data, hold)
 	}
-	return s.importClientFile(folder, base, data, placed || folder != "", ignore)
+	return s.importClientFile(folder, base, data, placed || folder != "", hold)
 }
 
 // importClientFile keeps a file for the patch as it is, at folder/name
-func (s *Store) importClientFile(folder, name string, data []byte, explicit, ignore bool) (string, error) {
+func (s *Store) importClientFile(folder, name string, data []byte, explicit bool, hold string) (string, error) {
 	lower := strings.ToLower(name)
 	if table, ok := generatedFiles[lower]; ok {
 		return "", fmt.Errorf("%v is built from the database (%v) when the patch is: change it there", name, table)
@@ -156,8 +163,10 @@ func (s *Store) importClientFile(folder, name string, data []byte, explicit, ign
 	// the client folder is not case-sensitive: a new upload replaces any spelling
 	if old := idx.Files[key]; old != nil {
 		_ = os.Remove(filepath.Join(files, filepath.FromSlash(old.Path)))
-		// kept out of the patch, it stays out when it is uploaded again
-		ignore = ignore || old.Ignore
+		// held back from players, it stays held back when it is uploaded again
+		if hold == "" {
+			hold = holdMode(old.Ignore, old.Beta)
+		}
 	}
 	disk := filepath.Join(files, filepath.FromSlash(path))
 	if err := os.MkdirAll(filepath.Dir(disk), 0755); err != nil {
@@ -166,7 +175,7 @@ func (s *Store) importClientFile(folder, name string, data []byte, explicit, ign
 	if err := os.WriteFile(disk, data, 0644); err != nil {
 		return "", err
 	}
-	idx.Files[key] = &ClientFile{File: name, Path: path, Size: int64(len(data)), Updated: time.Now().Unix(), Ignore: ignore}
+	idx.Files[key] = &ClientFile{File: name, Path: path, Size: int64(len(data)), Updated: time.Now().Unix(), Ignore: hold == ModeIgnore, Beta: hold == ModeBeta}
 	if err := s.saveLocked(); err != nil {
 		return "", err
 	}
@@ -339,8 +348,9 @@ func AddDragItemFrames(xml string, sheets []int) (string, []int, string) {
 }
 
 // PatchFiles lists what the store puts in the client patch, and anything
-// the client would not show as expected
-func (s *Store) PatchFiles() ([]PatchFile, []string) {
+// the client would not show as expected. beta builds EQUI_Animations.xml as
+// the beta channel gets it, with frames for its beta-only sheets too.
+func (s *Store) PatchFiles(beta bool) ([]PatchFile, []string) {
 	idx := s.Index()
 	dir := s.Dir()
 	var files []PatchFile
@@ -366,21 +376,21 @@ func (s *Store) PatchFiles() ([]PatchFile, []string) {
 		}
 		files = append(files, PatchFile{
 			Path: "uifiles/default/" + sheetFile(n), Source: source, Kind: "sheet", Size: size, Updated: idx.Sheets[n].Updated,
-			Remove: idx.Sheets[n].Remove, Ignore: idx.Sheets[n].Ignore,
+			Remove: idx.Sheets[n].Remove, Ignore: idx.Sheets[n].Ignore, Beta: idx.Sheets[n].Beta,
 			read: func() ([]byte, error) { return s.SheetDDS(n) },
 		})
 	}
 
-	keep := func(path, source, kind, file string, updated int64, remove, ignore bool) {
+	keep := func(path, source, kind, file string, updated int64, remove, ignore, beta bool) {
 		size := int64(0)
 		if fi, err := os.Stat(file); err == nil {
 			size = fi.Size()
 		}
-		files = append(files, PatchFile{Path: path, Source: source, Kind: kind, Size: size, Updated: updated, Remove: remove, Ignore: ignore,
+		files = append(files, PatchFile{Path: path, Source: source, Kind: kind, Size: size, Updated: updated, Remove: remove, Ignore: ignore, Beta: beta,
 			read: func() ([]byte, error) { return os.ReadFile(file) }})
 	}
 	for _, a := range idx.Archives {
-		keep(a.File, modelsLabel(a.Kind, a.Models), "models", filepath.Join(dir, "archives", a.File), a.Updated, a.Remove, a.Ignore)
+		keep(a.File, modelsLabel(a.Kind, a.Models), "models", filepath.Join(dir, "archives", a.File), a.Updated, a.Remove, a.Ignore, a.Beta)
 	}
 
 	var animations *ClientFile
@@ -390,18 +400,23 @@ func (s *Store) PatchFiles() ([]PatchFile, []string) {
 				Updated: f.Updated, Remove: true})
 			continue
 		}
-		if strings.EqualFold(f.Path, "uifiles/default/EQUI_Animations.xml") && !f.Remove && !f.Ignore {
+		if strings.EqualFold(f.Path, "uifiles/default/EQUI_Animations.xml") && !f.Remove && !f.Ignore && (beta || !f.Beta) {
 			animations = f
 			continue
 		}
-		keep(f.Path, "uploaded", "file", filepath.Join(dir, "files", filepath.FromSlash(f.Path)), f.Updated, f.Remove, f.Ignore)
+		keep(f.Path, "uploaded", "file", filepath.Join(dir, "files", filepath.FromSlash(f.Path)), f.Updated, f.Remove, f.Ignore, f.Beta)
 	}
 
-	// frames are added for the sheets players get
-	sent := sheets[:0:0]
+	// frames are added for the sheets the channel's players get
+	sent, liveSent := sheets[:0:0], sheets[:0:0]
 	for _, n := range sheets {
-		if !idx.Sheets[n].Remove && !idx.Sheets[n].Ignore {
-			sent = append(sent, n)
+		if sh := idx.Sheets[n]; !sh.Remove && !sh.Ignore {
+			if beta || !sh.Beta {
+				sent = append(sent, n)
+			}
+			if !sh.Beta {
+				liveSent = append(liveSent, n)
+			}
 		}
 	}
 	sheets = sent
@@ -430,8 +445,14 @@ func (s *Store) PatchFiles() ([]PatchFile, []string) {
 		if warn != "" {
 			notes = append(notes, "EQUI_Animations.xml: "+warn+".")
 		}
-		files = append(files, PatchFile{Path: animations.Path, Source: source, Kind: "file", Size: int64(len(xml)), Updated: animations.Updated,
-			read: func() ([]byte, error) { return []byte(xml), nil }})
+		anim := PatchFile{Path: animations.Path, Source: source, Kind: "file", Size: int64(len(xml)), Updated: animations.Updated,
+			Beta: animations.Beta,
+			read: func() ([]byte, error) { return []byte(xml), nil }}
+		// promoting beta to live sends live's, without beta-only sheets' frames
+		if liveXML, _, _ := AddDragItemFrames(string(b), liveSent); beta && !animations.Beta && liveXML != xml {
+			anim.live = func() ([]byte, error) { return []byte(liveXML), nil }
+		}
+		files = append(files, anim)
 	case past > 0:
 		notes = append(notes, fmt.Sprintf(
 			"%d icon sheet(s) are past the %d the stock client declares, and the client shows no icon from them until "+
@@ -482,17 +503,30 @@ func removable(path string) error {
 
 // Modes of a file in the client patch
 const (
-	ModeAdd    = "add"    // sent to players
+	ModeAdd    = "add"    // sent to players, live and beta
+	ModeBeta   = "beta"   // sent to the beta channel only
 	ModeIgnore = "ignore" // kept in Spire only: neither sent nor deleted
-	ModeRemove = "remove" // deleted from players' clients if found
+	ModeRemove = "remove" // deleted from players' clients if found, live and beta
 )
 
-// SetMode sets what the patch does with a file: send it, leave it out
-// (Spire keeps using it), or delete it from players' clients. Spire keeps
-// its copy either way, so the mode can be changed back.
+// holdMode is how a file is held back from players: ModeIgnore, ModeBeta,
+// or "" when it is sent
+func holdMode(ignore, beta bool) string {
+	switch {
+	case ignore:
+		return ModeIgnore
+	case beta:
+		return ModeBeta
+	}
+	return ""
+}
+
+// SetMode sets what the patch does with a file: send it, send it to beta
+// only, leave it out (Spire keeps using it), or delete it from players'
+// clients. Spire keeps its copy either way, so the mode can be changed back.
 func (s *Store) SetMode(path, mode string) error {
-	if mode != ModeAdd && mode != ModeIgnore && mode != ModeRemove {
-		return fmt.Errorf("%q is not add, ignore or remove", mode)
+	if mode != ModeAdd && mode != ModeBeta && mode != ModeIgnore && mode != ModeRemove {
+		return fmt.Errorf("%q is not add, beta, ignore or remove", mode)
 	}
 	path, err := cleanClientPath(path)
 	if err != nil {
@@ -503,7 +537,7 @@ func (s *Store) SetMode(path, mode string) error {
 			return err
 		}
 	}
-	remove, ignore := mode == ModeRemove, mode == ModeIgnore
+	remove, ignore, beta := mode == ModeRemove, mode == ModeIgnore, mode == ModeBeta
 	lower := strings.ToLower(path)
 
 	s.mu.Lock()
@@ -515,9 +549,9 @@ func (s *Store) SetMode(path, mode string) error {
 		if mode != ModeRemove && f.Size == 0 {
 			return fmt.Errorf("Spire keeps no copy of %v: upload it to send or keep it", path)
 		}
-		f.Remove, f.Ignore = remove, ignore
+		f.Remove, f.Ignore, f.Beta = remove, ignore, beta
 	case !strings.Contains(path, "/") && idx.Archives[lower] != nil:
-		idx.Archives[lower].Remove, idx.Archives[lower].Ignore = remove, ignore
+		idx.Archives[lower].Remove, idx.Archives[lower].Ignore, idx.Archives[lower].Beta = remove, ignore, beta
 	default:
 		m := sheetName.FindStringSubmatch(filepath.Base(path))
 		n := 0
@@ -527,7 +561,7 @@ func (s *Store) SetMode(path, mode string) error {
 		if idx.Sheets[n] == nil {
 			return fmt.Errorf("%v is not in the patch", path)
 		}
-		idx.Sheets[n].Remove, idx.Sheets[n].Ignore = remove, ignore
+		idx.Sheets[n].Remove, idx.Sheets[n].Ignore, idx.Sheets[n].Beta = remove, ignore, beta
 	}
 	return s.saveLocked()
 }
@@ -540,11 +574,13 @@ func (s *Store) SetRemove(path string, remove bool) error {
 	return s.SetMode(path, ModeAdd)
 }
 
-// ignoredFileLocked says whether a client file kept at path is kept out of
-// the patch
-func (s *Store) ignoredFileLocked(idx *Index, path string) bool {
-	f := idx.Files[strings.ToLower(path)]
-	return f != nil && f.Ignore
+// heldFileLocked is how a client file kept at path is held back from
+// players (holdMode)
+func (s *Store) heldFileLocked(idx *Index, path string) string {
+	if f := idx.Files[strings.ToLower(path)]; f != nil {
+		return holdMode(f.Ignore, f.Beta)
+	}
+	return ""
 }
 
 // AddRemoval deletes a file from players' clients if they have it: one that
