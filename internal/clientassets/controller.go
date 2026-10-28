@@ -71,6 +71,7 @@ func (a *Controller) Routes() []*routes.Route {
 		routes.RegisterRoute(http.MethodPost, "client-assets/model/:id/preview", a.preview, nil),
 		routes.RegisterRoute(http.MethodDelete, "client-assets/sheet/:sheet", a.removeSheet, nil),
 		routes.RegisterRoute(http.MethodDelete, "client-assets/archive/:name", a.removeArchive, nil),
+		routes.RegisterRoute(http.MethodDelete, "client-assets/client-file/:name", a.removeClientFile, nil),
 	}
 }
 
@@ -163,6 +164,13 @@ func (a *Controller) removeSheet(c echo.Context) error {
 
 func (a *Controller) removeArchive(c echo.Context) error {
 	if err := a.store.RemoveArchive(c.Param("name")); err != nil {
+		return c.JSON(http.StatusBadRequest, echo.Map{"error": err.Error()})
+	}
+	return c.JSON(http.StatusOK, echo.Map{"index": a.store.Index()})
+}
+
+func (a *Controller) removeClientFile(c echo.Context) error {
+	if err := a.store.RemoveClientFile(c.Param("name")); err != nil {
 		return c.JSON(http.StatusBadRequest, echo.Map{"error": err.Error()})
 	}
 	return c.JSON(http.StatusOK, echo.Map{"index": a.store.Index()})

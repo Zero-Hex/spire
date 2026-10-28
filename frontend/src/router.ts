@@ -142,6 +142,11 @@ const router = new Router({
           meta: {title: "Quest Scripts"},
         },
         {
+          path: ROUTE.STARFALL_CLIENT_PATCH,
+          component: () => import('./views/starfall/ClientPatch.vue'),
+          meta: {title: "Client Patch"},
+        },
+        {
           path: ROUTE.STRINGS_DATABASE,
           component: () => import('./views/strings-database/StringsDatabase.vue'),
           meta: {title: "Strings Database (dbstr)"},

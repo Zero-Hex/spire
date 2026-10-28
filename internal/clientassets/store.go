@@ -44,10 +44,11 @@ type Store struct {
 
 // Index is what the store holds; saved as index.json
 type Index struct {
-	Version  int64               `json:"version"`
-	Sheets   map[int]*SheetInfo  `json:"sheets"`
-	Models   map[int]*ModelInfo  `json:"models"`
-	Archives map[string]*Archive `json:"archives"`
+	Version  int64                  `json:"version"`
+	Sheets   map[int]*SheetInfo     `json:"sheets"`
+	Models   map[int]*ModelInfo     `json:"models"`
+	Archives map[string]*Archive    `json:"archives"`
+	Files    map[string]*ClientFile `json:"files"` // kept for the client patch, by lower-case name
 }
 
 type SheetInfo struct {
@@ -117,7 +118,7 @@ func (s *Store) dirLocked() string {
 		base = filepath.Join(cache, "spire")
 	}
 	s.dir = filepath.Join(base, "spire-client-assets")
-	for _, d := range []string{"drop", "icons", "models", "archives"} {
+	for _, d := range []string{"drop", "icons", "models", "archives", "sheets", "files"} {
 		_ = os.MkdirAll(filepath.Join(s.dir, d), 0755)
 	}
 	return s.dir
@@ -163,6 +164,9 @@ func (s *Store) loadLocked() *Index {
 	if idx.Archives == nil {
 		idx.Archives = map[string]*Archive{}
 	}
+	if idx.Files == nil {
+		idx.Files = map[string]*ClientFile{}
+	}
 	s.index = idx
 	return idx
 }
@@ -198,8 +202,10 @@ func (s *Store) Import(name string, data []byte) (string, error) {
 		return s.importSheet(base, data)
 	case strings.EqualFold(filepath.Ext(base), ".eqg"):
 		return s.importArchive(base, data)
+	case clientPath(base) != "":
+		return s.importClientFile(base, data)
 	}
-	return "", fmt.Errorf("%v: not an icon sheet (dragitem<N>.dds or .png) or an .eqg archive", base)
+	return "", fmt.Errorf("%v: not an icon sheet (dragitem<N>.dds or .png), an .eqg/.s3d, GlobalLoad.txt, a <zone>_chr.txt or an EQUI_*.xml", base)
 }
 
 // ImportReader is Import for request bodies and files, with a size cap
@@ -255,6 +261,16 @@ func (s *Store) importSheet(name string, data []byte) (string, error) {
 		}
 	}
 
+	// the client patch sends the sheet as it was uploaded; a .png goes as a DDS
+	sheet := data
+	if !strings.EqualFold(filepath.Ext(name), ".dds") {
+		sheet = encodeDDS(img)
+	}
+	_ = os.MkdirAll(filepath.Join(s.dirLocked(), "sheets"), 0755)
+	if err := os.WriteFile(filepath.Join(s.dirLocked(), "sheets", sheetFile(n)), sheet, 0644); err != nil {
+		return "", err
+	}
+
 	idx := s.loadLocked()
 	idx.Sheets[n] = &SheetInfo{Sheet: n, File: name, FirstIcon: first, LastIcon: first + iconsPerSheet - 1, Updated: time.Now().Unix()}
 	if err := s.saveLocked(); err != nil {
@@ -284,7 +300,8 @@ func (s *Store) importArchive(name string, data []byte) (string, error) {
 	}
 	sort.Ints(ids)
 	if len(ids) == 0 {
-		return "", fmt.Errorf("%v has no IT<n>.mod models", name)
+		// a race or zone archive: not an item model, but the client still needs it
+		return s.importClientFile(name, data)
 	}
 
 	s.mu.Lock()
@@ -361,6 +378,7 @@ func (s *Store) RemoveSheet(n int) error {
 	for id := sh.FirstIcon; id <= sh.LastIcon; id++ {
 		_ = os.Remove(filepath.Join(s.dirLocked(), "icons", fmt.Sprintf("item_%d.png", id)))
 	}
+	_ = os.Remove(filepath.Join(s.dirLocked(), "sheets", sheetFile(n)))
 	delete(idx.Sheets, n)
 	return s.saveLocked()
 }

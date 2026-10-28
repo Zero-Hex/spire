@@ -2,6 +2,7 @@ package clientfiles
 
 import (
 	"fmt"
+	"github.com/EQEmu/spire/internal/clientassets"
 	"github.com/EQEmu/spire/internal/database"
 	"github.com/EQEmu/spire/internal/http/routes"
 	"github.com/EQEmu/spire/internal/models"
@@ -20,17 +21,20 @@ type Controller struct {
 	exporter *Exporter
 	importer *Importer
 	db       *database.Resolver
+	assets   *clientassets.Store
 }
 
 func NewController(
 	exporter *Exporter,
 	importer *Importer,
 	db *database.Resolver,
+	assets *clientassets.Store,
 ) *Controller {
 	return &Controller{
 		exporter: exporter,
 		importer: importer,
 		db:       db,
+		assets:   assets,
 	}
 }
 
@@ -39,6 +43,8 @@ func (f *Controller) Routes() []*routes.Route {
 		routes.RegisterRoute(http.MethodGet, "client-files/export/spells", f.exportSpells, nil),
 		routes.RegisterRoute(http.MethodGet, "client-files/export/dbstr", f.exportDbStr, nil),
 		routes.RegisterRoute(http.MethodPost, "client-files/import/file", f.importFile, nil),
+		routes.RegisterRoute(http.MethodGet, "client-files/patch/contents", f.patchContents, nil),
+		routes.RegisterRoute(http.MethodGet, "client-files/patch", f.patch, nil),
 	}
 }
 

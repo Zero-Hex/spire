@@ -377,6 +377,12 @@ export default {
             icon: "ra ra-quill-ink mr-1",
             routes: ['starfall/quest-scripts']
           },
+          {
+            title: "Client Patch",
+            to: ROUTE.STARFALL_CLIENT_PATCH,
+            icon: "fa fa-archive mr-1",
+            routes: ['starfall/client-patch']
+          },
         ]
       },
       botNav: {
