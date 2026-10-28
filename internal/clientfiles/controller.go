@@ -6,6 +6,7 @@ import (
 	"github.com/EQEmu/spire/internal/database"
 	"github.com/EQEmu/spire/internal/http/routes"
 	"github.com/EQEmu/spire/internal/models"
+	"github.com/EQEmu/spire/internal/pathmgmt"
 	"github.com/labstack/echo/v4"
 	"golang.org/x/text/language"
 	"golang.org/x/text/message"
@@ -18,10 +19,12 @@ import (
 )
 
 type Controller struct {
-	exporter *Exporter
-	importer *Importer
-	db       *database.Resolver
-	assets   *clientassets.Store
+	exporter  *Exporter
+	importer  *Importer
+	db        *database.Resolver
+	assets    *clientassets.Store
+	publisher *Publisher
+	pathmgmt  *pathmgmt.PathManagement
 }
 
 func NewController(
@@ -29,12 +32,16 @@ func NewController(
 	importer *Importer,
 	db *database.Resolver,
 	assets *clientassets.Store,
+	publisher *Publisher,
+	pathmgmt *pathmgmt.PathManagement,
 ) *Controller {
 	return &Controller{
-		exporter: exporter,
-		importer: importer,
-		db:       db,
-		assets:   assets,
+		exporter:  exporter,
+		importer:  importer,
+		db:        db,
+		assets:    assets,
+		publisher: publisher,
+		pathmgmt:  pathmgmt,
 	}
 }
 
@@ -45,6 +52,8 @@ func (f *Controller) Routes() []*routes.Route {
 		routes.RegisterRoute(http.MethodPost, "client-files/import/file", f.importFile, nil),
 		routes.RegisterRoute(http.MethodGet, "client-files/patch/contents", f.patchContents, nil),
 		routes.RegisterRoute(http.MethodGet, "client-files/patch", f.patch, nil),
+		routes.RegisterRoute(http.MethodGet, "client-files/patch/published", f.published, nil),
+		routes.RegisterRoute(http.MethodPost, "client-files/patch/publish", f.publish, nil),
 	}
 }
 

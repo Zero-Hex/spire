@@ -3,7 +3,9 @@ package clientassets
 import (
 	"io"
 	"net/http"
+	"net/url"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -71,7 +73,7 @@ func (a *Controller) Routes() []*routes.Route {
 		routes.RegisterRoute(http.MethodPost, "client-assets/model/:id/preview", a.preview, nil),
 		routes.RegisterRoute(http.MethodDelete, "client-assets/sheet/:sheet", a.removeSheet, nil),
 		routes.RegisterRoute(http.MethodDelete, "client-assets/archive/:name", a.removeArchive, nil),
-		routes.RegisterRoute(http.MethodDelete, "client-assets/client-file/:name", a.removeClientFile, nil),
+		routes.RegisterRoute(http.MethodDelete, "client-assets/client-file/*", a.removeClientFile, nil),
 	}
 }
 
@@ -89,21 +91,35 @@ type uploadResult struct {
 	Error  string `json:"error,omitempty"`
 }
 
-// upload imports every file of a multipart form (field "files")
+// upload imports every file of a multipart form (field "files"). A "folder"
+// puts them all in that folder of the client folder; "paths", one per file,
+// give each its own (a folder upload: uifiles/default/EQUI.xml).
 func (a *Controller) upload(c echo.Context) error {
 	form, err := c.MultipartForm()
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, echo.Map{"error": err.Error()})
 	}
+	folder := ""
+	if v := form.Value["folder"]; len(v) > 0 {
+		folder = v[0]
+	}
+	paths := form.Value["paths"]
 
 	var results []uploadResult
-	for _, fh := range form.File["files"] {
-		r := uploadResult{File: fh.Filename}
+	for i, fh := range form.File["files"] {
+		dir := folder
+		if i < len(paths) && paths[i] != "" {
+			dir = path.Dir(strings.ReplaceAll(paths[i], "\\", "/"))
+			if dir == "." {
+				dir = ""
+			}
+		}
+		r := uploadResult{File: path.Join(dir, fh.Filename)}
 		f, err := fh.Open()
 		if err != nil {
 			r.Error = err.Error()
 		} else {
-			r.Result, err = a.store.ImportReader(fh.Filename, f)
+			r.Result, err = a.store.ImportReaderAt(dir, fh.Filename, f)
 			_ = f.Close()
 			if err != nil {
 				r.Error = err.Error()
@@ -170,7 +186,11 @@ func (a *Controller) removeArchive(c echo.Context) error {
 }
 
 func (a *Controller) removeClientFile(c echo.Context) error {
-	if err := a.store.RemoveClientFile(c.Param("name")); err != nil {
+	name, err := url.PathUnescape(c.Param("*"))
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, echo.Map{"error": err.Error()})
+	}
+	if err := a.store.RemoveClientFile(name); err != nil {
 		return c.JSON(http.StatusBadRequest, echo.Map{"error": err.Error()})
 	}
 	return c.JSON(http.StatusOK, echo.Map{"index": a.store.Index()})

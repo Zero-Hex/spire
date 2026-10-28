@@ -19,7 +19,8 @@ import (
 // The client patch is everything Spire holds that the RoF2 client needs, laid
 // out as the client folder: icon sheets in uifiles/default, item models and
 // the other files uploaded for it where the client reads them. The database
-// files (spells_us.txt, dbstr_us.txt) are added by the client files package.
+// files (spells_us.txt, dbstr_us.txt, SkillCaps.txt, BaseData.txt) are added
+// by the client files package.
 
 // ClientFile is a file kept only to go into the client patch
 type ClientFile struct {
@@ -45,41 +46,108 @@ func (p PatchFile) Read() ([]byte, error) { return p.read() }
 // RoF2 EQUI_Animations.xml declares
 const Rof2DragItemSheets = 178
 
-// clientPath is where a client file goes in the client folder, or "" when it
-// is not one Spire keeps
-func clientPath(name string) string {
+// the files the patch builds from the database: an upload would be replaced
+var generatedFiles = map[string]string{
+	"spells_us.txt": "spells_new",
+	"dbstr_us.txt":  "db_str",
+	"skillcaps.txt": "skill_caps",
+	"basedata.txt":  "base_data",
+}
+
+// never kept: the patch goes to players' machines, and these run on their own
+var refusedExtensions = map[string]bool{
+	".exe": true, ".bat": true, ".cmd": true, ".com": true, ".msi": true,
+	".ps1": true, ".vbs": true, ".js": true, ".scr": true, ".lnk": true,
+}
+
+var clientFolderPart = regexp.MustCompile(`^[A-Za-z0-9_][A-Za-z0-9_ .()-]*$`)
+
+// defaultFolder is where a client file goes when no folder is given
+func defaultFolder(name string) (string, bool) {
 	lower := strings.ToLower(name)
 	switch {
 	case lower == "globalload.txt" || lower == "globalload_chr.txt":
-		return "Resources/" + name
-	case strings.HasSuffix(lower, "_chr.txt"):
-		return name
-	case strings.HasPrefix(lower, "equi_") && strings.HasSuffix(lower, ".xml"):
-		return "uifiles/default/" + name
-	case strings.HasSuffix(lower, ".eqg") || strings.HasSuffix(lower, ".s3d"):
-		return name
+		return "Resources", true
+	case lower == "equi.xml" || (strings.HasPrefix(lower, "equi_") && strings.HasSuffix(lower, ".xml")):
+		return "uifiles/default", true
+	case strings.HasSuffix(lower, "_chr.txt"), lower == "eqhost.txt", lower == "dinput8.dll",
+		strings.HasSuffix(lower, ".eqg"), strings.HasSuffix(lower, ".s3d"):
+		return "", true
 	}
-	return ""
+	return "", false
 }
 
-// importClientFile keeps a file for the patch as it is
-func (s *Store) importClientFile(name string, data []byte) (string, error) {
-	path := clientPath(name)
-	if path == "" {
-		return "", fmt.Errorf("%v is not a file the client patch takes", name)
+// cleanClientFolder is a folder inside the client folder, / separated, or an
+// error for anything that could point outside it
+func cleanClientFolder(folder string) (string, error) {
+	f := strings.Trim(strings.ReplaceAll(folder, "\\", "/"), "/ ")
+	if f == "" {
+		return "", nil
+	}
+	parts := strings.Split(f, "/")
+	for _, p := range parts {
+		if p == "." || p == ".." || !clientFolderPart.MatchString(p) {
+			return "", fmt.Errorf("%q is not a folder inside the client folder", folder)
+		}
+	}
+	return strings.Join(parts, "/"), nil
+}
+
+// ImportAt imports a file into a folder of the client folder ("" for the one
+// with eqgame.exe). Icon sheets and item model archives are imported as
+// such; anything else is kept for the client patch as it is. With no folder,
+// the usual one for the file is used.
+func (s *Store) ImportAt(folder, name string, data []byte) (string, error) {
+	base := filepath.Base(strings.ReplaceAll(name, "\\", "/"))
+	folder, err := cleanClientFolder(folder)
+	if err != nil {
+		return "", err
+	}
+	switch {
+	case sheetName.MatchString(base) && (folder == "" || strings.EqualFold(folder, "uifiles/default")):
+		return s.importSheet(base, data)
+	case strings.EqualFold(filepath.Ext(base), ".eqg") && folder == "":
+		return s.importArchive(base, data)
+	}
+	return s.importClientFile(folder, base, data, folder != "")
+}
+
+// importClientFile keeps a file for the patch as it is, at folder/name
+func (s *Store) importClientFile(folder, name string, data []byte, explicit bool) (string, error) {
+	lower := strings.ToLower(name)
+	if table, ok := generatedFiles[lower]; ok {
+		return "", fmt.Errorf("%v is built from the database (%v) when the patch is: change it there", name, table)
+	}
+	if refusedExtensions[strings.ToLower(filepath.Ext(lower))] {
+		return "", fmt.Errorf("%v: programs and scripts are not sent to players", name)
+	}
+	if !explicit {
+		f, ok := defaultFolder(name)
+		if !ok {
+			return "", fmt.Errorf("%v: choose the folder it goes in (or upload the client folder it is in)", name)
+		}
+		folder = f
+	}
+	path := name
+	if folder != "" {
+		path = folder + "/" + name
 	}
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	idx := s.loadLocked()
-	key := strings.ToLower(name)
+	key := strings.ToLower(path)
+	files := filepath.Join(s.dirLocked(), "files")
 	// the client folder is not case-sensitive: a new upload replaces any spelling
 	if old := idx.Files[key]; old != nil {
-		_ = os.Remove(filepath.Join(s.dirLocked(), "files", old.File))
+		_ = os.Remove(filepath.Join(files, filepath.FromSlash(old.Path)))
 	}
-	_ = os.MkdirAll(filepath.Join(s.dirLocked(), "files"), 0755)
-	if err := os.WriteFile(filepath.Join(s.dirLocked(), "files", name), data, 0644); err != nil {
+	disk := filepath.Join(files, filepath.FromSlash(path))
+	if err := os.MkdirAll(filepath.Dir(disk), 0755); err != nil {
+		return "", err
+	}
+	if err := os.WriteFile(disk, data, 0644); err != nil {
 		return "", err
 	}
 	idx.Files[key] = &ClientFile{File: name, Path: path, Size: int64(len(data)), Updated: time.Now().Unix()}
@@ -89,18 +157,44 @@ func (s *Store) importClientFile(name string, data []byte) (string, error) {
 	return fmt.Sprintf("%v: kept for the client patch as %v", name, path), nil
 }
 
-// RemoveClientFile drops a file kept for the patch
-func (s *Store) RemoveClientFile(name string) error {
+// migrateFilesLocked moves client files kept by name (before they were kept
+// by path) to their path
+func (s *Store) migrateFilesLocked(idx *Index) {
+	files := filepath.Join(s.dirLocked(), "files")
+	for key, f := range idx.Files {
+		want := strings.ToLower(f.Path)
+		if key != want {
+			delete(idx.Files, key)
+			idx.Files[want] = f
+		}
+		disk := filepath.Join(files, filepath.FromSlash(f.Path))
+		if _, err := os.Stat(disk); err == nil {
+			continue
+		}
+		if _, err := os.Stat(filepath.Join(files, f.File)); err == nil {
+			_ = os.MkdirAll(filepath.Dir(disk), 0755)
+			_ = os.Rename(filepath.Join(files, f.File), disk)
+		}
+	}
+}
+
+// RemoveClientFile drops a file kept for the patch, by its path
+func (s *Store) RemoveClientFile(path string) error {
+	clean, err := cleanClientFolder(path)
+	if err != nil {
+		return err
+	}
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	idx := s.loadLocked()
-	f := idx.Files[strings.ToLower(filepath.Base(name))]
+	f := idx.Files[strings.ToLower(clean)]
 	if f == nil {
-		return fmt.Errorf("%v is not kept", name)
+		return fmt.Errorf("%v is not kept", path)
 	}
-	_ = os.Remove(filepath.Join(s.dirLocked(), "files", f.File))
-	delete(idx.Files, strings.ToLower(f.File))
+	_ = os.Remove(filepath.Join(s.dirLocked(), "files", filepath.FromSlash(f.Path)))
+	delete(idx.Files, strings.ToLower(f.Path))
 	return s.saveLocked()
 }
 
@@ -278,11 +372,11 @@ func (s *Store) PatchFiles() ([]PatchFile, []string) {
 
 	var animations *ClientFile
 	for _, f := range idx.Files {
-		if strings.EqualFold(f.File, "EQUI_Animations.xml") {
+		if strings.EqualFold(f.Path, "uifiles/default/EQUI_Animations.xml") {
 			animations = f
 			continue
 		}
-		keep(f.Path, "uploaded", filepath.Join(dir, "files", f.File), f.Updated)
+		keep(f.Path, "uploaded", filepath.Join(dir, "files", filepath.FromSlash(f.Path)), f.Updated)
 	}
 
 	past := 0
@@ -293,7 +387,7 @@ func (s *Store) PatchFiles() ([]PatchFile, []string) {
 	}
 	switch {
 	case animations != nil:
-		file := filepath.Join(dir, "files", animations.File)
+		file := filepath.Join(dir, "files", filepath.FromSlash(animations.Path))
 		b, err := os.ReadFile(file)
 		if err != nil {
 			notes = append(notes, "EQUI_Animations.xml could not be read: "+err.Error())

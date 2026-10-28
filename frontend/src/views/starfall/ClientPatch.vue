@@ -3,11 +3,42 @@
     <eq-window-simple title="Client Patch">
       <div>
         Everything the RoF2 client needs from Spire in one zip, laid out as the client folder: unzip it into the folder
-        with <code>eqgame.exe</code>. <code>spells_us.txt</code> and <code>dbstr_us.txt</code> are made from the
-        database as you download; icon sheets and item models come from
+        with <code>eqgame.exe</code>. <code>spells_us.txt</code>, <code>dbstr_us.txt</code>, <code>SkillCaps.txt</code> and
+        <code>BaseData.txt</code> are made from the database by the server's <code>export_client_files</code> as you
+        download or publish; icon sheets and item models come from
         <router-link :to="iconsRoute">Icons &amp; Models</router-link>; the files below that the database cannot make
-        (<code>GlobalLoad.txt</code>, <code>&lt;zone&gt;_chr.txt</code>, race and zone <code>.eqg</code> /
-        <code>.s3d</code>, <code>EQUI_*.xml</code>) are kept as you upload them.
+        (<code>dinput8.dll</code>, <code>eqhost.txt</code>, <code>GlobalLoad.txt</code>, <code>&lt;zone&gt;_chr.txt</code>,
+        race and zone <code>.eqg</code> / <code>.s3d</code>, <code>EQUI*.xml</code>, or anything in a folder you choose)
+        are kept as you upload them.
+      </div>
+
+      <!-- the patcher -->
+      <div class="client-patch-publish mt-3">
+        <div class="d-flex align-items-center flex-wrap">
+          <b-button variant="success" class="mr-3" @click="publish()" :disabled="publishing">
+            <i :class="'fa ' + (publishing ? 'fa-cog fa-spin' : 'fa-paper-plane') + ' mr-1'"></i>
+            {{ publishing ? "Publishing..." : "Publish for the patcher" }}
+          </b-button>
+          <span v-if="published && published.manifest">
+            Published <b>{{ published.manifest.version.slice(0, 8) }}</b>
+            {{ when(published.manifest.published) }}: {{ published.manifest.files.length }} files,
+            {{ size(publishedSize()) }}
+          </span>
+          <span v-else-if="published" class="text-muted">Nothing is published yet.</span>
+        </div>
+        <div class="mt-2 text-muted" v-if="published">
+          Players' patchers only get what is published. Build the patcher with
+          <code>FILELIST_URL</code> = <code>{{ published.filelist_url }}</code>; it reads
+          <a :href="published.filelist_url + 'rof/filelist_rof.yml'" target="_blank">filelist_rof.yml</a> there and
+          downloads only the files whose MD5 differs. Removing a file here does not delete it from players' clients.
+        </div>
+        <div v-if="publishResult" class="mt-2">
+          <div v-if="nothingChanged()" class="text-muted">Nothing changed since the last publish.</div>
+          <div v-for="(list, kind) in changeLists()" :key="kind">
+            <span :class="kind === 'removed' ? 'text-warning' : 'text-success'">{{ kind }} ({{ list.length }}):</span>
+            <code v-for="f in list" :key="f" class="mr-2">{{ f }}</code>
+          </div>
+        </div>
       </div>
 
       <div class="mt-3 d-flex align-items-center flex-wrap">
@@ -31,12 +62,25 @@
         @click="$refs.picker.click()"
       >
         <i class="fa fa-upload mr-2"></i>
-        {{ uploading ? "Uploading..." : "Drop client files here (GlobalLoad.txt, zone _chr.txt, .eqg, .s3d, EQUI_*.xml, icon sheets), or click to choose" }}
-        <input ref="picker" type="file" multiple accept=".txt,.xml,.eqg,.s3d,.dds,.png" style="display: none" @change="onPick">
+        {{ uploading ? "Uploading..." : "Drop client files here, or click to choose" }}
+        <span v-if="folder"> &rarr; <code>{{ folder }}/</code></span>
+        <input ref="picker" type="file" multiple style="display: none" @change="onPick">
+      </div>
+      <div class="mt-2 d-flex align-items-center flex-wrap">
+        <span class="mr-2">Into folder</span>
+        <b-form-input size="sm" v-model="folder" placeholder="the usual one (e.g. uifiles/default)" style="max-width: 320px" class="mr-3"/>
+        <b-button size="sm" variant="outline-warning" @click="$refs.folderPicker.click()" :disabled="uploading">
+          <i class="fa fa-folder-open mr-1"></i> Upload a client folder
+        </b-button>
+        <input ref="folderPicker" type="file" webkitdirectory multiple style="display: none" @change="onPickFolder">
+        <span class="ml-2 text-muted" style="font-size: 13px">
+          e.g. the patcher's <code>rof</code> folder: each file goes to its place inside it
+        </span>
       </div>
       <div class="mt-2" v-if="results.length > 0">
-        <div v-for="(r, i) in results" :key="i" :class="r.error ? 'text-danger' : 'text-success'">
-          <i :class="'fa ' + (r.error ? 'fa-times' : 'fa-check') + ' mr-1'"></i> {{ r.error || r.result }}
+        <div v-for="(r, i) in results" :key="i" :class="resultClass(r)">
+          <i :class="'fa ' + (skipped(r) ? 'fa-minus' : r.error ? 'fa-times' : 'fa-check') + ' mr-1'"></i>
+          {{ skipped(r) ? r.file + ": skipped, the patch builds it from the database" : (r.error || r.result) }}
         </div>
       </div>
 
@@ -84,6 +128,10 @@ export default {
   data() {
     return {
       contents: null,
+      published: null,
+      publishing: false,
+      publishResult: null,
+      folder: "",
       dragging: false,
       uploading: false,
       results: [],
@@ -108,11 +156,52 @@ export default {
 
     async load() {
       try {
-        const r       = await SpireApi.v1().get("client-files/patch/contents")
-        this.contents = r.data
+        const [contents, published] = await Promise.all([
+          SpireApi.v1().get("client-files/patch/contents"),
+          SpireApi.v1().get("client-files/patch/published"),
+        ])
+        this.contents  = contents.data
+        this.published = published.data
       } catch (e) {
         this.showError(e)
       }
+    },
+    publishedSize() {
+      return this.published.manifest.files.reduce((t, f) => t + f.size, 0)
+    },
+    async publish() {
+      this.publishing    = true
+      this.publishResult = null
+      this.error         = ""
+      try {
+        const r            = await SpireApi.v1().post("client-files/patch/publish")
+        this.publishResult = r.data
+        ;(r.data.manifest.notes || []).forEach((n) => (this.notification = n))
+      } catch (e) {
+        this.showError(e)
+      }
+      this.publishing = false
+      await this.load()
+    },
+    changeLists() {
+      const d   = this.publishResult.diff
+      const out = {}
+      for (const kind of ["added", "changed", "removed"]) {
+        if (d[kind].length) {
+          out[kind] = d[kind]
+        }
+      }
+      return out
+    },
+    nothingChanged() {
+      const d = this.publishResult.diff
+      return !d.added.length && !d.changed.length && !d.removed.length
+    },
+    skipped(r) {
+      return r.error && r.error.includes("built from the database")
+    },
+    resultClass(r) {
+      return this.skipped(r) ? "text-muted" : r.error ? "text-danger" : "text-success"
     },
     // a link, so the browser saves the zip as it streams
     download() {
@@ -128,7 +217,14 @@ export default {
       this.upload(e.target.files)
       e.target.value = ""
     },
-    async upload(fileList) {
+    // a client folder: each file keeps its place inside the chosen folder
+    onPickFolder(e) {
+      const files = Array.from(e.target.files || [])
+      const paths = files.map((f) => (f.webkitRelativePath || f.name).split("/").slice(1).join("/"))
+      this.upload(files, paths)
+      e.target.value = ""
+    },
+    async upload(fileList, paths) {
       const files = Array.from(fileList || [])
       if (files.length === 0) {
         return
@@ -138,7 +234,15 @@ export default {
       this.error     = ""
       try {
         const form = new FormData()
-        files.forEach((f) => form.append("files", f, f.name))
+        files.forEach((f, i) => {
+          form.append("files", f, f.name)
+          if (paths) {
+            form.append("paths", paths[i])
+          }
+        })
+        if (!paths && this.folder.trim()) {
+          form.append("folder", this.folder.trim())
+        }
         const r      = await SpireApi.v1().post("client-assets/upload", form)
         this.results = r.data.results || []
       } catch (e) {
@@ -148,12 +252,11 @@ export default {
       await this.load()
     },
     async remove(f) {
-      const name = f.path.split("/").pop()
-      if (!confirm("Leave " + f.path + " out of the client patch? Spire forgets its copy.")) {
+      if (!confirm("Leave " + f.path + " out of the client patch? Spire forgets its copy. Players keep theirs.")) {
         return
       }
       try {
-        await SpireApi.v1().delete("client-assets/client-file/" + encodeURIComponent(name))
+        await SpireApi.v1().delete("client-assets/client-file/" + f.path.split("/").map(encodeURIComponent).join("/"))
         this.notification = f.path + " removed"
       } catch (e) {
         this.showError(e)
@@ -179,6 +282,12 @@ export default {
 .starfall-drop.dragging {
   border-color: #ffc107;
   background: rgba(255, 193, 7, .08);
+}
+
+.client-patch-publish {
+  border: 1px solid rgba(40, 167, 69, .45);
+  border-radius: 8px;
+  padding: 12px;
 }
 
 .client-patch-files td {

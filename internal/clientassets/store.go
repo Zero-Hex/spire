@@ -167,6 +167,7 @@ func (s *Store) loadLocked() *Index {
 	if idx.Files == nil {
 		idx.Files = map[string]*ClientFile{}
 	}
+	s.migrateFilesLocked(idx)
 	s.index = idx
 	return idx
 }
@@ -196,20 +197,16 @@ func (s *Store) saveLocked() error {
 
 // Import takes one dropped or uploaded file. It returns what was done.
 func (s *Store) Import(name string, data []byte) (string, error) {
-	base := filepath.Base(name)
-	switch {
-	case sheetName.MatchString(base):
-		return s.importSheet(base, data)
-	case strings.EqualFold(filepath.Ext(base), ".eqg"):
-		return s.importArchive(base, data)
-	case clientPath(base) != "":
-		return s.importClientFile(base, data)
-	}
-	return "", fmt.Errorf("%v: not an icon sheet (dragitem<N>.dds or .png), an .eqg/.s3d, GlobalLoad.txt, a <zone>_chr.txt or an EQUI_*.xml", base)
+	return s.ImportAt("", name, data)
 }
 
 // ImportReader is Import for request bodies and files, with a size cap
 func (s *Store) ImportReader(name string, r io.Reader) (string, error) {
+	return s.ImportReaderAt("", name, r)
+}
+
+// ImportReaderAt is ImportAt for request bodies and files, with a size cap
+func (s *Store) ImportReaderAt(folder, name string, r io.Reader) (string, error) {
 	data, err := io.ReadAll(io.LimitReader(r, maxUploadBytes+1))
 	if err != nil {
 		return "", err
@@ -217,7 +214,7 @@ func (s *Store) ImportReader(name string, r io.Reader) (string, error) {
 	if len(data) > maxUploadBytes {
 		return "", fmt.Errorf("%v is larger than %v MB", name, maxUploadBytes>>20)
 	}
-	return s.Import(name, data)
+	return s.ImportAt(folder, name, data)
 }
 
 // importSheet cuts a 256x256 icon sheet into its 36 icons. Sheet N is the
@@ -301,7 +298,7 @@ func (s *Store) importArchive(name string, data []byte) (string, error) {
 	sort.Ints(ids)
 	if len(ids) == 0 {
 		// a race or zone archive: not an item model, but the client still needs it
-		return s.importClientFile(name, data)
+		return s.importClientFile("", name, data, true)
 	}
 
 	s.mu.Lock()

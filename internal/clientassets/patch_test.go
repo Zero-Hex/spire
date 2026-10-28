@@ -116,7 +116,7 @@ func TestClientFilesGoWhereTheClientReadsThem(t *testing.T) {
 	if len(s.Index().Archives) != 0 {
 		t.Error("an archive without item models was listed as one")
 	}
-	if err := s.RemoveClientFile("GLOBALLOAD.TXT"); err != nil || len(s.Index().Files) != 3 {
+	if err := s.RemoveClientFile("RESOURCES/GLOBALLOAD.TXT"); err != nil || len(s.Index().Files) != 3 {
 		t.Errorf("remove: %v %v", err, s.Index().Files)
 	}
 }
@@ -190,5 +190,69 @@ func TestPatchWarnsAboutSheetsTheClientCannotShow(t *testing.T) {
 	// the test file declares 2 sheets, so 3..178 are missing: nothing is added
 	if anim.Path != "uifiles/default/EQUI_Animations.xml" || len(notes) != 1 || !strings.Contains(notes[0], "dragitem3.dds") {
 		t.Fatalf("%+v %v", anim, notes)
+	}
+}
+
+func TestClientFilesInAnyFolder(t *testing.T) {
+	s := testStore(t)
+	for _, f := range []struct{ folder, name string }{
+		{"", "dinput8.dll"},
+		{"", "eqhost.txt"},
+		{"", "EQUI.xml"},
+		{"resources", "BaseData_custom.txt"},
+		{"uifiles\\default", "starfall_window.tga"},
+		{"uifiles/default/", "dragitem7.png"}, // still an icon sheet
+	} {
+		data := []byte("x")
+		if strings.HasPrefix(f.name, "dragitem") {
+			data = testSheet(t)
+		}
+		if _, err := s.ImportAt(f.folder, f.name, data); err != nil {
+			t.Fatalf("%v/%v: %v", f.folder, f.name, err)
+		}
+	}
+	files, _ := s.PatchFiles()
+	var paths []string
+	for _, f := range files {
+		paths = append(paths, f.Path)
+	}
+	if got := strings.Join(paths, ","); got != "dinput8.dll,eqhost.txt,resources/BaseData_custom.txt,uifiles/default/dragitem7.dds,uifiles/default/EQUI.xml,uifiles/default/starfall_window.tga" {
+		t.Errorf("paths %v", got)
+	}
+
+	for _, bad := range []struct{ folder, name, want string }{
+		{"", "spells_us.txt", "database"},
+		{"resources", "SkillCaps.txt", "database"},
+		{"", "eqgame.exe", "programs"},
+		{"", "patch.bat", "programs"},
+		{"../..", "x.txt", "not a folder"},
+		{"uifiles/../..", "x.txt", "not a folder"},
+		{"", "notes.txt", "choose the folder"},
+	} {
+		if _, err := s.ImportAt(bad.folder, bad.name, []byte("x")); err == nil || !strings.Contains(err.Error(), bad.want) {
+			t.Errorf("%v/%v: %v", bad.folder, bad.name, err)
+		}
+	}
+	if err := s.RemoveClientFile("../index.json"); err == nil {
+		t.Error("a path outside the client folder was accepted")
+	}
+}
+
+// client files used to be kept by name; they move to their path
+func TestOldClientFilesAreMoved(t *testing.T) {
+	s := testStore(t)
+	_ = os.MkdirAll(filepath.Join(s.dir, "files"), 0755)
+	_ = os.WriteFile(filepath.Join(s.dir, "files", "GlobalLoad.txt"), []byte("old"), 0644)
+	_ = os.WriteFile(filepath.Join(s.dir, "index.json"), []byte(`{"files":{"globalload.txt":{"file":"GlobalLoad.txt","path":"Resources/GlobalLoad.txt","size":3}}}`), 0644)
+
+	files, _ := s.PatchFiles()
+	if len(files) != 1 || files[0].Path != "Resources/GlobalLoad.txt" {
+		t.Fatalf("%+v", files)
+	}
+	if b, err := files[0].Read(); err != nil || string(b) != "old" {
+		t.Fatalf("%q %v", b, err)
+	}
+	if _, ok := s.Index().Files["resources/globalload.txt"]; !ok {
+		t.Error("not keyed by path")
 	}
 }

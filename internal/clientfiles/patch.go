@@ -4,24 +4,27 @@ import (
 	"archive/zip"
 	"fmt"
 	"net/http"
+	"net/url"
+	"os"
 	"strings"
 	"time"
 
 	"github.com/EQEmu/spire/internal/clientassets"
+	"github.com/EQEmu/spire/internal/http/routes"
 	"github.com/EQEmu/spire/internal/models"
 	"github.com/labstack/echo/v4"
 )
 
-// the client patch: the files the RoF2 client needs from Spire, in one zip
-// laid out as the client folder. The database files are made as it is built;
-// the rest is what the client assets store holds.
+// the client patch: the files the RoF2 client needs from Spire, laid out as
+// the client folder. Downloaded as one zip, or published for the patcher.
 
 type patchContents struct {
 	Files []clientassets.PatchFile `json:"files"`
 	Notes []string                 `json:"notes"`
 }
 
-func (f *Controller) databaseFiles(c echo.Context) []clientassets.PatchFile {
+// the database files, as listed before they are built
+func (f *Controller) databaseEntries(c echo.Context) []clientassets.PatchFile {
 	count := func(model models.Modelable, table, what string) string {
 		var n int64
 		if err := f.db.Get(model, c).Model(model).Count(&n).Error; err != nil {
@@ -30,34 +33,59 @@ func (f *Controller) databaseFiles(c echo.Context) []clientassets.PatchFile {
 		return fmt.Sprintf("database: %d %s (%s)", n, what, table)
 	}
 	now := time.Now().Unix()
-	return []clientassets.PatchFile{
+	out := []clientassets.PatchFile{
 		{Path: "dbstr_us.txt", Source: count(&models.DbStr{}, "db_str", "strings"), Updated: now},
 		{Path: "spells_us.txt", Source: count(&models.SpellsNew{}, "spells_new", "spells"), Updated: now},
 	}
+	if _, err := os.Stat(f.pathmgmt.GetExportClientFilesBinPath()); err == nil {
+		out = append(out,
+			clientassets.PatchFile{Path: "Resources/BaseData.txt", Source: "database (base_data)", Updated: now},
+			clientassets.PatchFile{Path: "Resources/SkillCaps.txt", Source: "database (skill_caps)", Updated: now},
+		)
+	}
+	return out
 }
 
 func (f *Controller) patchContents(c echo.Context) error {
 	files, notes := f.assets.PatchFiles()
-	files = append(f.databaseFiles(c), files...)
+	files = append(f.databaseEntries(c), files...)
+	if _, err := os.Stat(f.pathmgmt.GetExportClientFilesBinPath()); err != nil {
+		notes = append(notes, "Spire did not find the server's export_client_files, so spells_us.txt and dbstr_us.txt come from its own export and SkillCaps.txt and BaseData.txt are left out.")
+	}
 	if notes == nil {
 		notes = []string{}
 	}
 	return c.JSON(http.StatusOK, patchContents{Files: files, Notes: notes})
 }
 
+// everything in the patch, read as it is stored or published
+func (f *Controller) patchSources(c echo.Context) ([]publishSource, []string, error) {
+	built, notes, err := f.databaseFiles(c)
+	if err != nil {
+		return nil, notes, err
+	}
+	var out []publishSource
+	for _, b := range built {
+		b := b
+		out = append(out, publishSource{Path: b.Path, Source: b.Source, read: func() ([]byte, error) { return b.Data, nil }})
+	}
+	assets, assetNotes := f.assets.PatchFiles()
+	for _, a := range assets {
+		out = append(out, publishSource{Path: a.Path, Source: a.Source, read: a.Read})
+	}
+	return out, append(notes, assetNotes...), nil
+}
+
 // patch streams the zip
 func (f *Controller) patch(c echo.Context) error {
-	// the database files first: a failure there can still be an error page
-	spells := f.exporter.ExportSpells(f.db.Get(&models.SpellsNew{}, c))
-	dbstr := f.exporter.ExportDbStr(f.db.Get(&models.DbStr{}, c))
-	if spells == "" {
-		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "spells_new exported nothing"})
+	// built first: a failure here can still be an error page
+	sources, notes, err := f.patchSources(c)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, echo.Map{"error": err.Error()})
 	}
 
-	assets, notes := f.assets.PatchFiles()
 	built := time.Now()
 	name := "client-patch-" + built.Format("2006-01-02-1504") + ".zip"
-
 	res := c.Response()
 	res.Header().Set(echo.HeaderContentType, "application/zip")
 	res.Header().Set(echo.HeaderContentDisposition, fmt.Sprintf("attachment; filename=%q", name))
@@ -65,8 +93,8 @@ func (f *Controller) patch(c echo.Context) error {
 
 	zw := zip.NewWriter(res)
 	var listing []string
-	add := func(path, source string, modified time.Time, data []byte) {
-		w, err := zw.CreateHeader(&zip.FileHeader{Name: path, Method: zip.Deflate, Modified: modified})
+	add := func(path, source string, data []byte) {
+		w, err := zw.CreateHeader(&zip.FileHeader{Name: path, Method: zip.Deflate, Modified: built})
 		if err == nil {
 			_, err = w.Write(data)
 		}
@@ -76,16 +104,13 @@ func (f *Controller) patch(c echo.Context) error {
 		}
 		listing = append(listing, fmt.Sprintf("  %-44s %s", path, source))
 	}
-
-	add("spells_us.txt", "database (spells_new)", built, []byte(spells))
-	add("dbstr_us.txt", "database (db_str)", built, []byte(dbstr))
-	for _, a := range assets {
-		data, err := a.Read()
+	for _, s := range sources {
+		data, err := s.read()
 		if err != nil {
-			notes = append(notes, fmt.Sprintf("%v left out: %v", a.Path, err))
+			notes = append(notes, fmt.Sprintf("%v left out: %v", s.Path, err))
 			continue
 		}
-		add(a.Path, a.Source, time.Unix(a.Updated, 0), data)
+		add(s.Path, s.Source, data)
 	}
 
 	readme := []string{
@@ -102,7 +127,94 @@ func (f *Controller) patch(c echo.Context) error {
 			readme = append(readme, "  - "+n)
 		}
 	}
-	add("README-client-patch.txt", "this file", built, []byte(strings.Join(readme, "\r\n")+"\r\n"))
-
+	add("README-client-patch.txt", "this file", []byte(strings.Join(readme, "\r\n")+"\r\n"))
 	return zw.Close()
+}
+
+// the public address the patcher is built with (FILELIST_URL)
+func patcherURL(c echo.Context) string {
+	path := c.Request().URL.Path
+	base := "/api/v1/"
+	if i := strings.Index(path, "/client-files/"); i >= 0 {
+		base = path[:i+1]
+	}
+	return c.Scheme() + "://" + c.Request().Host + base + "patch/"
+}
+
+type publishedInfo struct {
+	Manifest    *Manifest `json:"manifest"`
+	FilelistURL string    `json:"filelist_url"`
+}
+
+func (f *Controller) published(c echo.Context) error {
+	return c.JSON(http.StatusOK, publishedInfo{Manifest: f.publisher.Current(), FilelistURL: patcherURL(c)})
+}
+
+func (f *Controller) publish(c echo.Context) error {
+	sources, notes, err := f.patchSources(c)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, echo.Map{"error": err.Error()})
+	}
+	if notes == nil {
+		notes = []string{}
+	}
+	m, diff, err := f.publisher.Publish(sources, notes)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, echo.Map{"error": err.Error()})
+	}
+	return c.JSON(http.StatusOK, echo.Map{"manifest": m, "diff": diff, "filelist_url": patcherURL(c)})
+}
+
+// PublicController serves the published patch to players' patchers, with no
+// login: <api>/patch/rof/filelist_rof.yml and <api>/patch/rof/<file>
+type PublicController struct {
+	publisher *Publisher
+}
+
+func NewPublicController(publisher *Publisher) *PublicController {
+	return &PublicController{publisher: publisher}
+}
+
+func (p *PublicController) Routes() []*routes.Route {
+	return []*routes.Route{
+		routes.RegisterRoute(http.MethodGet, "patch/*", p.serve, nil),
+	}
+}
+
+func (p *PublicController) serve(c echo.Context) error {
+	raw := c.Param("*")
+	name, err := url.PathUnescape(raw)
+	if err != nil {
+		return c.String(http.StatusBadRequest, "bad path")
+	}
+	// the patcher asks for <url>rof/filelist_rof.yml, then <url>/filelist_rof.yml
+	name = strings.TrimLeft(strings.ReplaceAll(name, "\\", "/"), "/")
+	lower := strings.ToLower(name)
+
+	if lower == "rof/filelist_rof.yml" || lower == "filelist_rof.yml" {
+		m := p.publisher.Current()
+		if m == nil {
+			return c.String(http.StatusNotFound, "nothing is published yet")
+		}
+		reqPath := c.Request().URL.Path
+		prefix := strings.TrimSuffix(reqPath, raw)
+		if !strings.HasSuffix(prefix, "/") {
+			prefix += "/"
+		}
+		c.Response().Header().Set("Cache-Control", "no-cache")
+		return c.Blob(http.StatusOK, "text/yaml; charset=utf-8", Filelist(m, c.Scheme()+"://"+c.Request().Host+prefix+"rof/"))
+	}
+
+	if !strings.HasPrefix(lower, "rof/") {
+		return c.String(http.StatusNotFound, "not found")
+	}
+	file, blob, ok := p.publisher.Open(name[len("rof/"):])
+	if !ok {
+		return c.String(http.StatusNotFound, "not in the published patch")
+	}
+	h := c.Response().Header()
+	h.Set("Cache-Control", "no-cache")
+	h.Set("ETag", `"`+file.MD5+`"`)
+	h.Set(echo.HeaderContentType, "application/octet-stream")
+	return c.File(blob)
 }
