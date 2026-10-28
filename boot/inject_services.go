@@ -15,6 +15,7 @@ import (
 	"github.com/EQEmu/spire/internal/eqemuserverconfig"
 	"github.com/EQEmu/spire/internal/github"
 	"github.com/EQEmu/spire/internal/influx"
+	"github.com/EQEmu/spire/internal/itemgen"
 	"github.com/EQEmu/spire/internal/pathmgmt"
 	"github.com/EQEmu/spire/internal/permissions"
 	"github.com/EQEmu/spire/internal/questapi"
@@ -60,6 +61,7 @@ var serviceSet = wire.NewSet(
 	eqemuserver.NewLauncher,
 	eqemuserver.NewQuestHotReloadWatcher,
 	clientassets.NewStore,
+	itemgen.NewGenerator,
 	questfiles.NewService,
 	questfiles.NewChecker,
 	unzip.NewUnzipper,

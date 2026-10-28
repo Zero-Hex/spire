@@ -115,9 +115,13 @@
             <b-button size="sm" variant="outline-danger" class="mr-1" @click="removeArchive(a)" title="Remove this archive">
               <i class="fa fa-trash"></i> Remove
             </b-button>
-            <b-button size="sm" variant="outline-secondary" @click="setKind(a, 'armor')"
+            <b-button size="sm" variant="outline-secondary" class="mr-1" @click="setKind(a, 'armor')"
                       title="A Heroes' Forge armor set: show it as one set, not item models">
               Armor set
+            </b-button>
+            <b-button size="sm" variant="outline-success" @click="$refs.generator.open(a, 'weapon')"
+                      title="Make items with these models: copies of a weapon">
+              <i class="fa fa-magic"></i> Create items
             </b-button>
           </div>
           <div class="starfall-models">
@@ -156,8 +160,18 @@
                           title="Not armor: show its models as item models, with previews">
                   Item models
                 </b-button>
-                <b-button size="sm" variant="outline-danger" @click="removeArchive(a)">
+                <b-button size="sm" variant="outline-danger" class="mr-1" @click="removeArchive(a)">
                   <i class="fa fa-trash"></i> Remove
+                </b-button>
+              </div>
+              <div class="mt-1">
+                <b-button size="sm" variant="outline-success" class="mr-1" @click="$refs.generator.open(a, 'armor')"
+                          title="Make a piece per slot of this set: copies of the cloth set">
+                  <i class="fa fa-magic"></i> Create armor
+                </b-button>
+                <b-button size="sm" variant="outline-success" @click="$refs.generator.open(a, 'ornament')"
+                          title="Make an ornament per slot of this set: copies of the Old Hero's Forge set">
+                  <i class="fa fa-magic"></i> Create ornaments
                 </b-button>
               </div>
             </div>
@@ -165,6 +179,8 @@
         </div>
       </div>
     </eq-window-simple>
+
+    <item-generator ref="generator"/>
 
     <!-- the model viewer, off screen, renders previews -->
     <iframe
@@ -183,13 +199,14 @@ import EqWindowSimple  from "@/components/eq-ui/EQWindowSimple";
 import InfoErrorBanner from "@/components/InfoErrorBanner";
 import {SpireApi}      from "@/app/api/spire-api";
 import {ClientAssets}  from "@/app/client-assets";
+import ItemGenerator   from "./ItemGenerator";
 
 const PREVIEW_SIZE = 125 // the stock item model previews are 125px
 const sleep        = (ms) => new Promise((r) => setTimeout(r, ms))
 
 export default {
   name: "StarfallIconsAndModels",
-  components: { EqWindowSimple, InfoErrorBanner },
+  components: { EqWindowSimple, InfoErrorBanner, ItemGenerator },
   data() {
     return {
       index: { sheets: {}, models: {}, archives: {} },

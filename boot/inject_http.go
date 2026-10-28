@@ -17,6 +17,7 @@ import (
 	appmiddleware "github.com/EQEmu/spire/internal/http/middleware"
 	"github.com/EQEmu/spire/internal/http/routes"
 	"github.com/EQEmu/spire/internal/http/staticmaps"
+	"github.com/EQEmu/spire/internal/itemgen"
 	"github.com/EQEmu/spire/internal/models"
 	"github.com/EQEmu/spire/internal/permissions"
 	"github.com/EQEmu/spire/internal/query"
@@ -63,6 +64,7 @@ var httpSet = wire.NewSet(
 	eqemuserver.NewPublicController,
 	clientassets.NewController,
 	clientassets.NewPublicController,
+	itemgen.NewController,
 	questfiles.NewController,
 	eqemuserverconfig.NewController,
 	websocket.NewController,
@@ -203,6 +205,7 @@ func provideControllers(
 	eqemuserverPublicController *eqemuserver.PublicController,
 	clientAssetsController *clientassets.Controller,
 	clientAssetsPublicController *clientassets.PublicController,
+	itemGenController *itemgen.Controller,
 	questFilesController *questfiles.Controller,
 	serverconfigController *eqemuserverconfig.Controller,
 	backupController *backup.Controller,
@@ -233,6 +236,7 @@ func provideControllers(
 			systemController,
 			authedAnalyticsController,
 			clientAssetsController,
+			itemGenController,
 			questFilesController,
 			patcherController,
 		},

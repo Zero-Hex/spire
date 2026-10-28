@@ -203,6 +203,25 @@ func (s *Store) migrateFilesLocked(idx *Index) {
 	}
 }
 
+// ClientFileData reads a client file kept for the patch, by its path (any
+// case); false when Spire keeps no copy of it
+func (s *Store) ClientFileData(path string) ([]byte, bool) {
+	f := s.Index().Files[strings.ToLower(path)]
+	if f == nil || f.Size == 0 {
+		return nil, false
+	}
+	b, err := os.ReadFile(filepath.Join(s.Dir(), "files", filepath.FromSlash(f.Path)))
+	return b, err == nil
+}
+
+// SheetOfIcon is the icon sheet an icon id is on
+func SheetOfIcon(icon int) int {
+	if icon < firstIcon {
+		return 0
+	}
+	return (icon-firstIcon)/iconsPerSheet + 1
+}
+
 // RemoveClientFile drops a file kept for the patch, by its path
 func (s *Store) RemoveClientFile(path string) error {
 	clean, err := cleanClientFolder(path)

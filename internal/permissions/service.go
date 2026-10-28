@@ -50,6 +50,8 @@ func (s *Service) RegisterManualResources() map[string][]string {
 		"Client Files":  {"client-file", "client-files"},
 		"Client Assets": {"client-assets"},
 		"Quest Scripts": {"quest-files"},
+		// copies items into new ones for the uploaded models and icons
+		"Item Generator": {"item-gen"},
 		// builds the patcher program by running its build.sh on this server
 		"Patcher Build": {"patcher-build"},
 
