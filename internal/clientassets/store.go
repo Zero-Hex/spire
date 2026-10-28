@@ -341,8 +341,9 @@ func (s *Store) importArchive(name string, data []byte) (string, error) {
 		return "", err
 	}
 
-	if a.Kind == ArchiveArmor {
-		return fmt.Sprintf("%v: armor set, %d pieces (IT%d-IT%d)", name, len(ids), ids[0], ids[len(ids)-1]), nil
+	// the model numbers, for items' model fields; an armor set says what it is
+	if a.Kind == ArchiveArmor || len(ids) > 8 {
+		return fmt.Sprintf("%v: %v", name, modelsLabel(a.Kind, ids)), nil
 	}
 	labels := make([]string, len(ids))
 	for i, id := range ids {

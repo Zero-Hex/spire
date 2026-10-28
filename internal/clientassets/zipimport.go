@@ -206,15 +206,8 @@ func (s *Store) describe(f *zip.File, shown string) ZipEntry {
 	if strings.HasSuffix(lower, ".eqg") && dir == "" {
 		if ids, names := zipModels(f); len(ids) > 0 {
 			e.Kind = "models"
-			if kind, _ := classifyArchive(names, ids); kind == ArchiveArmor {
-				e.Note = fmt.Sprintf("armor set, %d pieces (IT%d-IT%d)", len(ids), ids[0], ids[len(ids)-1])
-			} else {
-				labels := make([]string, len(ids))
-				for i, id := range ids {
-					labels[i] = "IT" + strconv.Itoa(id)
-				}
-				e.Note = "item models " + strings.Join(labels, ", ")
-			}
+			kind, _ := classifyArchive(names, ids)
+			e.Note = modelsLabel(kind, ids)
 			return e
 		}
 	}

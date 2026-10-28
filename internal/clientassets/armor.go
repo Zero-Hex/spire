@@ -187,3 +187,16 @@ func textureSwatch(archive []byte, texture string) ([]byte, error) {
 	}
 	return out.Bytes(), nil
 }
+
+// modelsLabel says in a few words what an archive holds: "armor set (171
+// pieces)", "item model IT23651" or "3 item models"
+func modelsLabel(kind string, ids []int) string {
+	switch {
+	case kind == ArchiveArmor:
+		return fmt.Sprintf("armor set (%d pieces)", len(ids))
+	case len(ids) == 1:
+		return fmt.Sprintf("item model IT%d", ids[0])
+	default:
+		return fmt.Sprintf("%d item models", len(ids))
+	}
+}

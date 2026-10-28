@@ -376,15 +376,7 @@ func (s *Store) PatchFiles() ([]PatchFile, []string) {
 			read: func() ([]byte, error) { return os.ReadFile(file) }})
 	}
 	for _, a := range idx.Archives {
-		labels := make([]string, len(a.Models))
-		for i, id := range a.Models {
-			labels[i] = "IT" + strconv.Itoa(id)
-		}
-		source := "item models " + strings.Join(labels, ", ")
-		if a.Kind == ArchiveArmor {
-			source = fmt.Sprintf("armor set, %d pieces (IT%d-IT%d)", len(a.Models), a.Models[0], a.Models[len(a.Models)-1])
-		}
-		keep(a.File, source, "models", filepath.Join(dir, "archives", a.File), a.Updated, a.Remove)
+		keep(a.File, modelsLabel(a.Kind, a.Models), "models", filepath.Join(dir, "archives", a.File), a.Updated, a.Remove)
 	}
 
 	var animations *ClientFile
