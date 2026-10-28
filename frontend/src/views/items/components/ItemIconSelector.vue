@@ -123,9 +123,6 @@ import {ItemApi}           from "../../../app/api";
 import {SpireApi}          from "../../../app/api/spire-api";
 import {SpireQueryBuilder} from "../../../app/api/spire-query-builder";
 
-const MAX_ICON_ID = 10000;
-// const MAX_ICON_ID = 1000;
-
 let iconExists = {}
 let icons      = [];
 let modelFiles = {};
@@ -321,17 +318,15 @@ export default {
       console.timeEnd("files");
       console.time("icons");
 
-      // Preload icons
-      icons = [];
-      for (let iconId = 0; iconId <= MAX_ICON_ID; iconId++) {
-        const modelKey    = util.format("item_%s.png", iconId);
-        const modelExists = modelFiles[modelKey]
-
-        if (modelExists) {
-          icons.push(iconId)
-          iconExists[iconId] = 1
-        }
-      }
+      // Preload icons: every one the icon map lists, imported sheets past
+      // the stock icons included (no fixed top id)
+      icons = Object.keys(modelFiles)
+        .map((file) => parseInt((file.match(/^item_(\d+)\.png$/) || [])[1]))
+        .filter((iconId) => !isNaN(iconId))
+        .sort((a, b) => a - b);
+      icons.forEach((iconId) => {
+        iconExists[iconId] = 1
+      })
 
       console.timeEnd("icons");
 
