@@ -14,12 +14,17 @@ import (
 //   - <zone>_chr.txt, next to eqgame.exe: a count line, then one
 //     "CODE,archive" line per race model the zone loads (the archive without
 //     its extension: rtn is rtn.eqg, tnm_chr is tnm_chr.s3d)
+//   - Resources/GlobalLoad_chr.txt: the same as a zone's, for race models
+//     every zone loads
 //   - Resources/GlobalLoad.txt: archives every zone loads, one per line as
 //     "phase,flag,flags,archive,message" (an .eqg keeps its extension, an
 //     .s3d does not)
 // Both are edited here and kept for the client patch like any upload.
 
-const globalLoadPath = "Resources/GlobalLoad.txt"
+const (
+	globalLoadPath    = "Resources/GlobalLoad.txt"
+	globalLoadChrPath = "Resources/GlobalLoad_chr.txt"
+)
 
 // RaceLine is a line of a race file. Raw is the line as it was; a line Spire
 // adds or changes has no Raw and is written from its fields.
@@ -66,6 +71,8 @@ func RaceFileKind(path string) string {
 	switch {
 	case strings.EqualFold(path, globalLoadPath):
 		return "globalload"
+	case strings.EqualFold(path, globalLoadChrPath):
+		return "chr"
 	case !strings.Contains(path, "/") && chrName.MatchString(path):
 		return "chr"
 	}
@@ -76,7 +83,7 @@ func RaceFileKind(path string) string {
 func ParseRaceFile(path string, data []byte) (RaceFile, error) {
 	kind := RaceFileKind(path)
 	if kind == "" {
-		return RaceFile{}, fmt.Errorf("%v is not a <zone>_chr.txt or %v", path, globalLoadPath)
+		return RaceFile{}, fmt.Errorf("%v is not a <zone>_chr.txt, %v or %v", path, globalLoadChrPath, globalLoadPath)
 	}
 	text := string(data)
 	f := RaceFile{Path: path, Kind: kind, Lines: []RaceLine{}, CRLF: strings.Contains(text, "\r\n")}
@@ -192,10 +199,11 @@ func (s *Store) SaveRaceFile(f RaceFile) (string, error) {
 	}
 	f.Kind = RaceFileKind(path)
 	if f.Kind == "" {
-		return "", fmt.Errorf("%v is not a <zone>_chr.txt or %v", path, globalLoadPath)
+		return "", fmt.Errorf("%v is not a <zone>_chr.txt, %v or %v", path, globalLoadChrPath, globalLoadPath)
 	}
-	if _, held := s.ClientFileData(path); !held && f.Kind == "globalload" {
-		return "", errors.New("upload the client's Resources/GlobalLoad.txt first: one made from nothing would stop every zone loading its global models")
+	// the global files are never made from nothing: every zone loads them
+	if _, held := s.ClientFileData(path); !held && strings.Contains(path, "/") {
+		return "", fmt.Errorf("upload the client's %v first: one made from nothing would stop every zone loading the models in its stock lines", path)
 	}
 	if old := s.Index().Files[strings.ToLower(path)]; old != nil {
 		path = old.Path // the spelling it is kept under

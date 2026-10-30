@@ -15,13 +15,16 @@ func TestRaceFilesRoundTrip(t *testing.T) {
 	if len(names) == 0 {
 		t.Skip("no client")
 	}
-	names = append(names, filepath.Join(dir, "Resources", "GlobalLoad.txt"))
+	names = append(names, filepath.Join(dir, "Resources", "GlobalLoad.txt"), filepath.Join(dir, "Resources", "GlobalLoad_chr.txt"))
 	changed := 0
 	for _, n := range names {
 		b, _ := os.ReadFile(n)
 		rel := filepath.Base(n)
-		if strings.HasSuffix(n, "GlobalLoad.txt") {
+		switch {
+		case strings.HasSuffix(n, "GlobalLoad.txt"):
 			rel = globalLoadPath
+		case strings.HasSuffix(n, "GlobalLoad_chr.txt"):
+			rel = globalLoadChrPath
 		}
 		f, err := ParseRaceFile(rel, b)
 		if err != nil {
@@ -80,7 +83,7 @@ func TestRaceFileEdits(t *testing.T) {
 	if !strings.HasSuffix(string(out), "3,0,TFFFC,rap_chr,Loading Characters\r\n3,0,TFFFC,starfall_chr,Loading Characters\r\n") {
 		t.Errorf("%q", out)
 	}
-	for path, want := range map[string]string{"abysmal_chr.txt": "chr", "Resources/GlobalLoad.txt": "globalload", "uifiles/a_chr.txt": "", "eqhost.txt": ""} {
+	for path, want := range map[string]string{"abysmal_chr.txt": "chr", "Resources/GlobalLoad.txt": "globalload", "resources/globalload_chr.txt": "chr", "uifiles/a_chr.txt": "", "eqhost.txt": ""} {
 		if RaceFileKind(path) != want {
 			t.Errorf("%v", path)
 		}
@@ -94,6 +97,9 @@ func TestRaceFilesAreSavedForThePatch(t *testing.T) {
 	s := testStore(t)
 	if _, err := s.SaveRaceFile(RaceFile{Path: "Resources/GlobalLoad.txt", Lines: []RaceLine{{Archive: "x_chr"}}}); err == nil {
 		t.Error("made a GlobalLoad.txt from nothing")
+	}
+	if _, err := s.SaveRaceFile(RaceFile{Path: "Resources/GlobalLoad_chr.txt", Lines: []RaceLine{{Code: "TAC", Archive: "tac_chr"}}}); err == nil {
+		t.Error("made a GlobalLoad_chr.txt from nothing")
 	}
 	if _, err := s.SaveRaceFile(RaceFile{Path: "eqhost.txt"}); err == nil {
 		t.Error("saved another file")

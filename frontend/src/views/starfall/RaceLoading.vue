@@ -3,7 +3,8 @@
     <eq-window-simple title="Race Loading">
       <div>
         Which race models the client loads: a zone's <code>&lt;zone&gt;_chr.txt</code> lists the models that zone loads,
-        <code>Resources/GlobalLoad.txt</code> the archives every zone loads. Files are edited where Spire keeps them for
+        <code>Resources/GlobalLoad_chr.txt</code> models every zone loads, and <code>Resources/GlobalLoad.txt</code> the
+        archives every zone loads. Files are edited where Spire keeps them for
         the client patch, and players get them when you publish on
         <router-link :to="clientPatchRoute">Client Patch</router-link>.
       </div>
@@ -22,7 +23,7 @@
         <input ref="picker" type="file" accept=".txt" multiple style="display: none" @change="upload">
       </div>
       <div class="text-muted mt-1 hint">
-        Upload a zone's <code>_chr.txt</code> or <code>GlobalLoad.txt</code> from your client to edit it: Spire's copy
+        Upload a zone's <code>_chr.txt</code>, <code>GlobalLoad_chr.txt</code> or <code>GlobalLoad.txt</code> from your client to edit it: Spire's copy
         replaces the player's whole file, so start from the real one.
       </div>
       <info-error-banner class="mt-2" :notification="notification" :error="error"
@@ -43,7 +44,7 @@
             <span v-if="file.kind === 'chr'" class="text-muted">{{ entries().length }} race models</span>
             <span v-else class="text-muted">{{ summary() }}</span>
           </div>
-          <div v-if="file.kind === 'globalload'" class="text-warning hint mb-2">
+          <div v-if="isGlobal()" class="text-warning hint mb-2">
             Every zone loads these. Removing a stock line takes those models out of every zone.
           </div>
           <div v-if="!held" class="text-warning hint mb-2">
@@ -71,6 +72,8 @@
                   <b v-if="file.kind === 'chr'">{{ l.code.toUpperCase() }}</b>
                   <code class="ml-1">{{ l.archive }}</code>
                   <b-badge v-if="!l.raw" variant="success" class="ml-1">new</b-badge>
+                  <b-badge v-if="file.kind === 'chr' && !isGlobal() && globalChr[(l.code || '').toUpperCase()]" variant="info" class="ml-1"
+                           title="GlobalLoad_chr.txt already loads this model in every zone">global</b-badge>
                   <b-badge v-if="info(l).kind === 'missing'" variant="danger" class="ml-1"
                            title="Neither the RoF2 client nor Spire has this archive: the line loads nothing">not in the client</b-badge>
                   <b-badge v-if="info(l).kind === 'other'" variant="dark" class="ml-1">no races</b-badge>
@@ -218,6 +221,7 @@ export default {
       rof2Contents: {}, // archive file, lower case: { models, animations }
       rof2Files: {},    // every archive the RoF2 client has, lower case
       heldArchives: {}, // archives Spire holds for the patch, lower case without extension
+      globalChr: {},    // model codes GlobalLoad_chr.txt loads in every zone
       showOther: false, // GlobalLoad.txt lines that load no races
       expanded: {},     // line index: its races shown
       globalArchives: {}, // archive, lower case without extension: loaded in every zone
@@ -271,6 +275,10 @@ export default {
     },
     newFile() {
       const zone = this.newZone.trim().toLowerCase().replace(/_chr\.txt$/, "")
+      if (zone === "globalload") {
+        this.error = "GlobalLoad_chr.txt lives in Resources: upload the client's copy to edit it"
+        return
+      }
       if (!/^[a-z0-9_]+$/.test(zone) || !this.confirmLeave()) {
         return
       }
@@ -300,14 +308,14 @@ export default {
       const form = new FormData()
       for (const f of files) {
         const name = f.name.toLowerCase()
-        if (name === "globalload.txt") {
+        if (name === "globalload.txt" || name === "globalload_chr.txt") {
           form.append("files", f, f.name)
           form.append("paths", "Resources/" + f.name)
         } else if (name.endsWith("_chr.txt")) {
           form.append("files", f, f.name)
           form.append("paths", f.name)
         } else {
-          this.error = f.name + " is not a _chr.txt or GlobalLoad.txt"
+          this.error = f.name + " is not a _chr.txt, GlobalLoad_chr.txt or GlobalLoad.txt"
           return
         }
       }
@@ -316,6 +324,7 @@ export default {
         const results     = r.data.results || []
         this.notification = results.map((x) => x.error || x.result).join("; ")
         await this.loadFiles()
+        await this.loadGlobalChr()
         if (results.length === 1 && !results[0].error) {
           const name = files[0].name.toLowerCase()
           const kept = this.files.find((f) => f.path.toLowerCase().endsWith(name))
@@ -399,6 +408,28 @@ export default {
       } catch (e) {
         // no pictures: the names still show
       }
+    },
+    // a file every zone loads
+    isGlobal() {
+      return this.file && this.file.path.toLowerCase().startsWith("resources/")
+    },
+    // the models GlobalLoad_chr.txt loads in every zone, as Spire holds it
+    async loadGlobalChr() {
+      const held = this.files.find((f) => f.path.toLowerCase() === "resources/globalload_chr.txt")
+      const out  = {}
+      if (held) {
+        try {
+          const r = await SpireApi.v1().get("client-assets/race-file", { params: { path: held.path } })
+          r.data.lines.forEach((l) => {
+            if (l.code) {
+              out[l.code.toUpperCase()] = true
+            }
+          })
+        } catch (e) {
+          // not read: nothing is marked
+        }
+      }
+      this.globalChr = out
     },
     async loadHeld() {
       try {
@@ -539,7 +570,7 @@ export default {
           code: chr ? p.code : "",
           archive: archive,
           label: (chr ? p.code + " in " : "") + archive,
-          global: this.globalArchives[base(p.file).toLowerCase()] || false,
+          global: this.globalArchives[base(p.file).toLowerCase()] || (chr && !this.isGlobal() && this.globalChr[p.code]) || false,
           added: this.has(chr ? p.code : "", archive),
           title: p.file + (listed && listed.loaded_via_description ? " (" + listed.loaded_via_description + ")" : ""),
         })
@@ -563,7 +594,7 @@ export default {
     },
     removeLine(i) {
       const l = this.file.lines[i]
-      if (this.file.kind === "globalload" && l.raw && !confirm("Remove " + l.archive + " from GlobalLoad.txt? Every zone stops loading it.")) {
+      if (this.isGlobal() && l.raw && !confirm("Remove " + l.archive + " from " + this.file.path + "? Every zone stops loading it.")) {
         return
       }
       this.file.lines.splice(i, 1)
@@ -580,6 +611,7 @@ export default {
         this.dirty        = false
         this.notification = r.data.result + ". Publish on Client Patch to send it to players."
         await this.loadFiles()
+        await this.loadGlobalChr()
         this.path = this.file.path
       } catch (e) {
         this.showError(e)
@@ -589,6 +621,7 @@ export default {
   },
   async mounted() {
     await Promise.all([this.loadFiles(), this.loadRaces(), this.loadHeld()])
+    await this.loadGlobalChr()
   },
   beforeRouteLeave(to, from, next) {
     next(this.confirmLeave())
