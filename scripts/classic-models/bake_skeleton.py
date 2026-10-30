@@ -12,7 +12,8 @@ scaled by its rest length over the lender's, and the bone's own scale kept.
 
 The archive is <client>/global_chr.s3d with SKE renamed RON (rename_models)
 and the animations added to its WLD as 0x12 tracks and 0x13 track links named
-<anim><variant>RON<bone>_TRACK, the way the client finds them.
+<anim><variant>RON<bone>_TRACK, the way the client finds them, then cut down
+to that one model (trim_model).
 """
 import math
 import os
@@ -21,6 +22,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import rename_models as rm
+import trim_model as tm
 
 
 def frags(wld):
@@ -157,9 +159,12 @@ def main():
             out.append((new_wld, out_wld))
         else:
             out.append((rename(name), data))
+    out, n_kept, n_all = tm.trim(out, new_wld, new_code)
     open(out_path, "wb").write(rm.write_pfs(out))
-    print("%s: %d animations borrowed from %s (%s), %d tracks added, %d bones, renamed %d names" % (
-        out_path, len(keys), lender, ", ".join(keys[:6]) + "...", made, len(bones), counts["strings"]))
+    print("%s: %d animations borrowed from %s (%s), %d tracks added, %d bones, renamed %d names; "
+          "kept %d of %d pieces and %d files, %.2f MB" % (
+              out_path, len(keys), lender, ", ".join(keys[:6]) + "...", made, len(bones), counts["strings"],
+              n_kept, n_all, len(out), os.path.getsize(out_path) / 1e6))
 
 
 if __name__ == "__main__":

@@ -33,8 +33,20 @@ Loading Characters` to Resources/GlobalLoad.txt, and set NPCs to race 197
 with size 4. The server's default height for race 197 is 6, which floats
 them.
 
-The archive is a full copy of `global_chr.s3d` (7.4 MB). Its other classic
-models are identical to the ones `Global_chr` already loads.
+The archive is then cut down to the skeleton alone (`trim_model.py`): 0.40 MB
+instead of the 7.4 MB `global_chr.s3d` it starts from.
+
+## trim_model.py
+
+Cuts a character archive down to one model: its actor, skeleton, meshes,
+materials, textures and animation tracks, and the texture files they name.
+It follows the references between pieces, numbers the kept pieces again, and
+keeps the string table whole so names need no change. A piece type it has no
+reference layout for stops it rather than being copied wrongly.
+
+```sh
+python3 -I scripts/classic-models/trim_model.py in.s3d out.s3d RON
+```
 
 ## rename_models.py
 
