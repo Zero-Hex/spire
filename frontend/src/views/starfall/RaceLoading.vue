@@ -40,7 +40,8 @@
             <b-button size="sm" variant="outline-secondary" class="mr-3" @click="open(file.path)" :disabled="!dirty || saving">
               Undo changes
             </b-button>
-            <span class="text-muted">{{ entries().length }} {{ file.kind === "chr" ? "race models" : "archives" }}</span>
+            <span v-if="file.kind === 'chr'" class="text-muted">{{ entries().length }} race models</span>
+            <span v-else class="text-muted">{{ summary() }}</span>
           </div>
           <div v-if="file.kind === 'globalload'" class="text-warning hint mb-2">
             Every zone loads these. Removing a stock line takes those models out of every zone.
@@ -49,27 +50,72 @@
             New file: the stock client <span v-if="stockZone()">has a {{ file.path }}, and this one replaces it,
             races and all</span><span v-else>has no file for this zone</span>.
           </div>
+          <div v-if="file.kind === 'globalload' && hiddenCount()" class="hint mb-2">
+            <a href="#" @click.prevent="showOther = !showOther">
+              {{ showOther ? "Hide" : "Show" }} {{ hiddenCount() }} line(s) that load no races
+            </a>
+            <span class="text-muted">(equipment, objects, grass)</span>
+          </div>
           <table class="eq-table eq-highlight-rows race-lines">
             <tbody>
-            <tr v-for="(l, i) in file.lines" :key="i">
-              <td class="race-pic-cell">
-                <div class="race-pic">
-                  <span v-if="picture(l)" :class="'race-models-ctn-' + picture(l) + ' race-pic-sprite'"/>
-                </div>
-              </td>
-              <td v-if="!l.archive"><code class="text-muted">{{ l.raw }}</code></td>
-              <td v-else>
-                <b v-if="file.kind === 'chr'">{{ l.code.toUpperCase() }}</b>
-                <code class="ml-1">{{ l.archive }}</code>
-                <b-badge v-if="!l.raw" variant="success" class="ml-1">new</b-badge>
-                <div class="text-muted hint">{{ racesOf(l) || "not in Spire's race list" }}</div>
-              </td>
-              <td class="text-right">
-                <b-button size="sm" variant="outline-danger" @click="removeLine(i)" title="Remove">
-                  <i class="fa fa-times"></i>
-                </b-button>
-              </td>
-            </tr>
+            <template v-for="(l, i) in file.lines">
+              <tr v-if="shown(l)" :key="'l' + i" :class="info(l).kind === 'races' && info(l).models.length > 1 ? 'race-openable' : ''"
+                  @click="toggle(i, l)">
+                <td class="race-pic-cell">
+                  <div class="race-pic">
+                    <span v-if="picture(l)" :class="'race-models-ctn-' + picture(l) + ' race-pic-sprite'"/>
+                  </div>
+                </td>
+                <td v-if="!l.archive"><code class="text-muted">{{ l.raw }}</code></td>
+                <td v-else>
+                  <b v-if="file.kind === 'chr'">{{ l.code.toUpperCase() }}</b>
+                  <code class="ml-1">{{ l.archive }}</code>
+                  <b-badge v-if="!l.raw" variant="success" class="ml-1">new</b-badge>
+                  <b-badge v-if="info(l).kind === 'missing'" variant="danger" class="ml-1"
+                           title="Neither the RoF2 client nor Spire has this archive: the line loads nothing">not in the client</b-badge>
+                  <b-badge v-if="info(l).kind === 'other'" variant="dark" class="ml-1">no races</b-badge>
+                  <b-badge v-if="info(l).unnamed.length" variant="warning" class="ml-1"
+                           :title="info(l).unnamed.join(', ')">{{ info(l).unnamed.length }} not in Spire's race list</b-badge>
+                  <div class="text-muted hint">
+                    <span v-if="file.kind === 'chr'">{{ racesOf(l) || "not in Spire's race list" }}</span>
+                    <span v-else-if="info(l).kind === 'races'">
+                      <i v-if="info(l).models.length > 1" :class="'fa fa-caret-' + (expanded[i] ? 'down' : 'right') + ' mr-1'"></i>
+                      {{ info(l).models.length }} race model{{ info(l).models.length === 1 ? "" : "s" }}: {{ modelNames(info(l)) }}
+                    </span>
+                    <span v-else-if="info(l).kind === 'animations'">
+                      animations for {{ info(l).animations.map((c) => (raceName(c) || c) + " (" + c + ")").join(", ") }}
+                    </span>
+                    <span v-else-if="info(l).kind === 'missing'">the client has no {{ info(l).file }}</span>
+                    <span v-else-if="info(l).kind === 'held'">an archive Spire holds for the patch</span>
+                    <span v-else>equipment or objects, no race models</span>
+                  </div>
+                </td>
+                <td class="text-right">
+                  <b-button size="sm" variant="outline-danger" @click.stop="removeLine(i)" title="Remove">
+                    <i class="fa fa-times"></i>
+                  </b-button>
+                </td>
+              </tr>
+              <!-- the races in an archive -->
+              <tr v-if="shown(l) && expanded[i]" :key="'o' + i" class="race-models-row">
+                <td colspan="3">
+                  <div class="race-model-grid">
+                    <div v-for="c in info(l).models" :key="c" class="race-model">
+                      <div class="race-pic">
+                        <span v-if="codeRace[c] && pictures[codeRace[c]]"
+                              :class="'race-models-ctn-' + pictures[codeRace[c]] + ' race-pic-sprite'"/>
+                      </div>
+                      <div>
+                        <b>{{ c }}</b>
+                        <div class="hint" :class="raceName(c) ? 'text-muted' : 'text-warning'">
+                          {{ raceName(c) || "not in Spire's race list" }}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </td>
+              </tr>
+            </template>
             </tbody>
           </table>
         </eq-window-simple>
@@ -169,6 +215,11 @@ export default {
       codeRaces: {},   // model code: race names
       codeRace: {},    // model code: the first race id with it
       rof2Archives: {}, // model code: the RoF2 archives holding it
+      rof2Contents: {}, // archive file, lower case: { models, animations }
+      rof2Files: {},    // every archive the RoF2 client has, lower case
+      heldArchives: {}, // archives Spire holds for the patch, lower case without extension
+      showOther: false, // GlobalLoad.txt lines that load no races
+      expanded: {},     // line index: its races shown
       globalArchives: {}, // archive, lower case without extension: loaded in every zone
       archiveRaces: {}, // archive, lower case without extension: race names
       notification: "",
@@ -213,6 +264,7 @@ export default {
         this.held  = true
         this.dirty = false
         this.path  = r.data.path
+        this.expanded = {}
       } catch (e) {
         this.showError(e)
       }
@@ -315,6 +367,10 @@ export default {
         // what the RoF2 client's archives hold, by model code
         const scan = await SpireApi.v1().get("/static-map/rof2-race-archives.json")
         const rof2 = scan.data.codes || {}
+        this.rof2Contents = scan.data.archives || {}
+        const files       = {}
+        ;(scan.data.files || []).forEach((f) => (files[f] = true))
+        this.rof2Files = files
         Object.keys(rof2).forEach((code) => rof2[code].forEach((file) => {
           const a         = base(file).toLowerCase()
           archiveRaces[a] = archiveRaces[a] || new Set()
@@ -344,6 +400,82 @@ export default {
         // no pictures: the names still show
       }
     },
+    async loadHeld() {
+      try {
+        const r     = await SpireApi.v1().get("client-assets")
+        const index = r.data.index || r.data
+        const held  = {}
+        Object.values(index.archives || {}).forEach((a) => (held[base(a.file).toLowerCase()] = true))
+        Object.values(index.files || {}).forEach((f) => (held[base(f.path.split("/").pop()).toLowerCase()] = true))
+        this.heldArchives = held
+      } catch (e) {
+        // not known: nothing is marked held
+      }
+    },
+    // what a GlobalLoad.txt line loads: race models, animations, other
+    // things (equipment, objects), or nothing (missing from the client)
+    info(l) {
+      const empty = { kind: "", file: "", models: [], animations: [], unnamed: [] }
+      if (this.file.kind !== "globalload" || !l.archive) {
+        return empty
+      }
+      const name = l.archive.toLowerCase()
+      const file = /\.eqg$/.test(name) ? name : [name + ".s3d", name + ".eqg"].find((f) => this.rof2Files[f]) || name + ".s3d"
+      const c    = this.rof2Contents[file] || { models: [], animations: [] }
+      const out  = { file: file, models: c.models, animations: c.animations, unnamed: c.models.filter((m) => !this.raceName(m)) }
+      if (!this.rof2Files[file]) {
+        out.kind = this.heldArchives[base(name)] ? "held" : "missing"
+      } else if (c.models.length) {
+        out.kind = "races"
+      } else if (c.animations.length) {
+        out.kind = "animations"
+      } else {
+        out.kind = "other"
+      }
+      return out
+    },
+    shown(l) {
+      return this.file.kind !== "globalload" || this.showOther || this.info(l).kind !== "other" || !l.raw
+    },
+    hiddenCount() {
+      return this.file.lines.filter((l) => this.info(l).kind === "other").length
+    },
+    summary() {
+      const kinds = {}
+      this.file.lines.forEach((l) => {
+        const k  = this.info(l).kind
+        kinds[k] = (kinds[k] || 0) + 1
+      })
+      const parts = [(kinds.races || 0) + " race archives"]
+      if (kinds.animations) {
+        parts.push(kinds.animations + " of animations")
+      }
+      if (kinds.other) {
+        parts.push(kinds.other + " without races")
+      }
+      if (kinds.missing) {
+        parts.push(kinds.missing + " missing from the client")
+      }
+      return parts.join(", ")
+    },
+    toggle(i, l) {
+      if (this.info(l).kind === "races" && this.info(l).models.length > 1) {
+        this.$set(this.expanded, i, !this.expanded[i])
+      }
+    },
+    raceName(code) {
+      const names = this.codeRaces[code.toUpperCase()]
+      return names ? Array.from(names).join(" / ") : ""
+    },
+    modelNames(info) {
+      const names = []
+      info.models.forEach((c) => (this.codeRaces[c] || new Set([c])).forEach((n) => {
+        if (!names.includes(n)) {
+          names.push(n)
+        }
+      }))
+      return names.slice(0, 6).join(", ") + (names.length > 6 ? " and " + (names.length - 6) + " more" : "")
+    },
     racesOf(l) {
       const names = this.file.kind === "chr"
         ? this.codeRaces[(l.code || "").toUpperCase()]
@@ -355,10 +487,8 @@ export default {
       return list.slice(0, 6).join(", ") + (list.length > 6 ? " and " + (list.length - 6) + " more" : "")
     },
     picture(l) {
-      if (this.file.kind !== "chr") {
-        return ""
-      }
-      const id = this.codeRace[(l.code || "").toUpperCase()]
+      const code = this.file.kind === "chr" ? (l.code || "") : (this.info(l).models.find((c) => this.codeRace[c]) || "")
+      const id   = this.codeRace[code.toUpperCase()]
       return id ? this.pictures[id] : ""
     },
     results() {
@@ -437,6 +567,7 @@ export default {
         return
       }
       this.file.lines.splice(i, 1)
+      this.expanded = {}
       this.dirty = true
     },
     async save() {
@@ -457,7 +588,7 @@ export default {
     },
   },
   async mounted() {
-    await Promise.all([this.loadFiles(), this.loadRaces()])
+    await Promise.all([this.loadFiles(), this.loadRaces(), this.loadHeld()])
   },
   beforeRouteLeave(to, from, next) {
     next(this.confirmLeave())
@@ -481,6 +612,22 @@ export default {
 
 .race-lines td:nth-child(2) {
   width: 100%;
+}
+
+.race-openable {
+  cursor: pointer;
+}
+
+.race-model-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 6px;
+}
+
+.race-model {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .race-pic {

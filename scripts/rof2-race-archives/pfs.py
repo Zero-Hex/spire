@@ -1,4 +1,4 @@
-import struct, zlib, sys, re
+import mmap, re, struct, sys, zlib
 
 def pfs_files(data):
     dir_off = struct.unpack_from("<I", data, 0)[0]
@@ -34,24 +34,54 @@ def wld_strings(wld):
     return [s.decode("latin-1") for s in raw.split(b"\0") if s]
 
 ACTOR = re.compile(r"^([A-Z0-9]{3})_ACTORDEF$")
+# an animation track: <animation><race code><bone>_TRACK, where the
+# animation is C05 or T05B: C05SKEHEAD_TRACK, T05BSKEPEBIP01_TRACK
+TRACK = re.compile(r"^[A-Z]\d\d[A-Z0-9_]*_TRACK$")
+ITEM = re.compile(r"^IT\d")
+
+
+def track_codes(name):
+    """the race codes an animation track could be for: after a three or a
+    four letter animation; the caller keeps the one it knows"""
+    if not TRACK.match(name):
+        return []
+    out = [name[3:6]]
+    if name[3].isalpha():
+        out.append(name[4:7])
+    return out
+
+
+def contents(path, known=frozenset()):
+    """the race model codes an archive defines, and the known codes it
+    animates (a track's three-letter reading first)"""
+    with open(path, "rb") as fh:
+        data = mmap.mmap(fh.fileno(), 0, access=mmap.ACCESS_READ)
+        files = pfs_files(data)
+        models, animations = set(), set()
+        if path.lower().endswith(".s3d"):
+            for name, read in files.items():
+                if name.endswith(".wld"):
+                    for s in wld_strings(read()):
+                        u = s.upper()
+                        m = ACTOR.match(u)
+                        if m and not ITEM.match(m.group(1)):
+                            models.add(m.group(1))
+                        for c in track_codes(u):
+                            if c in known:
+                                animations.add(c)
+                                break
+        else:
+            for name in files:
+                m = re.match(r"^([a-z0-9]{3})\.(mod|mds)$", name)
+                if m and not ITEM.match(m.group(1).upper()):
+                    models.add(m.group(1).upper())
+        return models, animations - models
+
 
 def codes(path):
-    data = open(path, "rb").read()
-    files = pfs_files(data)
-    out = set()
-    if path.lower().endswith(".s3d"):
-        for name, read in files.items():
-            if name.endswith(".wld"):
-                for s in wld_strings(read()):
-                    m = ACTOR.match(s.upper())
-                    if m:
-                        out.add(m.group(1))
-    else:
-        for name in files:
-            m = re.match(r"^([a-z0-9]{3})\.(mod|mds)$", name)
-            if m:
-                out.add(m.group(1).upper())
-    return out, sorted(files)
+    models, _ = contents(path)
+    return models, []
+
 
 if __name__ == "__main__":
     for p in sys.argv[1:]:
