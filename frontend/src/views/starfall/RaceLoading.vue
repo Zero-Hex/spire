@@ -72,6 +72,8 @@
                   <b v-if="file.kind === 'chr'">{{ l.code.toUpperCase() }}</b>
                   <code class="ml-1">{{ l.archive }}</code>
                   <b-badge v-if="!l.raw" variant="success" class="ml-1">new</b-badge>
+                  <b-badge v-if="chrCheck(l) === 'disabled' || info(l).kind === 'disabled'" variant="secondary" class="ml-1"
+                           :title="'The archive name starts with _, so the client finds nothing: the line is switched off. Remove the _ to load ' + l.archive.replace(/^_+/, '') + '.'">disabled</b-badge>
                   <b-badge v-if="chrCheck(l) === 'missing'" variant="danger" class="ml-1"
                            title="Neither the RoF2 client nor Spire has this archive: the line loads nothing">archive not in the client</b-badge>
                   <b-badge v-if="chrCheck(l) === 'nocode'" variant="danger" class="ml-1"
@@ -93,11 +95,20 @@
                       animations for {{ info(l).animations.map((c) => (raceName(c) || c) + " (" + c + ")").join(", ") }}
                     </span>
                     <span v-else-if="info(l).kind === 'missing'">the client has no {{ info(l).file }}</span>
+                    <span v-else-if="info(l).kind === 'disabled'">switched off: would load {{ l.archive.replace(/^_+/, "") }}</span>
                     <span v-else-if="info(l).kind === 'held'">an archive Spire holds for the patch</span>
                     <span v-else>equipment or objects, no race models</span>
                   </div>
                 </td>
                 <td class="text-right">
+                  <div class="btn-group btn-group-sm mr-1">
+                    <b-button size="sm" variant="outline-secondary" @click.stop="moveLine(i, -1)" title="Move up: the client loads lines in order">
+                      <i class="fa fa-arrow-up"></i>
+                    </b-button>
+                    <b-button size="sm" variant="outline-secondary" @click.stop="moveLine(i, 1)" title="Move down">
+                      <i class="fa fa-arrow-down"></i>
+                    </b-button>
+                  </div>
                   <b-button size="sm" variant="outline-danger" @click.stop="removeLine(i)" title="Remove">
                     <i class="fa fa-times"></i>
                   </b-button>
@@ -420,6 +431,9 @@ export default {
       if (this.file.kind !== "chr" || !l.archive || !l.code || !Object.keys(this.rof2Files).length) {
         return ""
       }
+      if (l.archive.startsWith("_")) {
+        return "disabled"
+      }
       const name = base(l.archive).toLowerCase()
       const file = [name + ".s3d", name + ".eqg"].find((f) => this.rof2Files[f])
       if (!file) {
@@ -470,6 +484,9 @@ export default {
         return empty
       }
       const name = l.archive.toLowerCase()
+      if (name.startsWith("_")) {
+        return { kind: "disabled", file: "", models: [], animations: [], unnamed: [] }
+      }
       const file = /\.eqg$/.test(name) ? name : [name + ".s3d", name + ".eqg"].find((f) => this.rof2Files[f]) || name + ".s3d"
       const c    = this.rof2Contents[file] || { models: [], animations: [] }
       const out  = { file: file, models: c.models, animations: c.animations, unnamed: c.models.filter((m) => !this.raceName(m)) }
@@ -610,6 +627,21 @@ export default {
       }
       this.file.lines.push(this.file.kind === "chr" ? { code: code.toUpperCase(), archive: archive } : { archive: archive })
       this.dirty = true
+    },
+    // swap with the next line shown above or below
+    moveLine(i, step) {
+      let j = i + step
+      while (j >= 0 && j < this.file.lines.length && !this.shown(this.file.lines[j])) {
+        j += step
+      }
+      if (j < 0 || j >= this.file.lines.length) {
+        return
+      }
+      const lines = this.file.lines.slice()
+      ;[lines[i], lines[j]] = [lines[j], lines[i]]
+      this.file.lines = lines
+      this.expanded   = {}
+      this.dirty      = true
     },
     removeLine(i) {
       const l = this.file.lines[i]
