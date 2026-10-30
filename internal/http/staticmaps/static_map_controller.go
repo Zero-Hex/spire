@@ -43,6 +43,10 @@ var (
 	playerAnimationsMap []byte
 	//go:embed race-inventory-map.json
 	raceInventoryMap []byte
+	// which RoF2 client archives hold each race model code, read from the
+	// archives themselves (.s3d actor definitions, .eqg model files)
+	//go:embed rof2-race-archives.json
+	rof2RaceArchives []byte
 	//go:embed spell-animations-map.json
 	spellAnimationsMap []byte
 	//go:embed spell-icons-map.json
@@ -74,6 +78,8 @@ func (q *StaticMapController) getStaticMapFileCompressed(c echo.Context) error {
 		file = spellIconsMap
 	case "race-inventory-map.json":
 		file = raceInventoryMap
+	case "rof2-race-archives.json":
+		file = rof2RaceArchives
 	case "spell-icon-anim-name-map.json":
 		file = spellIconAnimNameMap
 	default:

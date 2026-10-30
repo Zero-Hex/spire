@@ -1,0 +1,4583 @@
+{
+ "client": "RoF2",
+ "codes": {
+  "AAM": [
+   "aam.eqg",
+   "hohonora_chr.s3d",
+   "hohonorb_chr.s3d",
+   "poair_chr.s3d",
+   "potimea_chr.s3d",
+   "povalor_chr.s3d",
+   "powar_chr.s3d"
+  ],
+  "ABH": [
+   "frozenshadow_chr.s3d",
+   "potimeb_chr.s3d"
+  ],
+  "AEL": [
+   "ael_chr.s3d",
+   "global5_chr.s3d"
+  ],
+  "AHF": [
+   "ahf.eqg"
+  ],
+  "AHM": [
+   "ahm.eqg"
+  ],
+  "AIE": [
+   "aie.eqg"
+  ],
+  "AKM": [
+   "akheva_chr.s3d",
+   "griegsend_chr.s3d",
+   "maiden_chr.s3d",
+   "maiden_chr2.s3d",
+   "pojustice_chr.s3d",
+   "poknowledge_chr.s3d",
+   "twilight_chr.s3d",
+   "umbral_chr.s3d",
+   "vexthal_chr.s3d",
+   "vexthal_chr2.s3d"
+  ],
+  "AKN": [
+   "akheva_chr.s3d",
+   "maiden_chr.s3d",
+   "poknowledge_chr.s3d",
+   "vexthal_chr.s3d"
+  ],
+  "ALA": [
+   "ala.eqg"
+  ],
+  "ALG": [
+   "alg.eqg"
+  ],
+  "ALL": [
+   "blackburrow_chr.s3d",
+   "butcher_chr.s3d",
+   "cauldron_chr.s3d",
+   "cazicthule_chr.s3d",
+   "crushbone_chr.s3d",
+   "feerrott_chr.s3d",
+   "felwithea_chr.s3d",
+   "felwitheb_chr.s3d",
+   "global6_chr.s3d",
+   "gukbottom_chr.s3d",
+   "guktop_chr.s3d",
+   "innothule_chr.s3d",
+   "katta_chr.s3d",
+   "lakerathe_chr.s3d",
+   "lavastorm_chr.s3d",
+   "neriakb_chr.s3d",
+   "neriakc_chr.s3d",
+   "nurga_chr.s3d",
+   "oasis_chr.s3d",
+   "qcat_chr.s3d",
+   "rathemtn_chr.s3d",
+   "sro_chr.s3d",
+   "timorous_chr.s3d"
+  ],
+  "AMP": [
+   "poair_chr.s3d"
+  ],
+  "AMY": [
+   "amy.eqg"
+  ],
+  "ANS": [
+   "ans.eqg"
+  ],
+  "APX": [
+   "apx.eqg"
+  ],
+  "ARM": [
+   "beholder_chr.s3d",
+   "nro_chr.s3d",
+   "oggok_chr.s3d",
+   "poeartha_chr.s3d",
+   "postorms_chr.s3d"
+  ],
+  "ARO": [
+   "aro.eqg"
+  ],
+  "ASM": [
+   "asm.eqg"
+  ],
+  "AVI": [
+   "airplane_chr.s3d",
+   "butcher_chr.s3d",
+   "cauldron_chr.s3d",
+   "freportw_chr.s3d",
+   "lakerathe_chr.s3d",
+   "oot_chr.s3d",
+   "pojustice_chr.s3d",
+   "poknowledge_chr.s3d",
+   "southkarana_chr.s3d",
+   "steamfont_chr.s3d",
+   "timorous_chr.s3d"
+  ],
+  "AVK": [
+   "avk.eqg"
+  ],
+  "AXA": [
+   "axa.eqg"
+  ],
+  "B04": [
+   "b04.eqg"
+  ],
+  "B05": [
+   "b05.eqg"
+  ],
+  "B06": [
+   "b06.eqg"
+  ],
+  "B07": [
+   "b07.eqg"
+  ],
+  "B08": [
+   "b08.eqg"
+  ],
+  "B09": [
+   "B09.eqg"
+  ],
+  "B10": [
+   "B10.eqg"
+  ],
+  "BAC": [
+   "cabeast_chr.s3d",
+   "cabwest_chr.s3d",
+   "cobaltscar_chr.s3d",
+   "droga_chr.s3d",
+   "lakeofillomen_chr.s3d",
+   "nurga_chr.s3d",
+   "powater_chr.s3d",
+   "sirens_chr.s3d",
+   "timorous_chr.s3d",
+   "twilight_chr.s3d"
+  ],
+  "BAF": [
+   "global4_chr.s3d",
+   "global_chr.s3d",
+   "globalbaf_chr.s3d"
+  ],
+  "BAL": [
+   "bal.eqg"
+  ],
+  "BAM": [
+   "global4_chr.s3d",
+   "global_chr.s3d",
+   "globalbam_chr.s3d"
+  ],
+  "BAS": [
+   "bas.eqg"
+  ],
+  "BAT": [
+   "bat.eqg",
+   "befallen_chr.s3d",
+   "beholder_chr.s3d",
+   "burningwood_chr.s3d",
+   "butcher_chr.s3d",
+   "cabwest_chr.s3d",
+   "erudsxing_chr.s3d",
+   "feerrott_chr.s3d",
+   "freporte_chr.s3d",
+   "freportw_chr.s3d",
+   "frozenshadow_chr.s3d",
+   "gfaydark_chr.s3d",
+   "gukbottom_chr.s3d",
+   "highpass_chr.s3d",
+   "katta_chr.s3d",
+   "kithicor_chr.s3d",
+   "lfaydark_chr.s3d",
+   "maiden_chr.s3d",
+   "misty_chr.s3d",
+   "necropolis_chr.s3d",
+   "oggok_chr.s3d",
+   "paineel_chr.s3d",
+   "paw_chr.s3d",
+   "qcat_chr.s3d",
+   "qeynos2_chr.s3d",
+   "qeytoqrg_chr.s3d",
+   "qrg_chr.s3d",
+   "soldunga_chr.s3d",
+   "soldungb_chr.s3d",
+   "tenebrous_chr.s3d",
+   "thurgadina_chr.s3d",
+   "warrens_chr.s3d"
+  ],
+  "BDR": [
+   "bdr.eqg"
+  ],
+  "BEA": [
+   "akanon_chr.s3d",
+   "blackburrow_chr.s3d",
+   "cauldron_chr.s3d",
+   "commons_chr.s3d",
+   "ecommons_chr.s3d",
+   "everfrost_chr.s3d",
+   "global2_chr.s3d",
+   "growthplane_chr.s3d",
+   "halas_chr.s3d",
+   "highpass_chr.s3d",
+   "kithicor_chr.s3d",
+   "misty_chr.s3d",
+   "nektulos_chr.s3d",
+   "northkarana_chr.s3d",
+   "permafrost_chr.s3d",
+   "qey2hh1_chr.s3d",
+   "qeynos2_chr.s3d",
+   "qeynos_chr.s3d",
+   "qeytoqrg_chr.s3d",
+   "qrg_chr.s3d",
+   "rathemtn_chr.s3d",
+   "rivervale_chr.s3d"
+  ],
+  "BEH": [
+   "airplane_chr.s3d",
+   "beholder_chr.s3d",
+   "eastkarana_chr.s3d",
+   "fearplane_chr.s3d",
+   "gukbottom_chr.s3d",
+   "kedge_chr.s3d",
+   "pojustice_chr.s3d",
+   "runnyeye_chr.s3d"
+  ],
+  "BEL": [
+   "bel.eqg"
+  ],
+  "BET": [
+   "beholder_chr.s3d",
+   "butcher_chr.s3d",
+   "ecommons_chr.s3d",
+   "erudsxing_chr.s3d",
+   "feerrott_chr.s3d",
+   "fieldofbone_chr.s3d",
+   "freporte_chr.s3d",
+   "freportw_chr.s3d",
+   "highpass_chr.s3d",
+   "kithicor_chr.s3d",
+   "lakerathe_chr.s3d",
+   "misty_chr.s3d",
+   "necropolis_chr.s3d",
+   "nektulos_chr.s3d",
+   "northkarana_chr.s3d",
+   "nro_chr.s3d",
+   "oasis_chr.s3d",
+   "paineel_chr.s3d",
+   "pojustice_chr.s3d",
+   "qcat_chr.s3d",
+   "qey2hh1_chr.s3d",
+   "qeynos2_chr.s3d",
+   "qeytoqrg_chr.s3d",
+   "rathemtn_chr.s3d",
+   "sebilis_chr.s3d",
+   "soldungb_chr.s3d",
+   "sro_chr.s3d",
+   "tox_chr.s3d",
+   "unrest_chr.s3d"
+  ],
+  "BFC": [
+   "bfc.eqg"
+  ],
+  "BFR": [
+   "bfr.eqg"
+  ],
+  "BGB": [
+   "bgb_chr.s3d"
+  ],
+  "BGG": [
+   "fieldofbone_chr.s3d",
+   "lakeofillomen_chr.s3d",
+   "timorous_chr.s3d",
+   "twilight_chr.s3d"
+  ],
+  "BGM": [
+   "beholder_chr.s3d",
+   "erudsxing_chr.s3d",
+   "freporte_chr.s3d",
+   "freportn_chr.s3d",
+   "freportw_chr.s3d",
+   "highkeep_chr.s3d",
+   "lakerathe_chr.s3d",
+   "mseru_chr.s3d",
+   "neriaka_chr.s3d",
+   "northkarana_chr.s3d",
+   "nro_chr.s3d",
+   "oasis_chr.s3d",
+   "paw_chr.s3d",
+   "qcat_chr.s3d",
+   "qeynos2_chr.s3d",
+   "qeynos_chr.s3d",
+   "sro_chr.s3d",
+   "steamfont_chr.s3d",
+   "unrest_chr.s3d"
+  ],
+  "BIX": [
+   "acrylia_chr.s3d",
+   "airplane_chr.s3d",
+   "ecommons_chr.s3d",
+   "kithicor_chr.s3d",
+   "mischiefplane_chr.s3d",
+   "misty_chr.s3d",
+   "nektulos_chr.s3d",
+   "rivervale_chr.s3d"
+  ],
+  "BKD": [
+   "bkd.eqg"
+  ],
+  "BKN": [
+   "hohonora_chr.s3d",
+   "hohonorb_chr.s3d",
+   "potimea_chr.s3d",
+   "povalor_chr.s3d"
+  ],
+  "BLV": [
+   "blv.eqg"
+  ],
+  "BNF": [
+   "bnf.eqg"
+  ],
+  "BNM": [
+   "bnm.eqg"
+  ],
+  "BNX": [
+   "bnx.eqg"
+  ],
+  "BNY": [
+   "bny.eqg"
+  ],
+  "BON": [
+   "bon_chr.s3d",
+   "veeshan_chr.s3d"
+  ],
+  "BOX": [
+   "box_chr.s3d",
+   "veeshan_chr.s3d"
+  ],
+  "BRC": [
+   "poinnovation_chr.s3d"
+  ],
+  "BRE": [
+   "bre.eqg"
+  ],
+  "BRF": [
+   "butcher_chr.s3d",
+   "cauldron_chr.s3d",
+   "gfaydark_chr.s3d",
+   "growthplane2_chr.s3d",
+   "lfaydark_chr.s3d",
+   "poknowledge_chr.s3d",
+   "qrg_chr.s3d",
+   "rivervale_chr.s3d",
+   "steamfont_chr.s3d",
+   "wakening_chr.s3d"
+  ],
+  "BRI": [
+   "global2_chr.s3d"
+  ],
+  "BRL": [
+   "brl_chr.s3d",
+   "veeshan_chr.s3d"
+  ],
+  "BRM": [
+   "butcher_chr.s3d",
+   "cauldron_chr.s3d",
+   "gfaydark_chr.s3d",
+   "growthplane2_chr.s3d",
+   "lfaydark_chr.s3d",
+   "poknowledge_chr.s3d",
+   "qrg_chr.s3d",
+   "rivervale_chr.s3d",
+   "steamfont_chr.s3d"
+  ],
+  "BRN": [
+   "dalnir_chr.s3d",
+   "droga_chr.s3d",
+   "fieldofbone_chr.s3d",
+   "frontiermtns_chr.s3d",
+   "kurn_chr.s3d",
+   "nurga_chr.s3d"
+  ],
+  "BRV": [
+   "bothunder_chr.s3d",
+   "brv_chr.s3d",
+   "ponightmare_chr.s3d",
+   "potactics_chr.s3d",
+   "potorment_chr.s3d",
+   "powar_chr.s3d"
+  ],
+  "BRX": [
+   "brx.eqg"
+  ],
+  "BSE": [
+   "bse.eqg"
+  ],
+  "BSG": [
+   "bsg.eqg"
+  ],
+  "BTL": [
+   "btl.eqg"
+  ],
+  "BTM": [
+   "arena_chr.s3d",
+   "westwastes_chr.s3d"
+  ],
+  "BTN": [
+   "btn.eqg"
+  ],
+  "BTP": [
+   "bothunder_chr.s3d"
+  ],
+  "BTS": [
+   "bts.eqg"
+  ],
+  "BTX": [
+   "codecay_chr.s3d",
+   "podisease_chr.s3d",
+   "potimeb_chr.s3d"
+  ],
+  "BUB": [
+   "codecay_chr.s3d",
+   "podisease_chr.s3d"
+  ],
+  "BUR": [
+   "bur.eqg"
+  ],
+  "BUU": [
+   "codecay_chr.s3d",
+   "podisease_chr.s3d"
+  ],
+  "BVK": [
+   "bvk_chr.s3d"
+  ],
+  "BWD": [
+   "bwd_chr.s3d",
+   "eastwastes_chr2.s3d",
+   "eastwastesshard_chr2.s3d",
+   "hohonora_chr.s3d",
+   "necropolis2_chr.s3d",
+   "pofire_chr.s3d",
+   "skyshrine2_chr.s3d",
+   "sleeper_chr2.s3d",
+   "solrotower_chr.s3d",
+   "swampofnohope_chr2.s3d",
+   "veeshan_chr.s3d"
+  ],
+  "BXI": [
+   "bxi.eqg"
+  ],
+  "CAK": [
+   "cak.eqg"
+  ],
+  "CAM": [
+   "cam.eqg"
+  ],
+  "CAZ": [
+   "akanon_chr.s3d",
+   "befallen_chr.s3d",
+   "beholder_chr.s3d",
+   "blackburrow_chr.s3d",
+   "butcher_chr.s3d",
+   "cauldron_chr.s3d",
+   "cazicthule_chr.s3d",
+   "crushbone_chr.s3d",
+   "erudnext_chr.s3d",
+   "erudnint_chr.s3d",
+   "fearplane_chr.s3d",
+   "feerrott_chr.s3d",
+   "felwithea_chr.s3d",
+   "felwitheb_chr.s3d",
+   "freportn_chr.s3d",
+   "global2_chr.s3d",
+   "grobb_chr.s3d",
+   "gukbottom_chr.s3d",
+   "guktop_chr.s3d",
+   "halas_chr.s3d",
+   "highkeep_chr.s3d",
+   "innothule_chr.s3d",
+   "kaladima_chr.s3d",
+   "kaladimb_chr.s3d",
+   "kerraridge_chr.s3d",
+   "lavastorm_chr.s3d",
+   "lfaydark_chr.s3d",
+   "mistmoore_chr.s3d",
+   "najena_chr.s3d",
+   "nektulos_chr.s3d",
+   "neriaka_chr.s3d",
+   "neriakb_chr.s3d",
+   "neriakc_chr.s3d",
+   "oggok_chr.s3d",
+   "paw_chr.s3d",
+   "permafrost_chr.s3d",
+   "qcat_chr.s3d",
+   "qeynos2_chr.s3d",
+   "qeytoqrg_chr.s3d",
+   "rivervale_chr.s3d",
+   "runnyeye_chr.s3d",
+   "soldunga_chr.s3d",
+   "soldungb_chr.s3d",
+   "sro_chr.s3d",
+   "steamfont_chr.s3d",
+   "tox_chr.s3d",
+   "unrest_chr.s3d"
+  ],
+  "CCD": [
+   "necropolis_chr.s3d",
+   "poinnovation_chr.s3d",
+   "veeshan_chr.s3d",
+   "westwastes_chr.s3d"
+  ],
+  "CDF": [
+   "cdf.eqg"
+  ],
+  "CDM": [
+   "cdm.eqg"
+  ],
+  "CDR": [
+   "cdr.eqg"
+  ],
+  "CEN": [
+   "northkarana_chr.s3d",
+   "pojustice_chr.s3d",
+   "poknowledge_chr.s3d",
+   "qeynos_chr.s3d",
+   "qrg_chr.s3d",
+   "southkarana_chr.s3d"
+  ],
+  "CHM": [
+   "chm.eqg"
+  ],
+  "CHT": [
+   "cht.eqg"
+  ],
+  "CLB": [
+   "clb_chr.s3d",
+   "poinnovation_chr.s3d"
+  ],
+  "CLF": [
+   "akanon_chr.s3d",
+   "poinnovation_chr.s3d",
+   "soldunga_chr.s3d",
+   "steamfont_chr.s3d"
+  ],
+  "CLG": [
+   "poinnovation_chr.s3d"
+  ],
+  "CLM": [
+   "akanon_chr.s3d",
+   "lfaydark_chr.s3d",
+   "overthere_chr.s3d",
+   "poinnovation_chr.s3d",
+   "soldunga_chr.s3d",
+   "steamfont_chr.s3d"
+  ],
+  "CLQ": [
+   "clq.eqg"
+  ],
+  "CLS": [
+   "cls.eqg"
+  ],
+  "CLV": [
+   "clv.eqg"
+  ],
+  "CLW": [
+   "clw.eqg"
+  ],
+  "CNP": [
+   "cnp.eqg"
+  ],
+  "CNT": [
+   "cnt.eqg"
+  ],
+  "COC": [
+   "dreadlands_chr.s3d",
+   "overthere_chr.s3d",
+   "trakanon_chr.s3d"
+  ],
+  "COF": [
+   "cobaltscar_chr.s3d",
+   "cof_chr.s3d",
+   "crystal_chr.s3d",
+   "crystalshard_chr.s3d",
+   "eastwastes_chr.s3d",
+   "eastwastesshard_chr.s3d",
+   "greatdivide_chr.s3d",
+   "iceclad_chr2.s3d",
+   "kael_chr.s3d",
+   "kaelshard_chr.s3d",
+   "templeveeshan_chr.s3d",
+   "thurgadina_chr.s3d",
+   "thurgadinb_chr.s3d",
+   "velketor_chr.s3d",
+   "westwastes_chr.s3d"
+  ],
+  "COK": [
+   "thurgadinb2_chr.s3d",
+   "thurgadinb_2_chr.s3d"
+  ],
+  "COM": [
+   "cobaltscar_chr.s3d",
+   "com_chr.s3d",
+   "crystal_chr.s3d",
+   "crystalshard_chr.s3d",
+   "eastwastes_chr.s3d",
+   "eastwastesshard_chr.s3d",
+   "greatdivide_chr.s3d",
+   "iceclad_chr2.s3d",
+   "kael_chr.s3d",
+   "kaelshard_chr.s3d",
+   "necropolis_chr.s3d",
+   "pofire_chr.s3d",
+   "skyshrine_chr.s3d",
+   "templeveeshan_chr.s3d",
+   "thurgadina_chr.s3d",
+   "thurgadinb_chr.s3d",
+   "velketor_chr.s3d",
+   "westwastes_chr.s3d"
+  ],
+  "CPF": [
+   "erudnext_chr.s3d",
+   "erudsxing_chr.s3d",
+   "kerraridge_chr.s3d",
+   "stonebrunt_chr.s3d",
+   "tox_chr.s3d",
+   "warrens_chr.s3d"
+  ],
+  "CPM": [
+   "erudnext_chr.s3d",
+   "erudsxing_chr.s3d",
+   "kerraridge_chr.s3d",
+   "stonebrunt_chr.s3d",
+   "tox_chr.s3d",
+   "warrens_chr.s3d"
+  ],
+  "CPT": [
+   "cpt_chr.s3d"
+  ],
+  "CRB": [
+   "crb_chr.s3d",
+   "potimeb_chr.s3d",
+   "powater_chr.s3d"
+  ],
+  "CRH": [
+   "crh.eqg"
+  ],
+  "CRL": [
+   "crl.eqg"
+  ],
+  "CRO": [
+   "poeartha_chr.s3d",
+   "ponightmare_chr.s3d"
+  ],
+  "CRS": [
+   "crs.eqg"
+  ],
+  "CRY": [
+   "cry.eqg"
+  ],
+  "CSE": [
+   "cse.eqg"
+  ],
+  "CST": [
+   "cst.eqg",
+   "cst_chr.s3d",
+   "veeshan_chr.s3d"
+  ],
+  "CTH": [
+   "cth.eqg"
+  ],
+  "CUB": [
+   "akanon_chr.s3d",
+   "befallen_chr.s3d",
+   "charasis_chr.s3d",
+   "cub_chr.s3d",
+   "droga_chr.s3d",
+   "fearplane_chr.s3d",
+   "nurga_chr.s3d",
+   "paw_chr.s3d",
+   "potimeb_chr.s3d",
+   "qcat_chr.s3d",
+   "runnyeye_chr.s3d",
+   "sebilis_chr.s3d",
+   "skyshrine_chr.s3d",
+   "thurgadinb_chr.s3d"
+  ],
+  "CWB": [
+   "poinnovation_chr.s3d"
+  ],
+  "CWG": [
+   "cwg.eqg"
+  ],
+  "CWR": [
+   "cwr.eqg"
+  ],
+  "DAF": [
+   "global_chr.s3d",
+   "globaldaf_chr.s3d"
+  ],
+  "DAM": [
+   "global_chr.s3d",
+   "globaldam_chr.s3d"
+  ],
+  "DBP": [
+   "dbp.eqg"
+  ],
+  "DBX": [
+   "dbx.eqg"
+  ],
+  "DCF": [
+   "dcf.eqg"
+  ],
+  "DCM": [
+   "dcm.eqg"
+  ],
+  "DDM": [
+   "ddm.eqg"
+  ],
+  "DDV": [
+   "ddv.eqg"
+  ],
+  "DEN": [
+   "befallen_chr.s3d",
+   "cazicthule_chr2.s3d",
+   "erudnint_chr.s3d",
+   "fearplane_chr.s3d",
+   "neriakb_chr.s3d",
+   "neriakc_chr.s3d",
+   "pojustice_chr.s3d",
+   "potimeb_chr.s3d"
+  ],
+  "DER": [
+   "airplane_chr.s3d",
+   "beholder_chr.s3d",
+   "bothunder_chr.s3d",
+   "cazicthule_chr.s3d",
+   "erudnint_chr.s3d",
+   "freporte_chr.s3d",
+   "freportn_chr.s3d",
+   "kurn_chr.s3d",
+   "lavastorm_chr.s3d",
+   "nro_chr.s3d",
+   "oasis_chr.s3d",
+   "postorms_chr.s3d",
+   "solrotower_chr.s3d",
+   "sro_chr.s3d",
+   "unrest_chr.s3d"
+  ],
+  "DEV": [
+   "charasis_chr.s3d",
+   "dalnir_chr.s3d",
+   "kaesora_chr.s3d",
+   "skyfire_chr.s3d",
+   "swampofnohope_chr.s3d"
+  ],
+  "DIW": [
+   "eastwastes_chr.s3d",
+   "eastwastesshard_chr.s3d",
+   "greatdivide_chr.s3d",
+   "growthplane_chr.s3d",
+   "iceclad_chr.s3d",
+   "kael_chr.s3d",
+   "kaelshard_chr.s3d",
+   "thurgadina_chr.s3d",
+   "westwastes_chr.s3d"
+  ],
+  "DJI": [
+   "airplane_chr.s3d",
+   "dji_chr.s3d",
+   "erudnext_chr.s3d",
+   "erudnint_chr.s3d",
+   "felwitheb_chr.s3d",
+   "halas_chr.s3d",
+   "kedge_chr.s3d",
+   "kerraridge_chr.s3d",
+   "najena_chr.s3d",
+   "permafrost_chr.s3d",
+   "poair_chr.s3d",
+   "solrotower_chr.s3d",
+   "sro_chr.s3d"
+  ],
+  "DKE": [
+   "dke.eqg"
+  ],
+  "DKF": [
+   "dkf.eqg"
+  ],
+  "DKM": [
+   "dkm.eqg"
+  ],
+  "DMA": [
+   "dma.eqg"
+  ],
+  "DML": [
+   "charasis_chr.s3d",
+   "pojustice_chr.s3d",
+   "potactics_chr.s3d"
+  ],
+  "DPF": [
+   "dpf_chr.s3d"
+  ],
+  "DPM": [
+   "dpm_chr.s3d"
+  ],
+  "DR2": [
+   "dr2_chr.s3d",
+   "eastwastes_chr.s3d",
+   "eastwastesshard_chr.s3d",
+   "hohonora_chr.s3d",
+   "necropolis_chr.s3d",
+   "pofire_chr.s3d",
+   "skyshrine_chr.s3d",
+   "sleeper_chr.s3d",
+   "solrotower_chr.s3d",
+   "templeveeshan_chr.s3d",
+   "veeshan_chr.s3d",
+   "wakening_chr.s3d",
+   "westwastes_chr.s3d"
+  ],
+  "DRA": [
+   "arena_chr.s3d",
+   "dra_chr.s3d",
+   "dreadlands_chr.s3d",
+   "eastwastes_chr.s3d",
+   "eastwastesshard_chr.s3d",
+   "emeraldjungle_chr.s3d",
+   "fieldofbone_chr.s3d",
+   "firiona_chr.s3d",
+   "hohonora_chr.s3d",
+   "kael_chr.s3d",
+   "kaelshard_chr.s3d",
+   "necropolis_chr.s3d",
+   "permafrost_chr.s3d",
+   "pofire_chr.s3d",
+   "skyfire_chr.s3d",
+   "skyshrine_chr2.s3d",
+   "sleeper_chr.s3d",
+   "soldungb_chr.s3d",
+   "solrotower_chr.s3d",
+   "templeveeshan_chr.s3d",
+   "veeshan_chr.s3d",
+   "wakening_chr.s3d",
+   "westwastes_chr.s3d"
+  ],
+  "DRC": [
+   "drc.eqg"
+  ],
+  "DRE": [
+   "dre.eqg"
+  ],
+  "DRF": [
+   "burningwood_chr.s3d",
+   "crystal_chr.s3d",
+   "crystalshard_chr.s3d",
+   "dalnir_chr.s3d",
+   "dreadlands_chr.s3d",
+   "firiona_chr.s3d",
+   "nurga_chr.s3d",
+   "pojustice_chr.s3d"
+  ],
+  "DRG": [
+   "drg.eqg"
+  ],
+  "DRI": [
+   "airplane_chr.s3d",
+   "erudnext_chr.s3d",
+   "erudnint_chr.s3d",
+   "felwithea_chr.s3d",
+   "felwitheb_chr.s3d",
+   "firiona_chr.s3d",
+   "gfaydark_chr.s3d",
+   "lfaydark_chr.s3d",
+   "poknowledge_chr.s3d",
+   "rivervale_chr.s3d",
+   "tox_chr.s3d",
+   "wakening_chr.s3d"
+  ],
+  "DRK": [
+   "airplane_chr.s3d",
+   "beholder_chr.s3d",
+   "butcher_chr.s3d",
+   "cobaltscar_chr.s3d",
+   "frozenshadow_chr.s3d",
+   "global6_chr.s3d",
+   "lavastorm_chr.s3d",
+   "necropolis_chr.s3d",
+   "rathemtn_chr.s3d",
+   "skyfire_chr.s3d",
+   "skyshrine_chr.s3d",
+   "sleeper_chr.s3d",
+   "soldunga_chr.s3d",
+   "soldungb_chr.s3d",
+   "solrotower_chr.s3d",
+   "steamfont_chr.s3d",
+   "templeveeshan_chr.s3d",
+   "timorous_chr.s3d",
+   "veeshan_chr.s3d",
+   "westwastes_chr.s3d"
+  ],
+  "DRL": [
+   "drl.eqg"
+  ],
+  "DRM": [
+   "burningwood_chr.s3d",
+   "crystal_chr.s3d",
+   "crystalshard_chr.s3d",
+   "dalnir_chr.s3d",
+   "dreadlands_chr.s3d",
+   "firiona_chr.s3d",
+   "nurga_chr.s3d",
+   "pojustice_chr.s3d"
+  ],
+  "DRP": [
+   "drp.eqg"
+  ],
+  "DRS": [
+   "drs.eqg"
+  ],
+  "DRU": [
+   "cazicthule_chr2.s3d",
+   "fearplane_chr.s3d",
+   "hateplane_chr.s3d",
+   "hateplaneb_chr.s3d",
+   "necropolis_chr.s3d",
+   "rathemtn_chr2.s3d",
+   "skyshrine_chr.s3d",
+   "skyshrine_chr2.s3d",
+   "sleeper_chr.s3d",
+   "veeshan_chr.s3d"
+  ],
+  "DRV": [
+   "drv_chr.s3d"
+  ],
+  "DSB": [
+   "codecay_chr.s3d",
+   "podisease_chr.s3d",
+   "potimeb_chr.s3d"
+  ],
+  "DSF": [
+   "dsf.eqg"
+  ],
+  "DSG": [
+   "dsg.eqg"
+  ],
+  "DV6": [
+   "dv6.eqg"
+  ],
+  "DVL": [
+   "dvl.eqg"
+  ],
+  "DVM": [
+   "hateplane_chr.s3d",
+   "mistmoore_chr.s3d"
+  ],
+  "DVS": [
+   "dvs.eqg"
+  ],
+  "DWF": [
+   "global_chr.s3d",
+   "globaldwf_chr.s3d"
+  ],
+  "DWM": [
+   "global_chr.s3d",
+   "globaldwm_chr.s3d"
+  ],
+  "DYN": [
+   "dyn.eqg"
+  ],
+  "EAE": [
+   "eae.eqg"
+  ],
+  "EEF": [
+   "eef.eqg"
+  ],
+  "EEL": [
+   "eel_chr.s3d",
+   "global5_chr.s3d",
+   "poeartha_chr.s3d"
+  ],
+  "EEM": [
+   "eem.eqg"
+  ],
+  "EEY": [
+   "eey_chr.s3d"
+  ],
+  "EFE": [
+   "efe_chr.s3d",
+   "efw_chr.s3d",
+   "poair_chr.s3d",
+   "pofire_chr.s3d",
+   "solrotower_chr.s3d"
+  ],
+  "EFR": [
+   "airplane_chr.s3d",
+   "arena_chr.s3d",
+   "crushbone_chr.s3d",
+   "erudnext_chr.s3d",
+   "erudnint_chr.s3d",
+   "felwitheb_chr.s3d",
+   "freportw_chr.s3d",
+   "frozenshadow_chr.s3d",
+   "kael_chr.s3d",
+   "kaelshard_chr.s3d",
+   "kerraridge_chr.s3d",
+   "lavastorm_chr.s3d",
+   "najena_chr.s3d",
+   "neriakb_chr.s3d",
+   "neriakc_chr.s3d",
+   "pofire_chr.s3d",
+   "pojustice_chr.s3d",
+   "soldunga_chr.s3d",
+   "soldungb_chr.s3d",
+   "solrotower_chr.s3d",
+   "soltemple_chr.s3d",
+   "sro_chr.s3d",
+   "steamfont_chr.s3d",
+   "velketor_chr.s3d"
+  ],
+  "EGM": [
+   "erudnext_chr.s3d",
+   "erudnint_chr.s3d",
+   "neriaka_chr.s3d",
+   "tox_chr.s3d"
+  ],
+  "ELE": [
+   "global_chr.s3d",
+   "poair_chr.s3d"
+  ],
+  "ELF": [
+   "global_chr.s3d",
+   "globalelf_chr.s3d"
+  ],
+  "ELM": [
+   "global_chr.s3d",
+   "globalelm_chr.s3d"
+  ],
+  "EMP": [
+   "emp_chr.s3d",
+   "poeartha_chr.s3d",
+   "poearthb_chr.s3d"
+  ],
+  "ENA": [
+   "frozenshadow_chr.s3d",
+   "growthplane_chr.s3d",
+   "kael_chr.s3d",
+   "kaelshard_chr.s3d",
+   "powar_chr.s3d",
+   "templeveeshan_chr.s3d",
+   "wakening_chr.s3d"
+  ],
+  "EPF": [
+   "epf_chr.s3d"
+  ],
+  "EPM": [
+   "epm_chr.s3d"
+  ],
+  "ERF": [
+   "global_chr.s3d",
+   "globalerf_chr.s3d"
+  ],
+  "ERM": [
+   "global_chr.s3d",
+   "globalerm_chr.s3d"
+  ],
+  "ERO": [
+   "global2_chr.s3d"
+  ],
+  "ERU": [
+   "eru.eqg"
+  ],
+  "EVE": [
+   "eve.eqg"
+  ],
+  "EXO": [
+   "exo.eqg"
+  ],
+  "EYE": [
+   "global_chr.s3d"
+  ],
+  "FAF": [
+   "airplane_chr.s3d",
+   "felwithea_chr.s3d",
+   "felwitheb_chr.s3d",
+   "gfaydark_chr.s3d",
+   "lfaydark_chr.s3d",
+   "poknowledge_chr.s3d",
+   "qrg_chr.s3d",
+   "rivervale_chr.s3d",
+   "tox_chr.s3d"
+  ],
+  "FBF": [
+   "fbf_chr.s3d",
+   "udk_chr.s3d"
+  ],
+  "FBM": [
+   "fbm_chr.s3d"
+  ],
+  "FDR": [
+   "airplane_chr.s3d",
+   "fdr_chr.s3d",
+   "poknowledge_chr.s3d",
+   "skyfire_chr.s3d",
+   "skyshrine_chr2.s3d",
+   "templeveeshan_chr.s3d",
+   "veeshan_chr.s3d",
+   "wakening_chr.s3d"
+  ],
+  "FEF": [
+   "felwithea_chr.s3d",
+   "felwitheb_chr.s3d"
+  ],
+  "FEL": [
+   "fel_chr.s3d",
+   "global5_chr.s3d",
+   "pofire_chr.s3d",
+   "solrotower_chr.s3d"
+  ],
+  "FEM": [
+   "crushbone_chr.s3d",
+   "felwithea_chr.s3d",
+   "felwitheb_chr.s3d",
+   "firiona_chr.s3d",
+   "gfaydark_chr.s3d"
+  ],
+  "FEN": [
+   "pofire_chr.s3d"
+  ],
+  "FGH": [
+   "fgh_chr.s3d"
+  ],
+  "FGI": [
+   "burningwood_chr.s3d",
+   "dreadlands_chr.s3d",
+   "firiona_chr.s3d",
+   "frontiermtns_chr.s3d",
+   "postorms_chr.s3d",
+   "powar_chr.s3d",
+   "warslikswood_chr.s3d"
+  ],
+  "FGP": [
+   "fgp.eqg"
+  ],
+  "FGT": [
+   "fgt.eqg"
+  ],
+  "FIE": [
+   "fie.eqg"
+  ],
+  "FIS": [
+   "akanon_chr.s3d",
+   "cabeast_chr.s3d",
+   "cazicthule_chr.s3d",
+   "cobaltscar_chr.s3d",
+   "crushbone_chr.s3d",
+   "dawnshroud_chr.s3d",
+   "erudnext_chr.s3d",
+   "erudnint_chr.s3d",
+   "erudsxing_chr.s3d",
+   "feerrott_chr.s3d",
+   "felwithea_chr.s3d",
+   "felwitheb_chr.s3d",
+   "freporte_chr.s3d",
+   "grobb_chr.s3d",
+   "gukbottom_chr.s3d",
+   "guktop_chr.s3d",
+   "halas_chr.s3d",
+   "kaladima_chr.s3d",
+   "kaladimb_chr.s3d",
+   "kedge_chr.s3d",
+   "kerraridge_chr.s3d",
+   "lakerathe_chr.s3d",
+   "mistmoore_chr.s3d",
+   "neriakb_chr.s3d",
+   "neriakc_chr.s3d",
+   "oggok_chr.s3d",
+   "oot_chr.s3d",
+   "paw_chr.s3d",
+   "postorms_chr.s3d",
+   "powater_chr.s3d",
+   "qcat_chr.s3d",
+   "qeynos2_chr.s3d",
+   "qeynos_chr.s3d",
+   "qeytoqrg_chr.s3d",
+   "qrg_chr.s3d",
+   "rivervale_chr.s3d",
+   "runnyeye_chr.s3d",
+   "sirens_chr.s3d",
+   "tox_chr.s3d"
+  ],
+  "FKN": [
+   "fkn.eqg"
+  ],
+  "FLG": [
+   "flg.eqg"
+  ],
+  "FMO": [
+   "fmo_chr.s3d",
+   "wakening_chr.s3d"
+  ],
+  "FMP": [
+   "fmp_chr.s3d",
+   "pofire_chr.s3d",
+   "postorms_chr.s3d",
+   "potimeb_chr.s3d",
+   "solrotower_chr.s3d"
+  ],
+  "FMT": [
+   "fmt_chr.s3d",
+   "frog_mount_chr.s3d"
+  ],
+  "FNG": [
+   "fng.eqg"
+  ],
+  "FPM": [
+   "befallen_chr.s3d",
+   "commons_chr.s3d",
+   "ecommons_chr.s3d",
+   "freporte_chr.s3d",
+   "freportn_chr.s3d",
+   "freportw_chr.s3d",
+   "neriaka_chr.s3d",
+   "nro_chr.s3d"
+  ],
+  "FRA": [
+   "fra.eqg"
+  ],
+  "FRD": [
+   "frd.eqg"
+  ],
+  "FRF": [
+   "globalpcfroglok_chr.s3d"
+  ],
+  "FRG": [
+   "chardok_chr.s3d",
+   "fearplane_chr.s3d",
+   "feerrott_chr.s3d",
+   "firiona_chr.s3d",
+   "globalfroglok_chr.s3d",
+   "grobb_chr.s3d",
+   "gukbottom_chr.s3d",
+   "guktop_chr.s3d",
+   "innothule_chr.s3d",
+   "kurn_chr.s3d",
+   "lakerathe_chr.s3d",
+   "najena_chr.s3d",
+   "oggok_chr.s3d",
+   "pojustice_chr.s3d",
+   "ponightmare_chr.s3d",
+   "qcat_chr.s3d",
+   "sebilis_chr.s3d",
+   "swampofnohope_chr.s3d",
+   "trakanon_chr.s3d"
+  ],
+  "FRM": [
+   "globalpcfroglok_chr.s3d"
+  ],
+  "FRO": [
+   "cabeast_chr.s3d",
+   "cabwest_chr.s3d",
+   "chardok_chr.s3d",
+   "firiona_chr.s3d",
+   "globalfroglok_chr.s3d",
+   "grobb_chr.s3d",
+   "gukbottom_chr.s3d",
+   "guktop_chr.s3d",
+   "innothule_chr.s3d",
+   "kurn_chr.s3d",
+   "misty_chr.s3d",
+   "oggok_chr.s3d",
+   "pojustice_chr.s3d",
+   "poknowledge_chr.s3d",
+   "postorms_chr.s3d",
+   "sebilis_chr.s3d",
+   "swampofnohope_chr.s3d",
+   "trakanon_chr.s3d"
+  ],
+  "FRT": [
+   "feerrott_chr.s3d",
+   "grobb_chr.s3d",
+   "gukbottom_chr.s3d",
+   "guktop_chr.s3d",
+   "innothule_chr.s3d",
+   "oggok_chr.s3d",
+   "postorms_chr.s3d",
+   "powater_chr.s3d",
+   "warrens_chr.s3d"
+  ],
+  "FRY": [
+   "fry.eqg"
+  ],
+  "FSG": [
+   "crystal_chr.s3d",
+   "crystalshard_chr.s3d",
+   "eastwastes_chr.s3d",
+   "eastwastesshard_chr.s3d",
+   "greatdivide_chr.s3d",
+   "iceclad_chr.s3d",
+   "kael_chr.s3d",
+   "kaelshard_chr.s3d",
+   "skyshrine_chr.s3d",
+   "thurgadina_chr.s3d",
+   "wakening_chr.s3d",
+   "westwastes_chr.s3d"
+  ],
+  "FSK": [
+   "fsk_chr.s3d"
+  ],
+  "FUD": [
+   "fud_chr.s3d"
+  ],
+  "FUG": [
+   "echo_chr.s3d",
+   "fungusgrove_chr.s3d",
+   "griegsend_chr.s3d",
+   "netherbian_chr.s3d",
+   "paludal_chr.s3d",
+   "pojustice_chr.s3d",
+   "povalor_chr.s3d",
+   "thedeep_chr.s3d"
+  ],
+  "FUN": [
+   "akanon_chr.s3d",
+   "feerrott_chr.s3d",
+   "grobb_chr.s3d",
+   "gukbottom_chr.s3d",
+   "guktop_chr.s3d",
+   "innothule_chr.s3d",
+   "kurn_chr.s3d",
+   "mischiefplane_chr.s3d",
+   "runnyeye_chr.s3d",
+   "sebilis_chr.s3d",
+   "unrest_chr.s3d"
+  ],
+  "G00": [
+   "globalgdb.eqg"
+  ],
+  "G01": [
+   "globalgdb.eqg"
+  ],
+  "G02": [
+   "globalgdb.eqg"
+  ],
+  "G03": [
+   "globalgdb.eqg"
+  ],
+  "G04": [
+   "globalgdb.eqg"
+  ],
+  "G05": [
+   "g05.eqg"
+  ],
+  "GAL": [
+   "dawnshroud_chr.s3d",
+   "fungusgrove_chr.s3d",
+   "griegsend_chr.s3d",
+   "maiden_chr.s3d",
+   "netherbian_chr.s3d",
+   "scarlet_chr.s3d",
+   "umbral_chr.s3d"
+  ],
+  "GAM": [
+   "kael_chr.s3d",
+   "kaelshard_chr.s3d",
+   "skyshrine_chr.s3d",
+   "sleeper_chr.s3d",
+   "velketor_chr.s3d"
+  ],
+  "GAR": [
+   "befallen_chr.s3d",
+   "erudnext_chr.s3d",
+   "erudnint_chr.s3d",
+   "gukbottom_chr.s3d",
+   "hateplane_chr.s3d",
+   "katta_chr.s3d",
+   "lavastorm_chr.s3d",
+   "mistmoore_chr.s3d",
+   "najena_chr.s3d",
+   "neriaka_chr.s3d",
+   "neriakb_chr.s3d",
+   "neriakc_chr.s3d",
+   "oot_chr.s3d",
+   "overthere_chr.s3d",
+   "pojustice_chr.s3d",
+   "rathemtn_chr2.s3d",
+   "runnyeye_chr.s3d",
+   "soldungb_chr.s3d"
+  ],
+  "GBL": [
+   "gbl_chr.s3d"
+  ],
+  "GBM": [
+   "gbm.eqg"
+  ],
+  "GBN": [
+   "gbn.eqg"
+  ],
+  "GCB": [
+   "gcb.eqg"
+  ],
+  "GDM": [
+   "cauldron_chr.s3d",
+   "crystal_chr.s3d",
+   "crystalshard_chr.s3d",
+   "eastwastes_chr.s3d",
+   "eastwastesshard_chr.s3d",
+   "frozenshadow_chr.s3d",
+   "pojustice_chr.s3d",
+   "thurgadina_chr.s3d",
+   "thurgadinb_chr.s3d",
+   "unrest_chr.s3d"
+  ],
+  "GDR": [
+   "gdr_chr.s3d",
+   "necropolis2_chr.s3d",
+   "swampofnohope_chr2.s3d",
+   "veeshan_chr.s3d",
+   "westwastes_chr2.s3d"
+  ],
+  "GEF": [
+   "erudnint_chr.s3d",
+   "erudsxing_chr.s3d",
+   "fieldofbone_chr.s3d",
+   "frozenshadow_chr.s3d",
+   "hole_chr.s3d",
+   "paineel_chr.s3d",
+   "pojustice_chr.s3d",
+   "sleeper_chr2.s3d",
+   "stonebrunt_chr.s3d",
+   "veeshan_chr.s3d"
+  ],
+  "GEM": [
+   "erudnint_chr.s3d",
+   "erudsxing_chr.s3d",
+   "frozenshadow_chr.s3d",
+   "hole_chr.s3d",
+   "paineel_chr.s3d",
+   "pojustice_chr.s3d",
+   "sleeper_chr2.s3d",
+   "stonebrunt_chr.s3d",
+   "veeshan_chr.s3d"
+  ],
+  "GEN": [
+   "gen.eqg"
+  ],
+  "GFC": [
+   "gfc.eqg"
+  ],
+  "GFF": [
+   "felwithea_chr.s3d",
+   "gfaydark_chr.s3d"
+  ],
+  "GFM": [
+   "crushbone_chr.s3d",
+   "gfaydark_chr.s3d"
+  ],
+  "GFO": [
+   "gfo.eqg"
+  ],
+  "GFR": [
+   "gfr.eqg"
+  ],
+  "GFS": [
+   "gfs.eqg"
+  ],
+  "GGL": [
+   "bothunder_chr.s3d",
+   "bothunder_chr2.s3d",
+   "ggl_chr.s3d",
+   "nightmareb_chr.s3d",
+   "ponightmare_chr.s3d",
+   "ponightmare_chr2.s3d",
+   "solrotower_chr2.s3d"
+  ],
+  "GGY": [
+   "ggy.eqg"
+  ],
+  "GHO": [
+   "gho.eqg"
+  ],
+  "GHU": [
+   "befallen_chr.s3d",
+   "cauldron_chr.s3d",
+   "cazicthule_chr.s3d",
+   "commons_chr.s3d",
+   "ecommons_chr.s3d",
+   "fearplane_chr.s3d",
+   "freporte_chr.s3d",
+   "frozenshadow_chr.s3d",
+   "halas_chr.s3d",
+   "hateplane_chr.s3d",
+   "hateplaneb_chr.s3d",
+   "highkeep_chr.s3d",
+   "hole_chr.s3d",
+   "kithicor_chr.s3d",
+   "neriakc_chr.s3d",
+   "northkarana_chr.s3d",
+   "nro_chr.s3d",
+   "oasis_chr.s3d",
+   "paineel_chr.s3d",
+   "qey2hh1_chr.s3d",
+   "sro_chr.s3d",
+   "unrest_chr.s3d"
+  ],
+  "GIA": [
+   "commons_chr.s3d",
+   "eastkarana_chr.s3d",
+   "everfrost_chr.s3d",
+   "northkarana_chr.s3d",
+   "nro_chr.s3d",
+   "oasis_chr.s3d",
+   "oot_chr.s3d",
+   "permafrost_chr.s3d",
+   "pojustice_chr.s3d",
+   "postorms_chr.s3d",
+   "qey2hh1_chr.s3d",
+   "rathemtn_chr.s3d",
+   "soldungb_chr.s3d",
+   "southkarana_chr.s3d",
+   "sro_chr.s3d"
+  ],
+  "GIG": [
+   "gig.eqg"
+  ],
+  "GLB": [
+   "glb.eqg"
+  ],
+  "GLC": [
+   "poinnovation_chr.s3d"
+  ],
+  "GLM": [
+   "glm.eqg",
+   "glm_chr.s3d"
+  ],
+  "GMF": [
+   "acrylia_chr.s3d",
+   "acrylia_chr2.s3d",
+   "griegsend_chr.s3d",
+   "grimling_chr.s3d",
+   "hollowshade_chr.s3d",
+   "netherbian_chr.s3d",
+   "sharvahl_chr.s3d",
+   "tenebrous_chr.s3d"
+  ],
+  "GMM": [
+   "acrylia_chr.s3d",
+   "acrylia_chr2.s3d",
+   "griegsend_chr.s3d",
+   "grimling_chr.s3d",
+   "hollowshade_chr.s3d",
+   "netherbian_chr.s3d",
+   "sharvahl_chr.s3d",
+   "tenebrous_chr.s3d"
+  ],
+  "GMN": [
+   "acrylia_chr.s3d",
+   "acrylia_chr2.s3d",
+   "griegsend_chr.s3d",
+   "grimling_chr.s3d",
+   "hollowshade_chr.s3d",
+   "netherbian_chr.s3d",
+   "sharvahl_chr.s3d",
+   "tenebrous_chr.s3d"
+  ],
+  "GND": [
+   "gnd.eqg"
+  ],
+  "GNF": [
+   "global_chr.s3d",
+   "globalgnf_chr.s3d"
+  ],
+  "GNL": [
+   "gnl.eqg"
+  ],
+  "GNM": [
+   "global_chr.s3d",
+   "globalgnm_chr.s3d"
+  ],
+  "GNN": [
+   "beholder_chr.s3d",
+   "blackburrow_chr.s3d",
+   "eastkarana_chr.s3d",
+   "everfrost_chr.s3d",
+   "halas_chr.s3d",
+   "highkeep_chr.s3d",
+   "highpass_chr.s3d",
+   "iceclad_chr.s3d",
+   "jaggedpine_chr.s3d",
+   "lakerathe_chr.s3d",
+   "paw_chr.s3d",
+   "pojustice_chr.s3d",
+   "poknowledge_chr.s3d",
+   "qey2hh1_chr.s3d",
+   "qeynos2_chr.s3d",
+   "qeynos_chr.s3d",
+   "qeytoqrg_chr.s3d",
+   "qrg_chr.s3d",
+   "southkarana_chr.s3d"
+  ],
+  "GOB": [
+   "beholder_chr.s3d",
+   "blackburrow_chr.s3d",
+   "butcher_chr.s3d",
+   "cauldron_chr.s3d",
+   "everfrost_chr.s3d",
+   "freportw_chr.s3d",
+   "halas_chr.s3d",
+   "highkeep_chr.s3d",
+   "kaladima_chr.s3d",
+   "kaladimb_chr.s3d",
+   "kedge_chr.s3d",
+   "kithicor_chr.s3d",
+   "lakerathe_chr.s3d",
+   "lavastorm_chr.s3d",
+   "misty_chr.s3d",
+   "najena_chr.s3d",
+   "nurga_chr.s3d",
+   "oasis_chr.s3d",
+   "oot_chr.s3d",
+   "permafrost_chr.s3d",
+   "rivervale_chr.s3d",
+   "runnyeye_chr.s3d",
+   "soldunga_chr.s3d",
+   "soldungb_chr.s3d"
+  ],
+  "GOD": [
+   "god.eqg"
+  ],
+  "GOJ": [
+   "pojustice_chr.s3d"
+  ],
+  "GOL": [
+   "befallen_chr.s3d",
+   "beholder_chr.s3d",
+   "blackburrow_chr.s3d",
+   "cauldron_chr.s3d",
+   "cazicthule_chr.s3d",
+   "citymist_chr.s3d",
+   "erudnext_chr.s3d",
+   "erudnint_chr.s3d",
+   "fearplane_chr.s3d",
+   "felwithea_chr.s3d",
+   "felwitheb_chr.s3d",
+   "freportw_chr.s3d",
+   "gfaydark_chr.s3d",
+   "gukbottom_chr.s3d",
+   "hateplane_chr.s3d",
+   "hateplaneb_chr.s3d",
+   "highkeep_chr.s3d",
+   "hole_chr.s3d",
+   "kaladima_chr.s3d",
+   "kaladimb_chr.s3d",
+   "lavastorm_chr.s3d",
+   "mistmoore_chr.s3d",
+   "najena_chr.s3d",
+   "nektulos_chr.s3d",
+   "neriaka_chr.s3d",
+   "neriakb_chr.s3d",
+   "neriakc_chr.s3d",
+   "overthere_chr.s3d",
+   "paineel_chr.s3d",
+   "poeartha_chr.s3d",
+   "poearthb_chr.s3d",
+   "pofire_chr.s3d",
+   "potimea_chr.s3d",
+   "powar_chr.s3d",
+   "qeynos_chr.s3d",
+   "runnyeye_chr.s3d",
+   "soldunga_chr.s3d",
+   "solrotower_chr.s3d",
+   "tox_chr.s3d",
+   "unrest_chr.s3d"
+  ],
+  "GOM": [
+   "frozenshadow_chr.s3d",
+   "kael_chr.s3d",
+   "kaelshard_chr.s3d",
+   "pofire_chr.s3d",
+   "skyshrine_chr.s3d",
+   "sleeper_chr.s3d",
+   "thurgadinb_chr.s3d",
+   "velketor_chr.s3d"
+  ],
+  "GOO": [
+   "cazicthule_chr2.s3d",
+   "charasis_chr.s3d",
+   "citymist_chr.s3d",
+   "dalnir_chr.s3d",
+   "frozenshadow_chr.s3d",
+   "goo_chr.s3d",
+   "kurn_chr.s3d",
+   "necropolis_chr.s3d",
+   "netherbian_chr.s3d",
+   "podisease_chr.s3d",
+   "poinnovation_chr.s3d",
+   "potactics_chr.s3d",
+   "thurgadina_chr.s3d",
+   "vexthal_chr.s3d",
+   "wakening_chr.s3d"
+  ],
+  "GOR": [
+   "arena_chr.s3d",
+   "burningwood_chr.s3d",
+   "cazicthule_chr.s3d",
+   "emeraldjungle_chr.s3d",
+   "fearplane_chr.s3d",
+   "feerrott_chr.s3d",
+   "fieldofbone_chr.s3d",
+   "greatdivide_chr.s3d",
+   "kerraridge_chr.s3d",
+   "mischiefplane_chr.s3d",
+   "oggok_chr.s3d",
+   "qeynos_chr.s3d",
+   "stonebrunt_chr.s3d",
+   "tox_chr.s3d"
+  ],
+  "GPF": [
+   "gpf_chr.s3d"
+  ],
+  "GPM": [
+   "gpm_chr.s3d"
+  ],
+  "GR1": [
+   "gr1.eqg"
+  ],
+  "GRA": [
+   "gra.eqg"
+  ],
+  "GRD": [
+   "grd.eqg"
+  ],
+  "GRF": [
+   "grobb_chr.s3d",
+   "innothule_chr.s3d",
+   "neriaka_chr2.s3d"
+  ],
+  "GRG": [
+   "airplane_chr.s3d",
+   "cazicthule_chr2.s3d",
+   "fearplane_chr.s3d",
+   "pojustice_chr.s3d"
+  ],
+  "GRI": [
+   "airplane_chr.s3d",
+   "commons_chr.s3d",
+   "eastkarana_chr.s3d",
+   "eastwastes_chr.s3d",
+   "eastwastesshard_chr.s3d",
+   "ecommons_chr.s3d",
+   "gri_chr.s3d",
+   "iceclad_chr.s3d",
+   "jaggedpine_chr.s3d",
+   "northkarana_chr.s3d",
+   "potimea_chr.s3d"
+  ],
+  "GRL": [
+   "grl.eqg"
+  ],
+  "GRM": [
+   "grobb_chr.s3d",
+   "guktop_chr.s3d",
+   "innothule_chr.s3d",
+   "neriaka_chr2.s3d",
+   "neriakc_chr.s3d",
+   "oggok_chr.s3d"
+  ],
+  "GRN": [
+   "grn.eqg"
+  ],
+  "GSF": [
+   "jaggedpine_chr.s3d",
+   "pofire_chr.s3d",
+   "solrotower_chr.s3d",
+   "umbral_chr.s3d",
+   "vexthal_chr.s3d"
+  ],
+  "GSM": [
+   "jaggedpine_chr.s3d",
+   "powater_chr.s3d",
+   "umbral_chr.s3d",
+   "vexthal_chr.s3d"
+  ],
+  "GSN": [
+   "grimling_chr.s3d",
+   "jaggedpine_chr.s3d",
+   "poeartha_chr.s3d",
+   "potorment_chr.s3d",
+   "thegrey_chr.s3d",
+   "umbral_chr.s3d",
+   "vexthal_chr.s3d"
+  ],
+  "GSP": [
+   "oot_chr.s3d"
+  ],
+  "GTD": [
+   "gtd_chr.s3d",
+   "pofire_chr.s3d",
+   "potactics_chr.s3d",
+   "solrotower_chr.s3d"
+  ],
+  "GUA": [
+   "gua.eqg"
+  ],
+  "GUL": [
+   "gul.eqg"
+  ],
+  "GUM": [
+   "gum.eqg"
+  ],
+  "GUS": [
+   "gus.eqg"
+  ],
+  "GVK": [
+   "gvk_chr.s3d"
+  ],
+  "GYA": [
+   "gya.eqg"
+  ],
+  "GYO": [
+   "gyo.eqg"
+  ],
+  "HAF": [
+   "global_chr.s3d",
+   "globalhaf_chr.s3d"
+  ],
+  "HAG": [
+   "frozenshadow_chr.s3d"
+  ],
+  "HAM": [
+   "global_chr.s3d",
+   "globalham_chr.s3d"
+  ],
+  "HAR": [
+   "airplane_chr.s3d",
+   "letalis_chr.s3d",
+   "steamfont_chr.s3d"
+  ],
+  "HDL": [
+   "hdl.eqg"
+  ],
+  "HDV": [
+   "hdv.eqg"
+  ],
+  "HHM": [
+   "highkeep_chr.s3d",
+   "highpass_chr.s3d"
+  ],
+  "HIF": [
+   "global_chr.s3d",
+   "globalhif_chr.s3d"
+  ],
+  "HIM": [
+   "global_chr.s3d",
+   "globalhim_chr.s3d"
+  ],
+  "HLF": [
+   "everfrost_chr.s3d",
+   "halas_chr.s3d",
+   "southkarana_chr.s3d"
+  ],
+  "HLG": [
+   "hlg.eqg"
+  ],
+  "HLM": [
+   "everfrost_chr.s3d",
+   "halas_chr.s3d",
+   "southkarana_chr.s3d"
+  ],
+  "HNF": [
+   "hnf.eqg"
+  ],
+  "HNM": [
+   "hnm.eqg"
+  ],
+  "HOF": [
+   "global_chr.s3d",
+   "globalhof_chr.s3d"
+  ],
+  "HOM": [
+   "global_chr.s3d",
+   "globalhom_chr.s3d"
+  ],
+  "HPF": [
+   "hpf_chr.s3d"
+  ],
+  "HPM": [
+   "hpm_chr.s3d"
+  ],
+  "HRP": [
+   "hrp.eqg"
+  ],
+  "HRS": [
+   "hrs.eqg"
+  ],
+  "HSF": [
+   "frog_mount_chr.s3d",
+   "gunthak_chr.s3d"
+  ],
+  "HSM": [
+   "global5_chr.s3d"
+  ],
+  "HSN": [
+   "ponightmare_chr.s3d"
+  ],
+  "HSS": [
+   "hss_chr.s3d"
+  ],
+  "HUF": [
+   "global_chr.s3d",
+   "globalhuf_chr.s3d"
+  ],
+  "HUM": [
+   "global_chr.s3d",
+   "globalhum_chr.s3d"
+  ],
+  "HYC": [
+   "hyc.eqg"
+  ],
+  "I00": [
+   "i00.eqg"
+  ],
+  "I01": [
+   "i01.eqg"
+  ],
+  "I02": [
+   "i02.eqg"
+  ],
+  "I03": [
+   "i03.eqg"
+  ],
+  "I04": [
+   "i04.eqg"
+  ],
+  "I05": [
+   "i05.eqg"
+  ],
+  "I06": [
+   "i06.eqg"
+  ],
+  "I07": [
+   "i07.eqg"
+  ],
+  "I08": [
+   "i08.eqg"
+  ],
+  "I09": [
+   "i09.eqg"
+  ],
+  "I10": [
+   "i10.eqg"
+  ],
+  "I11": [
+   "i11.eqg"
+  ],
+  "I12": [
+   "i12.eqg"
+  ],
+  "I13": [
+   "i13.eqg"
+  ],
+  "I14": [
+   "i14.eqg"
+  ],
+  "I15": [
+   "i15.eqg"
+  ],
+  "I16": [
+   "i16.eqg"
+  ],
+  "I18": [
+   "i18.eqg"
+  ],
+  "I19": [
+   "i19.eqg"
+  ],
+  "I20": [
+   "i20.eqg"
+  ],
+  "I21": [
+   "i21.eqg"
+  ],
+  "I22": [
+   "i22.eqg"
+  ],
+  "I23": [
+   "i23.eqg"
+  ],
+  "I24": [
+   "i24.eqg"
+  ],
+  "I25": [
+   "i25.eqg"
+  ],
+  "I26": [
+   "i26.eqg"
+  ],
+  "I27": [
+   "i27.eqg"
+  ],
+  "I28": [
+   "i28.eqg"
+  ],
+  "I29": [
+   "i29.eqg"
+  ],
+  "I30": [
+   "i30.eqg"
+  ],
+  "I31": [
+   "furniture_12days.eqg",
+   "i31.eqg"
+  ],
+  "I32": [
+   "i32.eqg"
+  ],
+  "IBR": [
+   "ibr_chr.s3d"
+  ],
+  "ICF": [
+   "cabeast_chr.s3d",
+   "cabwest_chr.s3d",
+   "charasis_chr.s3d",
+   "dalnir_chr.s3d",
+   "droga_chr.s3d",
+   "emeraldjungle_chr.s3d",
+   "fieldofbone_chr.s3d",
+   "frontiermtns_chr.s3d",
+   "lakeofillomen_chr.s3d",
+   "overthere_chr.s3d",
+   "sebilis_chr.s3d",
+   "swampofnohope_chr.s3d",
+   "timorous_chr.s3d",
+   "trakanon_chr.s3d",
+   "warslikswood_chr.s3d"
+  ],
+  "ICM": [
+   "cabeast_chr.s3d",
+   "cabwest_chr.s3d",
+   "charasis_chr.s3d",
+   "dalnir_chr.s3d",
+   "droga_chr.s3d",
+   "emeraldjungle_chr.s3d",
+   "fieldofbone_chr.s3d",
+   "frontiermtns_chr.s3d",
+   "lakeofillomen_chr.s3d",
+   "overthere_chr.s3d",
+   "sebilis_chr.s3d",
+   "swampofnohope_chr.s3d",
+   "timorous_chr.s3d",
+   "trakanon_chr.s3d",
+   "warslikswood_chr.s3d"
+  ],
+  "ICN": [
+   "cabeast_chr.s3d",
+   "cabwest_chr.s3d",
+   "charasis_chr.s3d",
+   "chardok_chr.s3d",
+   "droga_chr.s3d",
+   "emeraldjungle_chr.s3d",
+   "fieldofbone_chr.s3d",
+   "frontiermtns_chr.s3d",
+   "kaesora_chr.s3d",
+   "karnor_chr.s3d",
+   "lakeofillomen_chr.s3d",
+   "overthere_chr.s3d",
+   "sebilis_chr.s3d",
+   "swampofnohope_chr.s3d",
+   "timorous_chr.s3d",
+   "trakanon_chr.s3d",
+   "warslikswood_chr.s3d"
+  ],
+  "ICY": [
+   "icy.eqg",
+   "icy_chr.s3d"
+  ],
+  "IEC": [
+   "iec_chr.s3d"
+  ],
+  "IFC": [
+   "ifc_chr.s3d"
+  ],
+  "IHU": [
+   "ihu_chr.s3d"
+  ],
+  "IKF": [
+   "global4_chr.s3d",
+   "globalikf_chr.s3d"
+  ],
+  "IKG": [
+   "cabeast_chr.s3d",
+   "cabwest_chr.s3d",
+   "charasis_chr.s3d",
+   "citymist_chr.s3d",
+   "emeraldjungle_chr.s3d",
+   "karnor_chr.s3d",
+   "povalor_chr.s3d",
+   "sebilis_chr.s3d",
+   "ssratemple_chr.s3d",
+   "thegrey_chr.s3d",
+   "timorous_chr.s3d"
+  ],
+  "IKH": [
+   "cabeast_chr.s3d",
+   "karnor_chr.s3d"
+  ],
+  "IKM": [
+   "global4_chr.s3d",
+   "globalikm_chr.s3d"
+  ],
+  "IKS": [
+   "global4_chr.s3d",
+   "thegrey_chr.s3d"
+  ],
+  "ILA": [
+   "ila_chr.s3d"
+  ],
+  "ILB": [
+   "ilb_chr.s3d"
+  ],
+  "IMP": [
+   "airplane_chr.s3d",
+   "befallen_chr.s3d",
+   "beholder_chr.s3d",
+   "cazicthule_chr.s3d",
+   "erudnext_chr.s3d",
+   "erudnint_chr.s3d",
+   "fearplane_chr.s3d",
+   "felwithea_chr.s3d",
+   "felwitheb_chr.s3d",
+   "freportw_chr.s3d",
+   "global2_chr.s3d",
+   "hateplane_chr.s3d",
+   "hole_chr.s3d",
+   "lavastorm_chr.s3d",
+   "mistmoore_chr.s3d",
+   "najena_chr.s3d",
+   "nektulos_chr.s3d",
+   "neriaka_chr.s3d",
+   "neriakb_chr.s3d",
+   "neriakc_chr.s3d",
+   "oggok_chr.s3d",
+   "paw_chr.s3d",
+   "qeynos2_chr.s3d",
+   "runnyeye_chr.s3d",
+   "soldunga_chr.s3d",
+   "soldungb_chr.s3d",
+   "soltemple_chr.s3d",
+   "steamfont_chr.s3d",
+   "unrest_chr.s3d"
+  ],
+  "INN": [
+   "akanon_chr.s3d",
+   "befallen_chr.s3d",
+   "beholder_chr.s3d",
+   "blackburrow_chr.s3d",
+   "butcher_chr.s3d",
+   "cauldron_chr.s3d",
+   "cazicthule_chr.s3d",
+   "crushbone_chr.s3d",
+   "erudnext_chr.s3d",
+   "erudnint_chr.s3d",
+   "feerrott_chr.s3d",
+   "felwithea_chr.s3d",
+   "felwitheb_chr.s3d",
+   "freportn_chr.s3d",
+   "gfaydark_chr.s3d",
+   "global2_chr.s3d",
+   "grobb_chr.s3d",
+   "gukbottom_chr.s3d",
+   "guktop_chr.s3d",
+   "halas_chr.s3d",
+   "hateplane_chr.s3d",
+   "highkeep_chr.s3d",
+   "highpass_chr.s3d",
+   "innothule_chr.s3d",
+   "kaladima_chr.s3d",
+   "kaladimb_chr.s3d",
+   "kerraridge_chr.s3d",
+   "lavastorm_chr.s3d",
+   "lfaydark_chr.s3d",
+   "mistmoore_chr.s3d",
+   "najena_chr.s3d",
+   "nektulos_chr.s3d",
+   "neriaka_chr.s3d",
+   "neriakb_chr.s3d",
+   "neriakc_chr.s3d",
+   "oggok_chr.s3d",
+   "paw_chr.s3d",
+   "permafrost_chr.s3d",
+   "qcat_chr.s3d",
+   "qeynos2_chr.s3d",
+   "qeytoqrg_chr.s3d",
+   "rivervale_chr.s3d",
+   "runnyeye_chr.s3d",
+   "soldunga_chr.s3d",
+   "soldungb_chr.s3d",
+   "southkarana_chr.s3d",
+   "sro_chr.s3d",
+   "steamfont_chr.s3d",
+   "tox_chr.s3d",
+   "unrest_chr.s3d"
+  ],
+  "INV": [
+   "i23.eqg",
+   "inv.eqg"
+  ],
+  "ISB": [
+   "isb_chr.s3d"
+  ],
+  "ISC": [
+   "overthere_chr.s3d"
+  ],
+  "ISE": [
+   "ise_chr.s3d"
+  ],
+  "IVM": [
+   "global_chr.s3d",
+   "potorment_chr.s3d"
+  ],
+  "IWF": [
+   "iwf_chr.s3d"
+  ],
+  "IWH": [
+   "iwh_chr.s3d"
+  ],
+  "IWM": [
+   "iwm_chr.s3d"
+  ],
+  "IZF": [
+   "izf_chr.s3d"
+  ],
+  "IZM": [
+   "izm_chr.s3d"
+  ],
+  "JKR": [
+   "jkr_chr.s3d"
+  ],
+  "JUB": [
+   "poinnovation_chr.s3d"
+  ],
+  "KAF": [
+   "butcher_chr.s3d",
+   "kaladima_chr.s3d",
+   "kaladimb_chr.s3d"
+  ],
+  "KAM": [
+   "butcher_chr.s3d",
+   "crushbone_chr.s3d",
+   "kaladima_chr.s3d",
+   "kaladimb_chr.s3d"
+  ],
+  "KAR": [
+   "bothunder_chr.s3d",
+   "postorms_chr.s3d"
+  ],
+  "KBD": [
+   "kbd.eqg"
+  ],
+  "KDG": [
+   "kdg.eqg"
+  ],
+  "KED": [
+   "cauldron_chr.s3d",
+   "kedge_chr.s3d"
+  ],
+  "KEF": [
+   "global7_chr.s3d",
+   "globalkef_chr.s3d"
+  ],
+  "KEM": [
+   "global7_chr.s3d",
+   "globalkem_chr.s3d"
+  ],
+  "KES": [
+   "acrylia_chr.s3d",
+   "griegsend_chr.s3d",
+   "katta_chr.s3d",
+   "maiden_chr.s3d",
+   "mseru_chr.s3d",
+   "shadeweaver_chr.s3d",
+   "sharvahl_chr.s3d",
+   "tenebrous_chr.s3d",
+   "umbral_chr.s3d"
+  ],
+  "KGO": [
+   "burningwood_chr.s3d",
+   "cabwest_chr.s3d",
+   "dalnir_chr.s3d",
+   "dreadlands_chr.s3d",
+   "droga_chr.s3d",
+   "firiona_chr.s3d",
+   "frontiermtns_chr.s3d",
+   "kgo_chr.s3d",
+   "lakeofillomen_chr.s3d",
+   "nurga_chr.s3d",
+   "pojustice_chr.s3d",
+   "poknowledge_chr.s3d",
+   "swampofnohope_chr.s3d",
+   "warslikswood_chr.s3d"
+  ],
+  "KHA": [
+   "fungusgrove_chr.s3d",
+   "griegsend_chr.s3d",
+   "scarlet_chr.s3d",
+   "ssratemple_chr.s3d"
+  ],
+  "KNG": [
+   "kng.eqg"
+  ],
+  "KOB": [
+   "akanon_chr.s3d",
+   "crushbone_chr.s3d",
+   "erudnext_chr.s3d",
+   "grobb_chr.s3d",
+   "guktop_chr.s3d",
+   "innothule_chr.s3d",
+   "kerraridge_chr.s3d",
+   "kob_chr.s3d",
+   "paineel_chr.s3d",
+   "poknowledge_chr.s3d",
+   "potactics_chr.s3d",
+   "skyshrine_chr.s3d",
+   "soldunga_chr.s3d",
+   "soldungb_chr.s3d",
+   "steamfont_chr.s3d",
+   "stonebrunt_chr.s3d",
+   "torgiran_chr.s3d",
+   "tox_chr.s3d",
+   "unrest_chr.s3d",
+   "velketor_chr.s3d",
+   "warrens_chr.s3d"
+  ],
+  "KOP": [
+   "codecay_chr.s3d",
+   "podisease_chr.s3d",
+   "potimeb_chr.s3d"
+  ],
+  "KOR": [
+   "kor.eqg"
+  ],
+  "KRB": [
+   "krb.eqg"
+  ],
+  "KRF": [
+   "krf.eqg"
+  ],
+  "KRK": [
+   "krk_chr.s3d",
+   "powater_chr.s3d"
+  ],
+  "KRM": [
+   "krm.eqg"
+  ],
+  "KRN": [
+   "krn.eqg"
+  ],
+  "LCR": [
+   "dawnshroud_chr.s3d",
+   "griegsend_chr.s3d",
+   "mseru_chr.s3d",
+   "podisease_chr.s3d",
+   "povalor_chr.s3d",
+   "scarlet_chr.s3d",
+   "sseru_chr.s3d"
+  ],
+  "LDR": [
+   "ldr.eqg"
+  ],
+  "LEE": [
+   "cabeast_chr.s3d",
+   "cabwest_chr.s3d",
+   "emeraldjungle_chr.s3d",
+   "firiona_chr.s3d",
+   "nurga_chr.s3d",
+   "swampofnohope_chr.s3d",
+   "westwastes_chr.s3d"
+  ],
+  "LEP": [
+   "codecay_chr.s3d",
+   "podisease_chr.s3d",
+   "potimeb_chr.s3d"
+  ],
+  "LGA": [
+   "lga_chr.s3d"
+  ],
+  "LGR": [
+   "lgr_chr.s3d"
+  ],
+  "LIF": [
+   "eastkarana_chr.s3d",
+   "ecommons_chr.s3d",
+   "kerraridge_chr.s3d",
+   "northkarana_chr.s3d",
+   "qey2hh1_chr.s3d",
+   "southkarana_chr.s3d",
+   "stonebrunt_chr.s3d"
+  ],
+  "LIM": [
+   "arena_chr.s3d",
+   "eastkarana_chr.s3d",
+   "ecommons_chr.s3d",
+   "highpass_chr.s3d",
+   "jaggedpine_chr.s3d",
+   "kerraridge_chr.s3d",
+   "northkarana_chr.s3d",
+   "postorms_chr.s3d",
+   "potimea_chr.s3d",
+   "qey2hh1_chr.s3d",
+   "qeynos_chr.s3d",
+   "southkarana_chr.s3d",
+   "stonebrunt_chr.s3d"
+  ],
+  "LIZ": [
+   "cazicthule_chr.s3d",
+   "feerrott_chr.s3d",
+   "guktop_chr.s3d",
+   "innothule_chr.s3d",
+   "liz_chr.s3d",
+   "oggok_chr.s3d",
+   "oot_chr.s3d",
+   "rathemtn_chr.s3d"
+  ],
+  "LMF": [
+   "lmf_chr.s3d"
+  ],
+  "LMM": [
+   "lmm_chr.s3d"
+  ],
+  "LSP": [
+   "lsp.eqg"
+  ],
+  "LSQ": [
+   "lsq.eqg"
+  ],
+  "LTH": [
+   "lth.eqg"
+  ],
+  "LU2": [
+   "lu2.eqg"
+  ],
+  "LU3": [
+   "lu3.eqg"
+  ],
+  "LU4": [
+   "lu4.eqg"
+  ],
+  "LUC": [
+   "luc.eqg"
+  ],
+  "LUG": [
+   "lug_chr.s3d"
+  ],
+  "LUJ": [
+   "jaggedpine_chr.s3d",
+   "luj_chr.s3d",
+   "ponightmare_chr.s3d"
+  ],
+  "LVR": [
+   "lvr.eqg"
+  ],
+  "LYC": [
+   "dreadlands_chr.s3d",
+   "firiona_chr.s3d",
+   "frozenshadow_chr.s3d",
+   "iceclad_chr.s3d",
+   "karnor_chr.s3d"
+  ],
+  "MAL": [
+   "codecay_chr.s3d",
+   "mal_chr.s3d",
+   "podisease_chr.s3d"
+  ],
+  "MAM": [
+   "eastwastes_chr.s3d",
+   "eastwastesshard_chr.s3d",
+   "everfrost_chr.s3d",
+   "potimea_chr.s3d",
+   "southkarana_chr.s3d",
+   "westwastes_chr.s3d"
+  ],
+  "MAP": [
+   "map.eqg"
+  ],
+  "MAR": [
+   "hohonorb_chr.s3d"
+  ],
+  "MBL": [
+   "mbl.eqg"
+  ],
+  "MBR": [
+   "mbr.eqg"
+  ],
+  "MBX": [
+   "mbx.eqg"
+  ],
+  "MCH": [
+   "mch.eqg"
+  ],
+  "MCL": [
+   "mcl.eqg"
+  ],
+  "MCP": [
+   "mcp.eqg"
+  ],
+  "MCS": [
+   "mcs.eqg"
+  ],
+  "MDR": [
+   "mdr.eqg"
+  ],
+  "MEP": [
+   "cazicthule_chr2.s3d",
+   "citymist_chr.s3d",
+   "emeraldjungle_chr.s3d",
+   "growthplane_chr.s3d",
+   "jaggedpine_chr.s3d",
+   "kurn_chr.s3d",
+   "mep_chr.s3d",
+   "mischiefplane_chr.s3d",
+   "postorms_chr.s3d",
+   "swampofnohope_chr.s3d",
+   "trakanon_chr.s3d"
+  ],
+  "MER": [
+   "cobaltscar_chr.s3d",
+   "erudnext_chr.s3d",
+   "erudsxing_chr.s3d",
+   "kedge_chr.s3d",
+   "oot_chr.s3d",
+   "sirens_chr.s3d"
+  ],
+  "MES": [
+   "mes.eqg"
+  ],
+  "MFR": [
+   "mfr.eqg"
+  ],
+  "MGL": [
+   "mgl.eqg"
+  ],
+  "MHB": [
+   "mhb.eqg"
+  ],
+  "MHY": [
+   "mhy.eqg"
+  ],
+  "MIM": [
+   "befallen_chr.s3d",
+   "blackburrow_chr.s3d",
+   "cobaltscar_chr.s3d",
+   "gukbottom_chr.s3d",
+   "hateplane_chr.s3d",
+   "hole_chr.s3d",
+   "katta_chr.s3d",
+   "mim_chr.s3d",
+   "mischiefplane_chr.s3d",
+   "mistmoore_chr.s3d",
+   "najena_chr.s3d",
+   "neriakc_chr.s3d",
+   "oot_chr2.s3d",
+   "podisease_chr.s3d",
+   "powar_chr.s3d",
+   "runnyeye_chr.s3d",
+   "shadeweaver_chr.s3d",
+   "sharvahl_chr.s3d",
+   "sseru_chr.s3d",
+   "unrest_chr.s3d",
+   "vexthal_chr.s3d"
+  ],
+  "MIN": [
+   "akanon_chr.s3d",
+   "befallen_chr.s3d",
+   "beholder_chr.s3d",
+   "cazicthule_chr.s3d",
+   "gukbottom_chr.s3d",
+   "najena_chr.s3d",
+   "paw_chr.s3d",
+   "pojustice_chr.s3d",
+   "poknowledge_chr.s3d",
+   "qcat_chr.s3d",
+   "qeynos_chr.s3d",
+   "runnyeye_chr.s3d",
+   "steamfont_chr.s3d",
+   "unrest_chr.s3d"
+  ],
+  "MKG": [
+   "mkg.eqg"
+  ],
+  "MKI": [
+   "mki.eqg"
+  ],
+  "MMF": [
+   "mmf_chr.s3d"
+  ],
+  "MMM": [
+   "mmm_chr.s3d"
+  ],
+  "MMV": [
+   "mmv_chr.s3d"
+  ],
+  "MMY": [
+   "mmy_chr.s3d"
+  ],
+  "MNR": [
+   "mnr.eqg"
+  ],
+  "MNT": [
+   "mnt.eqg"
+  ],
+  "MOI": [
+   "moi_chr.s3d",
+   "potimeb_chr.s3d",
+   "potorment_chr.s3d"
+  ],
+  "MOS": [
+   "cabeast_chr.s3d",
+   "cabwest_chr.s3d",
+   "cazicthule_chr2.s3d",
+   "echo_chr.s3d",
+   "echo_chr2.s3d",
+   "emeraldjungle_chr.s3d",
+   "grobb_chr2.s3d",
+   "mos_chr.s3d",
+   "nurga_chr.s3d",
+   "swampofnohope_chr.s3d"
+  ],
+  "MPG": [
+   "mpg.eqg"
+  ],
+  "MPH": [
+   "mph.eqg"
+  ],
+  "MPU": [
+   "mpu.eqg"
+  ],
+  "MRD": [
+   "mrd.eqg"
+  ],
+  "MRH": [
+   "mrh.eqg"
+  ],
+  "MRK": [
+   "mrk.eqg"
+  ],
+  "MRP": [
+   "mrp.eqg"
+  ],
+  "MRT": [
+   "mrt.eqg"
+  ],
+  "MSD": [
+   "msd.eqg"
+  ],
+  "MSL": [
+   "msl.eqg"
+  ],
+  "MSO": [
+   "mso.eqg"
+  ],
+  "MTA": [
+   "mta.eqg"
+  ],
+  "MTC": [
+   "eastwastes_chr.s3d",
+   "eastwastesshard_chr.s3d",
+   "mtc_chr.s3d"
+  ],
+  "MTH": [
+   "mth.eqg"
+  ],
+  "MTL": [
+   "mtl.eqg"
+  ],
+  "MTP": [
+   "mtp.eqg"
+  ],
+  "MTR": [
+   "mtr.eqg"
+  ],
+  "MUD": [
+   "mud.eqg"
+  ],
+  "MUH": [
+   "echo_chr.s3d",
+   "fungusgrove_chr.s3d",
+   "griegsend_chr.s3d",
+   "gunthak_chr.s3d",
+   "muh_chr.s3d",
+   "netherbian_chr.s3d",
+   "nexus_chr.s3d",
+   "postorms_chr.s3d",
+   "potactics_chr.s3d",
+   "shadowhaven_chr.s3d",
+   "thedeep_chr.s3d",
+   "torgiran_chr.s3d"
+  ],
+  "MUR": [
+   "mur.eqg"
+  ],
+  "MWI": [
+   "mwi.eqg"
+  ],
+  "MWM": [
+   "mwm.eqg"
+  ],
+  "MWO": [
+   "mwo.eqg"
+  ],
+  "MWR": [
+   "mwr.eqg"
+  ],
+  "MYG": [
+   "myg.eqg"
+  ],
+  "NBT": [
+   "ponightmare_chr.s3d"
+  ],
+  "NET": [
+   "fungusgrove_chr.s3d",
+   "griegsend_chr.s3d",
+   "netherbian_chr.s3d",
+   "sseru_chr.s3d",
+   "umbral_chr.s3d"
+  ],
+  "NGM": [
+   "hateplane_chr.s3d",
+   "nektulos_chr.s3d",
+   "neriaka_chr.s3d",
+   "neriakb_chr.s3d",
+   "neriakc_chr.s3d",
+   "overthere_chr.s3d"
+  ],
+  "NIN": [
+   "nin_chr.s3d"
+  ],
+  "NMG": [
+   "codecay_chr.s3d",
+   "ponightmare_chr.s3d",
+   "potimeb_chr.s3d"
+  ],
+  "NMH": [
+   "nightmareb_chr.s3d",
+   "nmh_chr.s3d",
+   "pofire_chr.s3d",
+   "ponightmare_chr.s3d",
+   "solrotower_chr.s3d"
+  ],
+  "NMP": [
+   "ponightmare_chr.s3d"
+  ],
+  "NMW": [
+   "nightmareb_chr.s3d",
+   "ponightmare_chr.s3d",
+   "ponightmare_chr2.s3d"
+  ],
+  "NPT": [
+   "codecay_chr.s3d",
+   "ponightmare_chr.s3d"
+  ],
+  "NYD": [
+   "jaggedpine_chr.s3d",
+   "nyd_chr.s3d"
+  ],
+  "NYM": [
+   "jaggedpine_chr.s3d",
+   "nym_chr.s3d",
+   "poknowledge_chr.s3d"
+  ],
+  "OGF": [
+   "global_chr.s3d",
+   "globalogf_chr.s3d"
+  ],
+  "OGM": [
+   "global_chr.s3d",
+   "globalogm_chr.s3d",
+   "ogm.eqg"
+  ],
+  "OKF": [
+   "feerrott_chr.s3d",
+   "innothule_chr.s3d",
+   "oggok_chr.s3d"
+  ],
+  "OKM": [
+   "feerrott_chr.s3d",
+   "innothule_chr.s3d",
+   "oggok_chr.s3d"
+  ],
+  "ONM": [
+   "onm.eqg"
+  ],
+  "OPF": [
+   "opf_chr.s3d"
+  ],
+  "OPM": [
+   "opm_chr.s3d"
+  ],
+  "ORB": [
+   "orb.eqg"
+  ],
+  "ORC": [
+   "akanon_chr.s3d",
+   "befallen_chr.s3d",
+   "blackburrow_chr.s3d",
+   "butcher_chr.s3d",
+   "cauldron_chr.s3d",
+   "commons_chr.s3d",
+   "crushbone_chr.s3d",
+   "crystal_chr.s3d",
+   "crystalshard_chr.s3d",
+   "eastwastes_chr.s3d",
+   "eastwastesshard_chr.s3d",
+   "ecommons_chr.s3d",
+   "everfrost_chr.s3d",
+   "felwithea_chr.s3d",
+   "freporte_chr.s3d",
+   "freportn_chr.s3d",
+   "freportw_chr.s3d",
+   "gfaydark_chr.s3d",
+   "highkeep_chr.s3d",
+   "highpass_chr.s3d",
+   "kaladima_chr.s3d",
+   "kaladimb_chr.s3d",
+   "kithicor_chr.s3d",
+   "lakerathe_chr.s3d",
+   "lfaydark_chr.s3d",
+   "misty_chr.s3d",
+   "nektulos_chr.s3d",
+   "neriaka_chr.s3d",
+   "neriakb_chr.s3d",
+   "neriakc_chr.s3d",
+   "nro_chr.s3d",
+   "oasis_chr.s3d",
+   "paw_chr.s3d",
+   "permafrost_chr.s3d",
+   "pojustice_chr.s3d",
+   "poknowledge_chr.s3d",
+   "powar_chr.s3d",
+   "rathemtn_chr.s3d",
+   "rivervale_chr.s3d",
+   "runnyeye_chr.s3d",
+   "sro_chr.s3d"
+  ],
+  "ORK": [
+   "ork.eqg"
+  ],
+  "OTM": [
+   "cobaltscar_chr.s3d",
+   "pojustice_chr.s3d",
+   "poknowledge_chr.s3d",
+   "thurgadina_chr.s3d"
+  ],
+  "OWB": [
+   "griegsend_chr.s3d",
+   "grimling_chr.s3d",
+   "hollowshade_chr.s3d",
+   "paludal_chr.s3d"
+  ],
+  "PAF": [
+   "paf_chr.s3d",
+   "poeartha_chr.s3d",
+   "pofire_chr.s3d",
+   "postorms_chr.s3d",
+   "potimeb_chr.s3d",
+   "povalor_chr.s3d",
+   "powater_chr.s3d",
+   "solrotower_chr.s3d"
+  ],
+  "PBR": [
+   "pbr_chr.s3d",
+   "postorms_chr.s3d"
+  ],
+  "PEG": [
+   "airplane_chr.s3d",
+   "felwitheb_chr.s3d",
+   "northkarana_chr.s3d",
+   "postorms_chr.s3d",
+   "southkarana_chr.s3d"
+  ],
+  "PG3": [
+   "pg3.eqg"
+  ],
+  "PGS": [
+   "pgs.eqg"
+  ],
+  "PHX": [
+   "poair_chr.s3d",
+   "pofire_chr.s3d",
+   "potimeb_chr.s3d",
+   "solrotower_chr.s3d"
+  ],
+  "PIF": [
+   "airplane_chr.s3d",
+   "erudsxing_chr.s3d",
+   "felwithea_chr.s3d",
+   "felwitheb_chr.s3d",
+   "gfaydark_chr.s3d",
+   "lfaydark_chr.s3d",
+   "poknowledge_chr.s3d",
+   "qrg_chr.s3d",
+   "rivervale_chr.s3d",
+   "tox_chr.s3d",
+   "wakening_chr.s3d",
+   "warrens_chr.s3d"
+  ],
+  "PIR": [
+   "akanon_chr.s3d",
+   "blackburrow_chr.s3d",
+   "cauldron_chr.s3d",
+   "cazicthule_chr.s3d",
+   "cazicthule_chr2.s3d",
+   "commons_chr.s3d",
+   "crushbone_chr.s3d",
+   "erudnext_chr.s3d",
+   "erudsxing_chr.s3d",
+   "feerrott_chr.s3d",
+   "felwithea_chr.s3d",
+   "felwitheb_chr.s3d",
+   "freportn_chr.s3d",
+   "grobb_chr2.s3d",
+   "guktop_chr.s3d",
+   "halas_chr.s3d",
+   "kedge_chr.s3d",
+   "kerraridge_chr.s3d",
+   "kithicor_chr.s3d",
+   "lakerathe_chr.s3d",
+   "nektulos_chr.s3d",
+   "neriakb_chr.s3d",
+   "neriakc_chr.s3d",
+   "paineel_chr.s3d",
+   "powater_chr.s3d",
+   "qcat_chr.s3d",
+   "qeynos_chr.s3d",
+   "qeytoqrg_chr.s3d",
+   "qrg_chr.s3d",
+   "rivervale_chr.s3d",
+   "runnyeye_chr.s3d",
+   "tox_chr.s3d",
+   "twilight_chr.s3d",
+   "unrest_chr.s3d"
+  ],
+  "PMA": [
+   "pma.eqg"
+  ],
+  "PRE": [
+   "butcher_chr.s3d",
+   "erudnext_chr.s3d",
+   "erudsxing_chr.s3d",
+   "freporte_chr.s3d",
+   "oot_chr.s3d",
+   "overthere_chr.s3d",
+   "qeynos_chr.s3d",
+   "timorous_chr.s3d"
+  ],
+  "PRI": [
+   "povalor_chr.s3d",
+   "pri_chr.s3d",
+   "skyshrine2_chr.s3d",
+   "sleeper2_chr.s3d",
+   "veeshan_chr.s3d"
+  ],
+  "PRT": [
+   "prt.eqg"
+  ],
+  "PSC": [
+   "psc.eqg"
+  ],
+  "PUM": [
+   "beholder_chr.s3d",
+   "cauldron_chr.s3d",
+   "commons_chr.s3d",
+   "eastwastes_chr.s3d",
+   "eastwastesshard_chr.s3d",
+   "ecommons_chr.s3d",
+   "everfrost_chr.s3d",
+   "growthplane_chr.s3d",
+   "halas_chr.s3d",
+   "iceclad_chr.s3d",
+   "jaggedpine_chr.s3d",
+   "kerraridge_chr.s3d",
+   "nro_chr.s3d",
+   "oasis_chr.s3d",
+   "potimea_chr.s3d",
+   "pum_chr.s3d",
+   "rathemtn_chr.s3d",
+   "sro_chr.s3d",
+   "steamfont_chr.s3d",
+   "stonebrunt_chr.s3d",
+   "wakening_chr.s3d"
+  ],
+  "PUS": [
+   "codecay_chr.s3d",
+   "podisease_chr.s3d",
+   "pus_chr.s3d"
+  ],
+  "QCF": [
+   "commons_chr.s3d",
+   "droga_chr.s3d",
+   "eastkarana_chr.s3d",
+   "ecommons_chr.s3d",
+   "freporte_chr.s3d",
+   "freportn_chr.s3d",
+   "freportw_chr.s3d",
+   "highkeep_chr.s3d",
+   "highpass_chr.s3d",
+   "jaggedpine_chr.s3d",
+   "kithicor_chr.s3d",
+   "lakerathe_chr.s3d",
+   "lavastorm_chr.s3d",
+   "mistmoore_chr.s3d",
+   "neriaka_chr.s3d",
+   "northkarana_chr.s3d",
+   "nro_chr.s3d",
+   "oasis_chr.s3d",
+   "oot_chr.s3d",
+   "qcat_chr.s3d",
+   "qey2hh1_chr.s3d",
+   "qeynos2_chr.s3d",
+   "qeynos_chr.s3d",
+   "qeytoqrg_chr.s3d",
+   "qrg_chr.s3d",
+   "rathemtn_chr.s3d"
+  ],
+  "QCM": [
+   "commons_chr.s3d",
+   "eastkarana_chr.s3d",
+   "ecommons_chr.s3d",
+   "erudsxing_chr.s3d",
+   "freporte_chr.s3d",
+   "freportn_chr.s3d",
+   "freportw_chr.s3d",
+   "highkeep_chr.s3d",
+   "highpass_chr.s3d",
+   "jaggedpine_chr.s3d",
+   "kithicor_chr.s3d",
+   "lakerathe_chr.s3d",
+   "lavastorm_chr.s3d",
+   "neriaka_chr.s3d",
+   "northkarana_chr.s3d",
+   "nro_chr.s3d",
+   "oasis_chr.s3d",
+   "oot_chr.s3d",
+   "qcat_chr.s3d",
+   "qey2hh1_chr.s3d",
+   "qeynos2_chr.s3d",
+   "qeynos_chr.s3d",
+   "qeytoqrg_chr.s3d",
+   "qrg_chr.s3d",
+   "rathemtn_chr.s3d"
+  ],
+  "QZT": [
+   "poair_chr.s3d"
+  ],
+  "RAK": [
+   "rak_chr.s3d",
+   "veeshan_chr.s3d"
+  ],
+  "RAL": [
+   "global2_chr.s3d",
+   "potactics_chr.s3d"
+  ],
+  "RAP": [
+   "cazicthule_chr2.s3d",
+   "dreadlands_chr.s3d",
+   "emeraldjungle_chr.s3d",
+   "rap_chr.s3d",
+   "skyshrine_chr2.s3d",
+   "templeveeshan_chr.s3d",
+   "timorous_chr.s3d",
+   "trakanon_chr.s3d",
+   "veeshan_chr.s3d",
+   "wakening_chr.s3d"
+  ],
+  "RAT": [
+   "akanon_chr.s3d",
+   "befallen_chr.s3d",
+   "blackburrow_chr.s3d",
+   "cabwest_chr.s3d",
+   "cauldron_chr.s3d",
+   "crushbone_chr.s3d",
+   "feerrott_chr.s3d",
+   "felwithea_chr.s3d",
+   "freporte_chr.s3d",
+   "freportn_chr.s3d",
+   "freportw_chr.s3d",
+   "grobb_chr.s3d",
+   "guktop_chr.s3d",
+   "hateplane_chr.s3d",
+   "highkeep_chr.s3d",
+   "innothule_chr.s3d",
+   "kaladimb_chr.s3d",
+   "kerraridge_chr.s3d",
+   "kithicor_chr.s3d",
+   "mischiefplane_chr.s3d",
+   "misty_chr.s3d",
+   "necropolis_chr.s3d",
+   "neriaka_chr.s3d",
+   "neriakb_chr.s3d",
+   "neriakc_chr.s3d",
+   "nurga_chr.s3d",
+   "oggok_chr.s3d",
+   "paineel_chr.s3d",
+   "paw_chr.s3d",
+   "podisease_chr.s3d",
+   "poinnovation_chr.s3d",
+   "pojustice_chr.s3d",
+   "qcat_chr.s3d",
+   "qeynos2_chr.s3d",
+   "qeynos_chr.s3d",
+   "qeytoqrg_chr.s3d",
+   "rat.eqg",
+   "rivervale_chr.s3d",
+   "soldunga_chr.s3d",
+   "steamfont_chr.s3d",
+   "thurgadina_chr.s3d",
+   "tox_chr.s3d",
+   "warrens_chr.s3d"
+  ],
+  "RAZ": [
+   "potactics_chr.s3d",
+   "potimeb_chr.s3d",
+   "powar_chr.s3d"
+  ],
+  "RDG": [
+   "rdg.eqg"
+  ],
+  "REA": [
+   "akanon_chr.s3d",
+   "befallen_chr.s3d",
+   "erudnext_chr.s3d",
+   "erudnint_chr.s3d",
+   "fearplane_chr.s3d",
+   "felwitheb_chr.s3d",
+   "gukbottom_chr.s3d",
+   "hateplane_chr.s3d",
+   "mischiefplane_chr.s3d",
+   "mistmoore_chr.s3d",
+   "neriakb_chr.s3d",
+   "neriakc_chr.s3d",
+   "rea_chr.s3d",
+   "unrest_chr.s3d"
+  ],
+  "REM": [
+   "echo_chr.s3d",
+   "griegsend_chr.s3d",
+   "gunthak_chr.s3d",
+   "hohonora_chr.s3d",
+   "letalis_chr.s3d",
+   "mseru_chr.s3d",
+   "postorms_chr.s3d",
+   "rem_chr.s3d",
+   "sseru_chr.s3d",
+   "thedeep_chr.s3d",
+   "torgiran_chr.s3d"
+  ],
+  "RGM": [
+   "crystal_chr.s3d",
+   "crystalshard_chr.s3d",
+   "letalis_chr.s3d",
+   "poeartha_chr.s3d",
+   "pojustice_chr.s3d",
+   "poknowledge_chr.s3d",
+   "potimea_chr.s3d",
+   "povalor_chr2.s3d",
+   "rgm_chr.s3d",
+   "solrotower_chr.s3d",
+   "wakening_chr.s3d"
+  ],
+  "RHI": [
+   "eastwastes_chr.s3d",
+   "eastwastesshard_chr.s3d",
+   "overthere_chr.s3d"
+  ],
+  "RHP": [
+   "cazicthule_chr2.s3d",
+   "dawnshroud_chr.s3d",
+   "griegsend_chr.s3d",
+   "grimling_chr.s3d",
+   "hollowshade_chr.s3d",
+   "letalis_chr.s3d",
+   "mseru_chr.s3d",
+   "scarlet_chr.s3d",
+   "shadeweaver_chr.s3d",
+   "sharvahl_chr.s3d"
+  ],
+  "RIF": [
+   "misty_chr.s3d",
+   "rif_chr.s3d",
+   "rivervale_chr.s3d"
+  ],
+  "RIM": [
+   "mischiefplane_chr.s3d",
+   "misty_chr.s3d",
+   "rivervale_chr.s3d"
+  ],
+  "RKP": [
+   "rkp.eqg"
+  ],
+  "RNB": [
+   "griegsend_chr.s3d",
+   "grimling_chr.s3d",
+   "hollowshade_chr.s3d",
+   "letalis_chr.s3d",
+   "mseru_chr.s3d",
+   "shadeweaver_chr.s3d",
+   "sharvahl_chr.s3d",
+   "sseru_chr.s3d",
+   "twilight_chr.s3d"
+  ],
+  "ROB": [
+   "rob.eqg"
+  ],
+  "ROE": [
+   "roe_chr.s3d"
+  ],
+  "ROM": [
+   "rom_chr.s3d"
+  ],
+  "ROW": [
+   "row.eqg"
+  ],
+  "RPT": [
+   "rpt.eqg"
+  ],
+  "RTH": [
+   "poeartha_chr.s3d",
+   "poearthb_chr.s3d"
+  ],
+  "RTN": [
+   "rtn.eqg"
+  ],
+  "RZM": [
+   "hohonora_chr.s3d",
+   "potactics_chr.s3d",
+   "potimeb_chr.s3d",
+   "powar_chr.s3d"
+  ],
+  "SAR": [
+   "potimeb_chr.s3d",
+   "potorment_chr.s3d"
+  ],
+  "SAT": [
+   "sat.eqg"
+  ],
+  "SBU": [
+   "eastwastes_chr.s3d",
+   "eastwastesshard_chr.s3d",
+   "mischiefplane_chr.s3d",
+   "stonebrunt_chr.s3d",
+   "templeveeshan_chr.s3d"
+  ],
+  "SCA": [
+   "fearplane_chr.s3d",
+   "global2_chr.s3d",
+   "qey2hh1_chr.s3d",
+   "rivervale_chr.s3d",
+   "unrest_chr.s3d"
+  ],
+  "SCC": [
+   "scc.eqg"
+  ],
+  "SCE": [
+   "bothunder_chr.s3d",
+   "postorms_chr.s3d"
+  ],
+  "SCH": [
+   "griegsend_chr.s3d",
+   "scarlet_chr.s3d"
+  ],
+  "SCO": [
+   "sco.eqg"
+  ],
+  "SCR": [
+   "cabeast_chr.s3d",
+   "cabwest_chr.s3d",
+   "fieldofbone_chr.s3d",
+   "firiona_chr.s3d",
+   "postorms_chr.s3d",
+   "scr_chr.s3d",
+   "sharvahl_chr.s3d"
+  ],
+  "SCU": [
+   "scu.eqg"
+  ],
+  "SDC": [
+   "sdc_chr.s3d"
+  ],
+  "SDE": [
+   "eastwastes_chr.s3d",
+   "eastwastesshard_chr.s3d",
+   "iceclad_chr.s3d"
+  ],
+  "SDF": [
+   "akheva_chr.s3d",
+   "griegsend_chr.s3d",
+   "katta_chr.s3d",
+   "letalis_chr.s3d",
+   "maiden_chr.s3d",
+   "paludal_chr.s3d",
+   "pojustice_chr.s3d",
+   "potactics_chr.s3d",
+   "sdf_chr.s3d",
+   "tenebrous_chr.s3d",
+   "twilight_chr.s3d",
+   "umbral_chr.s3d",
+   "vexthal_chr.s3d"
+  ],
+  "SDM": [
+   "akheva_chr.s3d",
+   "griegsend_chr.s3d",
+   "katta_chr.s3d",
+   "letalis_chr.s3d",
+   "maiden_chr.s3d",
+   "potactics_chr.s3d",
+   "sdm_chr.s3d",
+   "tenebrous_chr.s3d",
+   "vexthal_chr.s3d"
+  ],
+  "SDR": [
+   "sdr.eqg"
+  ],
+  "SDV": [
+   "sdv.eqg"
+  ],
+  "SEA": [
+   "erudnext_chr.s3d",
+   "erudsxing_chr.s3d",
+   "kedge_chr.s3d",
+   "sirens_chr.s3d"
+  ],
+  "SED": [
+   "cobaltscar_chr.s3d",
+   "crystal_chr.s3d",
+   "crystalshard_chr.s3d",
+   "fieldofbone_chr.s3d",
+   "lakeofillomen_chr.s3d",
+   "powater_chr.s3d",
+   "sed_chr.s3d",
+   "skyshrine_chr.s3d",
+   "sleeper_chr.s3d",
+   "templeveeshan_chr.s3d",
+   "timorous_chr.s3d",
+   "veeshan_chr.s3d",
+   "warslikswood_chr.s3d"
+  ],
+  "SEF": [
+   "sef_chr.s3d"
+  ],
+  "SEG": [
+   "seg.eqg"
+  ],
+  "SEM": [
+   "sem_chr.s3d"
+  ],
+  "SER": [
+   "sseru_chr.s3d"
+  ],
+  "SEY": [
+   "sey.eqg"
+  ],
+  "SGO": [
+   "acrylia_chr.s3d",
+   "chardok_chr.s3d",
+   "citymist_chr.s3d",
+   "karnor_chr.s3d",
+   "lakeofillomen_chr.s3d"
+  ],
+  "SGR": [
+   "akheva_chr.s3d",
+   "dawnshroud_chr.s3d",
+   "echo_chr.s3d",
+   "griegsend_chr.s3d",
+   "letalis_chr.s3d",
+   "mseru_chr.s3d",
+   "poeartha_chr.s3d",
+   "pofire_chr.s3d",
+   "pojustice_chr.s3d",
+   "potimea_chr.s3d",
+   "potimeb_chr.s3d",
+   "sgr_chr.s3d",
+   "thegrey_chr.s3d",
+   "vexthal_chr.s3d"
+  ],
+  "SHA": [
+   "cobaltscar_chr.s3d",
+   "erudnext_chr.s3d",
+   "erudsxing_chr.s3d",
+   "freporte_chr.s3d",
+   "kedge_chr.s3d",
+   "lakerathe_chr.s3d",
+   "oot_chr.s3d",
+   "powater_chr.s3d",
+   "qcat_chr.s3d",
+   "qeynos_chr.s3d",
+   "sirens_chr.s3d"
+  ],
+  "SHD": [
+   "shd.eqg"
+  ],
+  "SHE": [
+   "she.eqg"
+  ],
+  "SHF": [
+   "griegsend_chr.s3d",
+   "ssratemple_chr.s3d",
+   "thedeep_chr.s3d"
+  ],
+  "SHI": [
+   "shi.eqg"
+  ],
+  "SHL": [
+   "shl.eqg"
+  ],
+  "SHM": [
+   "shm_chr.s3d",
+   "ssratemple_chr.s3d",
+   "thedeep_chr.s3d"
+  ],
+  "SHN": [
+   "echo_chr.s3d",
+   "griegsend_chr.s3d",
+   "pojustice_chr.s3d",
+   "potimea_chr.s3d",
+   "ssratemple_chr.s3d",
+   "thedeep_chr.s3d",
+   "thegrey_chr.s3d"
+  ],
+  "SHP": [
+   "shp_chr.s3d"
+  ],
+  "SHR": [
+   "dawnshroud_chr.s3d",
+   "echo_chr.s3d",
+   "fungusgrove_chr.s3d",
+   "griegsend_chr.s3d",
+   "paludal_chr.s3d",
+   "shr_chr.s3d",
+   "thedeep_chr.s3d"
+  ],
+  "SHS": [
+   "shs.eqg"
+  ],
+  "SIF": [
+   "sif_chr.s3d"
+  ],
+  "SIM": [
+   "cabeast_chr.s3d",
+   "cabwest_chr.s3d",
+   "charasis_chr.s3d",
+   "chardok_chr.s3d",
+   "citymist_chr.s3d",
+   "dalnir_chr.s3d",
+   "droga_chr.s3d",
+   "emeraldjungle_chr.s3d",
+   "kaesora_chr.s3d",
+   "karnor_chr.s3d",
+   "kurn_chr.s3d",
+   "overthere_chr.s3d",
+   "pojustice_chr.s3d",
+   "sebilis_chr.s3d",
+   "sim_chr.s3d",
+   "thegrey_chr.s3d",
+   "trakanon_chr.s3d",
+   "veeshan_chr.s3d",
+   "warslikswood_chr.s3d"
+  ],
+  "SIN": [
+   "sin.eqg"
+  ],
+  "SIR": [
+   "cobaltscar_chr.s3d",
+   "growthplane_chr.s3d",
+   "sir_chr.s3d",
+   "sirens_chr.s3d"
+  ],
+  "SKB": [
+   "codecay_chr.s3d",
+   "pojustice_chr.s3d",
+   "ponightmare_chr.s3d",
+   "skb_chr.s3d"
+  ],
+  "SKE": [
+   "global6_chr.s3d",
+   "global_chr.s3d",
+   "mseru_chr.s3d",
+   "povalor_chr.s3d"
+  ],
+  "SKI": [
+   "ski.eqg"
+  ],
+  "SKN": [
+   "fungusgrove_chr.s3d",
+   "griegsend_chr.s3d",
+   "letalis_chr.s3d",
+   "paludal_chr.s3d",
+   "shadeweaver_chr.s3d",
+   "skn_chr.s3d",
+   "sseru_chr.s3d"
+  ],
+  "SKR": [
+   "bothunder_chr.s3d",
+   "postorms_chr.s3d"
+  ],
+  "SKT": [
+   "skt_chr.s3d"
+  ],
+  "SKU": [
+   "butcher_chr.s3d",
+   "mischiefplane_chr.s3d",
+   "tox_chr.s3d"
+  ],
+  "SLG": [
+   "podisease_chr.s3d",
+   "ponightmare_chr.s3d",
+   "potimeb_chr.s3d",
+   "powater_chr.s3d"
+  ],
+  "SMA": [
+   "poeartha_chr.s3d",
+   "poearthb_chr.s3d",
+   "postorms_chr.s3d",
+   "potimea_chr.s3d"
+  ],
+  "SMD": [
+   "smd.eqg"
+  ],
+  "SNA": [
+   "acrylia_chr.s3d",
+   "akanon_chr.s3d",
+   "beholder_chr.s3d",
+   "blackburrow_chr.s3d",
+   "butcher_chr.s3d",
+   "cauldron_chr.s3d",
+   "cazicthule_chr.s3d",
+   "commons_chr.s3d",
+   "eastkarana_chr.s3d",
+   "ecommons_chr.s3d",
+   "erudsxing_chr.s3d",
+   "feerrott_chr.s3d",
+   "freporte_chr.s3d",
+   "freportw_chr.s3d",
+   "innothule_chr.s3d",
+   "jaggedpine_chr.s3d",
+   "kithicor_chr.s3d",
+   "lakerathe_chr.s3d",
+   "lavastorm_chr.s3d",
+   "misty_chr.s3d",
+   "necropolis_chr.s3d",
+   "nektulos_chr.s3d",
+   "nro_chr.s3d",
+   "oasis_chr.s3d",
+   "paineel_chr.s3d",
+   "paw_chr.s3d",
+   "postorms_chr.s3d",
+   "qcat_chr.s3d",
+   "qeynos2_chr.s3d",
+   "qeytoqrg_chr.s3d",
+   "runnyeye_chr.s3d",
+   "sro_chr.s3d",
+   "stonebrunt_chr.s3d",
+   "tox_chr.s3d"
+  ],
+  "SND": [
+   "snd.eqg"
+  ],
+  "SNK": [
+   "snk.eqg"
+  ],
+  "SNN": [
+   "cazicthule_chr2.s3d",
+   "fungusgrove_chr.s3d",
+   "griegsend_chr.s3d",
+   "scarlet_chr.s3d",
+   "shadeweaver_chr.s3d",
+   "snn_chr.s3d"
+  ],
+  "SOK": [
+   "sok.eqg"
+  ],
+  "SOL": [
+   "global2_chr.s3d"
+  ],
+  "SOS": [
+   "sos.eqg"
+  ],
+  "SOW": [
+   "griegsend_chr.s3d",
+   "grimling_chr.s3d",
+   "hollowshade_chr.s3d",
+   "katta_chr.s3d",
+   "sharvahl_chr.s3d",
+   "tenebrous_chr.s3d"
+  ],
+  "SPB": [
+   "hatesfury_chr.s3d"
+  ],
+  "SPC": [
+   "frozenshadow_chr.s3d",
+   "skyshrine_chr2.s3d",
+   "sleeper_chr2.s3d",
+   "velketor_chr.s3d"
+  ],
+  "SPD": [
+   "codecay_chr.s3d",
+   "nightmareb_chr2.s3d",
+   "poair_chr.s3d",
+   "podisease_chr.s3d",
+   "poeartha_chr.s3d",
+   "pofire_chr.s3d",
+   "poinnovation_chr.s3d",
+   "ponightmare_chr.s3d",
+   "potimea_chr.s3d",
+   "potorment_chr.s3d",
+   "povalor_chr.s3d",
+   "spd_chr.s3d"
+  ],
+  "SPE": [
+   "fearplane_chr.s3d",
+   "feerrott_chr.s3d",
+   "global4_chr.s3d",
+   "hateplane_chr.s3d",
+   "highpass_chr.s3d",
+   "neriakc_chr.s3d",
+   "oasis_chr.s3d",
+   "oot_chr.s3d",
+   "paineel_chr.s3d",
+   "rathemtn_chr.s3d",
+   "unrest_chr.s3d"
+  ],
+  "SPH": [
+   "airplane_chr.s3d",
+   "mischiefplane_chr.s3d",
+   "pojustice_chr.s3d",
+   "poknowledge_chr.s3d",
+   "potimea_chr.s3d",
+   "rathemtn_chr.s3d"
+  ],
+  "SPI": [
+   "acrylia_chr.s3d",
+   "akanon_chr.s3d",
+   "beholder_chr.s3d",
+   "butcher_chr.s3d",
+   "cazicthule_chr.s3d",
+   "cazicthule_chr2.s3d",
+   "commons_chr.s3d",
+   "crystal_chr.s3d",
+   "crystalshard_chr.s3d",
+   "droga_chr.s3d",
+   "eastkarana_chr.s3d",
+   "ecommons_chr.s3d",
+   "erudsxing_chr.s3d",
+   "everfrost_chr.s3d",
+   "fearplane_chr.s3d",
+   "feerrott_chr.s3d",
+   "fieldofbone_chr.s3d",
+   "freportn_chr.s3d",
+   "gfaydark_chr.s3d",
+   "grobb_chr2.s3d",
+   "gukbottom_chr.s3d",
+   "guktop_chr.s3d",
+   "hateplane_chr.s3d",
+   "highpass_chr.s3d",
+   "hole_chr.s3d",
+   "kaesora_chr.s3d",
+   "kithicor_chr.s3d",
+   "lfaydark_chr.s3d",
+   "mistmoore_chr.s3d",
+   "misty_chr.s3d",
+   "najena_chr.s3d",
+   "necropolis_chr.s3d",
+   "nektulos_chr.s3d",
+   "nro_chr.s3d",
+   "nurga_chr.s3d",
+   "oasis_chr.s3d",
+   "permafrost_chr.s3d",
+   "qcat_chr.s3d",
+   "qey2hh1_chr.s3d",
+   "skyshrine_chr.s3d",
+   "soldunga_chr.s3d",
+   "soldungb_chr.s3d",
+   "sro_chr.s3d",
+   "steamfont_chr.s3d",
+   "thurgadina_chr.s3d",
+   "tox_chr.s3d",
+   "velketor_chr.s3d"
+  ],
+  "SPL": [
+   "poair_chr.s3d",
+   "podisease_chr.s3d",
+   "poeartha_chr.s3d",
+   "povalor_chr.s3d"
+  ],
+  "SPQ": [
+   "spq.eqg"
+  ],
+  "SPR": [
+   "griegsend_chr.s3d"
+  ],
+  "SPT": [
+   "spt.eqg"
+  ],
+  "SPX": [
+   "spx.eqg"
+  ],
+  "SRG": [
+   "pofire_chr.s3d",
+   "solrotower_chr.s3d"
+  ],
+  "SRK": [
+   "srk.eqg"
+  ],
+  "SRN": [
+   "srn.eqg"
+  ],
+  "SRO": [
+   "solrotower_chr.s3d"
+  ],
+  "SRV": [
+   "acrylia_chr.s3d"
+  ],
+  "SRW": [
+   "burningwood_chr.s3d",
+   "chardok_chr.s3d",
+   "citymist_chr.s3d",
+   "dalnir_chr.s3d",
+   "dreadlands_chr.s3d",
+   "frontiermtns_chr.s3d",
+   "karnor_chr.s3d",
+   "lakeofillomen_chr.s3d",
+   "overthere_chr.s3d",
+   "pojustice_chr.s3d",
+   "poknowledge_chr.s3d",
+   "swampofnohope_chr.s3d",
+   "trakanon_chr.s3d"
+  ],
+  "SSA": [
+   "bothunder_chr.s3d",
+   "postorms_chr.s3d"
+  ],
+  "SSK": [
+   "burningwood_chr.s3d",
+   "chardok_chr.s3d",
+   "citymist_chr.s3d",
+   "dreadlands_chr.s3d",
+   "emeraldjungle_chr.s3d",
+   "kaesora_chr.s3d",
+   "karnor_chr.s3d",
+   "kurn_chr.s3d",
+   "lakeofillomen_chr.s3d"
+  ],
+  "SSN": [
+   "cabeast_chr.s3d",
+   "cabwest_chr.s3d",
+   "charasis_chr.s3d",
+   "chardok_chr.s3d",
+   "chardokb_chr.s3d",
+   "citymist_chr.s3d",
+   "droga_chr.s3d",
+   "emeraldjungle_chr.s3d",
+   "kaesora_chr.s3d",
+   "karnor_chr.s3d",
+   "kurn_chr.s3d",
+   "pojustice_chr.s3d",
+   "veeshan_chr.s3d",
+   "warslikswood_chr.s3d"
+  ],
+  "STA": [
+   "bothunder_chr.s3d",
+   "poeartha_chr.s3d",
+   "poearthb_chr.s3d",
+   "postorms_chr.s3d"
+  ],
+  "STC": [
+   "kurn_chr.s3d",
+   "lakeofillomen_chr.s3d",
+   "overthere_chr.s3d",
+   "postorms_chr.s3d",
+   "stonebrunt_chr.s3d",
+   "trakanon_chr.s3d"
+  ],
+  "STF": [
+   "bothunder_chr.s3d",
+   "postorms_chr.s3d",
+   "solrotower_chr.s3d",
+   "stf_chr.s3d"
+  ],
+  "STG": [
+   "bothunder_chr.s3d",
+   "eastwastes_chr.s3d",
+   "eastwastesshard_chr.s3d",
+   "greatdivide_chr.s3d",
+   "kael_chr.s3d",
+   "kaelshard_chr.s3d",
+   "potactics_chr.s3d",
+   "powar_chr.s3d",
+   "skyshrine_chr.s3d",
+   "templeveeshan_chr.s3d",
+   "velketor_chr.s3d",
+   "wakening_chr.s3d",
+   "westwastes_chr.s3d"
+  ],
+  "STM": [
+   "eastwastes_chr2.s3d",
+   "eastwastesshard_chr2.s3d",
+   "kael_chr.s3d",
+   "kaelshard_chr.s3d",
+   "powar_chr.s3d",
+   "templeveeshan_chr.s3d",
+   "velketor_chr.s3d"
+  ],
+  "STR": [
+   "bothunder_chr.s3d",
+   "poair_chr.s3d",
+   "poknowledge_chr.s3d",
+   "postorms_chr.s3d",
+   "str_chr.s3d"
+  ],
+  "STU": [
+   "hollowshade_chr.s3d",
+   "iceclad_chr.s3d",
+   "jaggedpine_chr.s3d",
+   "powater_chr.s3d",
+   "stu_chr.s3d",
+   "twilight_chr.s3d"
+  ],
+  "SUC": [
+   "mseru_chr.s3d",
+   "overthere_chr.s3d",
+   "postorms_chr.s3d"
+  ],
+  "SVO": [
+   "bothunder_chr.s3d",
+   "postorms_chr.s3d"
+  ],
+  "SWC": [
+   "swc.eqg"
+  ],
+  "SWI": [
+   "swi.eqg"
+  ],
+  "SWO": [
+   "erudnext_chr.s3d",
+   "erudsxing_chr.s3d",
+   "freporte_chr.s3d",
+   "kedge_chr.s3d",
+   "oot_chr.s3d",
+   "postorms_chr.s3d",
+   "powater_chr.s3d",
+   "sirens_chr.s3d"
+  ],
+  "SYN": [
+   "syn_chr.s3d"
+  ],
+  "SZK": [
+   "szk.eqg"
+  ],
+  "T00": [
+   "t00.eqg"
+  ],
+  "T01": [
+   "t01.eqg"
+  ],
+  "T02": [
+   "t02.eqg"
+  ],
+  "T03": [
+   "t03.eqg"
+  ],
+  "T04": [
+   "t04.eqg"
+  ],
+  "T05": [
+   "t05.eqg"
+  ],
+  "T06": [
+   "t06.eqg"
+  ],
+  "T07": [
+   "t07.eqg"
+  ],
+  "T08": [
+   "t08.eqg"
+  ],
+  "T09": [
+   "t09.eqg"
+  ],
+  "T10": [
+   "t10.eqg"
+  ],
+  "T11": [
+   "t11.eqg"
+  ],
+  "T12": [
+   "t12.eqg"
+  ],
+  "T13": [
+   "t13.eqg"
+  ],
+  "TAC": [
+   "tac_chr.s3d"
+  ],
+  "TAR": [
+   "tar.eqg"
+  ],
+  "TAZ": [
+   "potactics_chr.s3d",
+   "potimeb_chr.s3d",
+   "powar_chr.s3d"
+  ],
+  "TBF": [
+   "tbf_chr.s3d"
+  ],
+  "TBL": [
+   "tbl_chr.s3d",
+   "veeshan_chr.s3d"
+  ],
+  "TBM": [
+   "tbm_chr.s3d"
+  ],
+  "TBU": [
+   "pojustice_chr.s3d"
+  ],
+  "TEF": [
+   "tef_chr.s3d"
+  ],
+  "TEG": [
+   "akheva_chr.s3d",
+   "echo_chr.s3d",
+   "griegsend_chr.s3d",
+   "letalis_chr.s3d",
+   "maiden_chr.s3d",
+   "mseru_chr.s3d",
+   "netherbian_chr.s3d",
+   "scarlet_chr.s3d",
+   "shadeweaver_chr.s3d",
+   "tenebrous_chr.s3d",
+   "twilight_chr.s3d",
+   "umbral_chr.s3d"
+  ],
+  "TEL": [
+   "tel.eqg"
+  ],
+  "TEM": [
+   "tem_chr.s3d"
+  ],
+  "TEN": [
+   "befallen_chr.s3d",
+   "blackburrow_chr.s3d",
+   "cazicthule_chr2.s3d",
+   "crystal_chr.s3d",
+   "crystalshard_chr.s3d",
+   "fearplane_chr.s3d",
+   "najena_chr.s3d",
+   "permafrost_chr.s3d",
+   "ten_chr.s3d",
+   "thurgadinb_chr.s3d",
+   "unrest_chr.s3d",
+   "velketor_chr.s3d"
+  ],
+  "TGL": [
+   "tgl_chr.s3d"
+  ],
+  "TGO": [
+   "tgo.eqg"
+  ],
+  "THO": [
+   "acrylia_chr.s3d",
+   "echo_chr.s3d",
+   "griegsend_chr.s3d",
+   "letalis_chr.s3d",
+   "pojustice_chr.s3d",
+   "ssratemple_chr.s3d",
+   "thedeep_chr.s3d",
+   "umbral_chr.s3d"
+  ],
+  "TIG": [
+   "akanon_chr.s3d",
+   "arena_chr.s3d",
+   "cazicthule_chr.s3d",
+   "eastwastes_chr.s3d",
+   "eastwastesshard_chr.s3d",
+   "emeraldjungle_chr.s3d",
+   "feerrott_chr.s3d",
+   "global6_chr.s3d",
+   "kerraridge_chr.s3d",
+   "kithicor_chr.s3d",
+   "qeynos_chr.s3d",
+   "stonebrunt_chr.s3d",
+   "tox_chr.s3d"
+  ],
+  "TIN": [
+   "poinnovation_chr.s3d"
+  ],
+  "TLN": [
+   "tln.eqg"
+  ],
+  "TMB": [
+   "tmb_chr.s3d"
+  ],
+  "TMR": [
+   "powater_chr.s3d"
+  ],
+  "TMT": [
+   "potimeb_chr.s3d",
+   "tmt_chr.s3d",
+   "veeshan_chr.s3d"
+  ],
+  "TNF": [
+   "tnf_chr.s3d"
+  ],
+  "TNM": [
+   "tnm_chr.s3d"
+  ],
+  "TNT": [
+   "tnt.eqg"
+  ],
+  "TOT": [
+   "growthplane_chr.s3d",
+   "postorms_chr.s3d"
+  ],
+  "TPB": [
+   "tpb_chr.s3d"
+  ],
+  "TPL": [
+   "tpl.eqg"
+  ],
+  "TPN": [
+   "global6_chr.s3d"
+  ],
+  "TPO": [
+   "tpo_chr.s3d"
+  ],
+  "TRA": [
+   "tra.eqg"
+  ],
+  "TRE": [
+   "eastkarana_chr.s3d",
+   "gfaydark_chr.s3d",
+   "growthplane_chr.s3d",
+   "jaggedpine_chr.s3d",
+   "lfaydark_chr.s3d",
+   "northkarana_chr.s3d",
+   "qey2hh1_chr.s3d",
+   "qrg_chr.s3d",
+   "southkarana_chr.s3d"
+  ],
+  "TRF": [
+   "global_chr.s3d",
+   "globaltrf_chr.s3d"
+  ],
+  "TRG": [
+   "trg.eqg"
+  ],
+  "TRI": [
+   "global2_chr.s3d"
+  ],
+  "TRK": [
+   "hateplaneb_chr.s3d",
+   "necropolis_chr.s3d",
+   "poinnovation_chr.s3d",
+   "povalor_chr.s3d",
+   "sebilis_chr.s3d",
+   "templeveeshan_chr.s3d",
+   "trk_chr.s3d",
+   "veeshan_chr.s3d"
+  ],
+  "TRM": [
+   "global_chr.s3d",
+   "globaltrm_chr.s3d"
+  ],
+  "TRN": [
+   "jaggedpine_chr.s3d",
+   "poeartha_chr.s3d",
+   "ponightmare_chr.s3d",
+   "postorms_chr.s3d",
+   "trn_chr.s3d"
+  ],
+  "TRT": [
+   "nightmareb_chr.s3d",
+   "nightmareb_chr2.s3d",
+   "ponightmare_chr.s3d",
+   "potimeb_chr.s3d"
+  ],
+  "TRW": [
+   "potactics_chr.s3d",
+   "potimeb_chr.s3d",
+   "potorment_chr.s3d",
+   "trw_chr.s3d"
+  ],
+  "TSE": [
+   "tse.eqg"
+  ],
+  "TSM": [
+   "tsm_chr.s3d"
+  ],
+  "TTB": [
+   "ttb_chr.s3d"
+  ],
+  "TUN": [
+   "global2_chr.s3d"
+  ],
+  "TVP": [
+   "tvp_chr.s3d"
+  ],
+  "TWF": [
+   "twf_chr.s3d"
+  ],
+  "TZF": [
+   "tzf_chr.s3d"
+  ],
+  "TZM": [
+   "tzm_chr.s3d"
+  ],
+  "UDF": [
+   "gunthak_chr.s3d",
+   "nightmareb_chr.s3d",
+   "ponightmare_chr.s3d",
+   "potimeb_chr.s3d",
+   "povalor_chr.s3d"
+  ],
+  "UDK": [
+   "nightmareb_chr.s3d",
+   "ponightmare_chr.s3d",
+   "potimeb_chr.s3d",
+   "povalor_chr.s3d",
+   "udk_chr.s3d"
+  ],
+  "UNB": [
+   "echo_chr.s3d",
+   "fungusgrove_chr.s3d",
+   "griegsend_chr.s3d",
+   "letalis_chr.s3d",
+   "mseru_chr.s3d",
+   "paludal_chr.s3d",
+   "podisease_chr.s3d",
+   "shadeweaver_chr.s3d",
+   "thedeep_chr.s3d",
+   "twilight_chr.s3d",
+   "unb_chr.s3d"
+  ],
+  "UNI": [
+   "butcher_chr.s3d",
+   "cazicthule_chr.s3d",
+   "fearplane_chr.s3d",
+   "gfaydark_chr.s3d",
+   "growthplane_chr.s3d",
+   "lavastorm_chr.s3d",
+   "lfaydark_chr.s3d",
+   "mischiefplane_chr.s3d",
+   "mistmoore_chr.s3d",
+   "misty_chr.s3d",
+   "nektulos_chr.s3d",
+   "qrg_chr.s3d",
+   "rathemtn_chr2.s3d",
+   "steamfont_chr.s3d",
+   "wakening_chr.s3d"
+  ],
+  "UNM": [
+   "unm.eqg"
+  ],
+  "VAC": [
+   "acrylia_chr.s3d",
+   "akheva_chr.s3d",
+   "codecay_chr.s3d",
+   "griegsend_chr.s3d",
+   "innothule_chr2.s3d",
+   "letalis_chr.s3d",
+   "maiden_chr.s3d",
+   "netherbian_chr.s3d",
+   "podisease_chr.s3d",
+   "pojustice_chr.s3d",
+   "povalor_chr.s3d",
+   "shadeweaver_chr.s3d",
+   "sharvahl_chr.s3d",
+   "thedeep_chr.s3d",
+   "thegrey_chr.s3d",
+   "vac_chr.s3d"
+  ],
+  "VAF": [
+   "vaf.eqg"
+  ],
+  "VAL": [
+   "potactics_chr.s3d"
+  ],
+  "VAM": [
+   "vam.eqg"
+  ],
+  "VAS": [
+   "vas_chr.s3d",
+   "veeshan_chr.s3d"
+  ],
+  "VAZ": [
+   "potactics_chr.s3d",
+   "potimeb_chr.s3d",
+   "powar_chr.s3d"
+  ],
+  "VEG": [
+   "poeartha_chr.s3d",
+   "poearthb_chr.s3d",
+   "ponightmare_chr.s3d",
+   "potactics_chr.s3d",
+   "veg_chr.s3d"
+  ],
+  "VEK": [
+   "vek_chr.s3d"
+  ],
+  "VNM": [
+   "vnm.eqg"
+  ],
+  "VOL": [
+   "katta_chr.s3d",
+   "maiden_chr.s3d",
+   "tenebrous_chr.s3d"
+  ],
+  "VPM": [
+   "griegsend_chr.s3d",
+   "katta_chr.s3d",
+   "maiden_chr.s3d",
+   "shadeweaver_chr.s3d",
+   "tenebrous_chr.s3d"
+  ],
+  "VRM": [
+   "charasis_chr.s3d",
+   "chardok_chr.s3d",
+   "hole_chr.s3d",
+   "mischiefplane_chr.s3d",
+   "necropolis_chr.s3d",
+   "pojustice_chr.s3d"
+  ],
+  "VSF": [
+   "frozenshadow_chr.s3d",
+   "hateplane_chr.s3d",
+   "hateplaneb_chr.s3d",
+   "lfaydark_chr.s3d",
+   "mistmoore_chr.s3d",
+   "najena_chr.s3d",
+   "neriaka_chr.s3d",
+   "neriakb_chr.s3d",
+   "neriakc_chr.s3d",
+   "potimeb_chr.s3d"
+  ],
+  "VSG": [
+   "acrylia_chr2.s3d",
+   "sharvahl_chr2.s3d"
+  ],
+  "VSK": [
+   "sharvahl_chr2.s3d"
+  ],
+  "VSM": [
+   "frozenshadow_chr.s3d",
+   "hateplane_chr.s3d",
+   "hateplaneb_chr.s3d",
+   "lfaydark_chr.s3d",
+   "mistmoore_chr.s3d",
+   "najena_chr.s3d",
+   "neriaka_chr.s3d",
+   "neriakb_chr.s3d",
+   "neriakc_chr.s3d",
+   "potimeb_chr.s3d"
+  ],
+  "VST": [
+   "kaesora_chr.s3d",
+   "karnor_chr.s3d"
+  ],
+  "WAE": [
+   "wae.eqg"
+  ],
+  "WAL": [
+   "eastwastes_chr.s3d",
+   "eastwastesshard_chr.s3d",
+   "iceclad_chr.s3d",
+   "sirens_chr.s3d"
+  ],
+  "WAS": [
+   "airplane_chr.s3d",
+   "burningwood_chr.s3d",
+   "gfaydark_chr.s3d",
+   "lfaydark_chr.s3d",
+   "misty_chr.s3d",
+   "tox_chr.s3d"
+  ],
+  "WBU": [
+   "potactics_chr.s3d",
+   "powar_chr.s3d",
+   "wbu_chr.s3d"
+  ],
+  "WEL": [
+   "global5_chr.s3d",
+   "torgiran_chr.s3d",
+   "wel_chr.s3d"
+  ],
+  "WER": [
+   "global_chr.s3d"
+  ],
+  "WET": [
+   "acrylia_chr.s3d",
+   "dawnshroud_chr.s3d",
+   "fungusgrove_chr.s3d",
+   "hollowshade_chr.s3d",
+   "katta_chr.s3d",
+   "paludal_chr.s3d",
+   "ponightmare_chr.s3d",
+   "twilight_chr.s3d"
+  ],
+  "WIL": [
+   "airplane_chr.s3d",
+   "befallen_chr.s3d",
+   "beholder_chr.s3d",
+   "commons_chr.s3d",
+   "eastkarana_chr.s3d",
+   "ecommons_chr.s3d",
+   "erudsxing_chr.s3d",
+   "fearplane_chr.s3d",
+   "gfaydark_chr.s3d",
+   "growthplane_chr.s3d",
+   "guktop_chr.s3d",
+   "hateplane_chr.s3d",
+   "jaggedpine_chr.s3d",
+   "kithicor_chr.s3d",
+   "kurn_chr.s3d",
+   "mistmoore_chr.s3d",
+   "nektulos_chr.s3d",
+   "northkarana_chr.s3d",
+   "qey2hh1_chr.s3d",
+   "qeytoqrg_chr.s3d",
+   "qrg_chr.s3d",
+   "sirens_chr.s3d",
+   "stonebrunt_chr.s3d",
+   "tox_chr.s3d",
+   "unrest_chr.s3d"
+  ],
+  "WLF": [
+   "wlf.eqg"
+  ],
+  "WLM": [
+   "cobaltscar_chr.s3d",
+   "eastwastes_chr.s3d",
+   "eastwastesshard_chr.s3d",
+   "greatdivide_chr.s3d",
+   "growthplane_chr.s3d",
+   "sirens_chr.s3d",
+   "stonebrunt_chr.s3d",
+   "thurgadinb_chr.s3d",
+   "warrens_chr.s3d"
+  ],
+  "WMP": [
+   "powater_chr.s3d",
+   "wmp_chr.s3d"
+  ],
+  "WOE": [
+   "global6_chr.s3d",
+   "global_chr.s3d"
+  ],
+  "WOF": [
+   "chardok_chr.s3d",
+   "fieldofbone_chr.s3d",
+   "global6_chr.s3d",
+   "nurga_chr.s3d",
+   "warslikswood_chr.s3d",
+   "wof_chr.s3d"
+  ],
+  "WOK": [
+   "wok.eqg"
+  ],
+  "WOL": [
+   "eastkarana_chr.s3d",
+   "ecommons_chr.s3d",
+   "everfrost_chr.s3d",
+   "feerrott_chr.s3d",
+   "firiona_chr.s3d",
+   "freporte_chr.s3d",
+   "freportw_chr.s3d",
+   "gfaydark_chr.s3d",
+   "global6_chr.s3d",
+   "growthplane_chr.s3d",
+   "halas_chr.s3d",
+   "highpass_chr.s3d",
+   "kithicor_chr.s3d",
+   "lfaydark_chr.s3d",
+   "misty_chr.s3d",
+   "nektulos_chr.s3d",
+   "northkarana_chr.s3d",
+   "nro_chr.s3d",
+   "paw_chr.s3d",
+   "permafrost_chr.s3d",
+   "qey2hh1_chr.s3d",
+   "qeytoqrg_chr.s3d",
+   "qrg_chr.s3d",
+   "rivervale_chr.s3d",
+   "southkarana_chr.s3d",
+   "sro_chr.s3d",
+   "warrens_chr.s3d"
+  ],
+  "WOR": [
+   "wor.eqg"
+  ],
+  "WRB": [
+   "potactics_chr.s3d",
+   "potimeb_chr.s3d",
+   "powar_chr.s3d"
+  ],
+  "WRF": [
+   "codecay_chr.s3d",
+   "podisease_chr.s3d",
+   "wrf_chr.s3d"
+  ],
+  "WRM": [
+   "wrm.eqg"
+  ],
+  "WRU": [
+   "hohonora_chr.s3d",
+   "hohonorb_chr.s3d"
+  ],
+  "WRW": [
+   "potactics_chr.s3d",
+   "potimeb_chr.s3d",
+   "powar_chr.s3d"
+  ],
+  "WUF": [
+   "wuf_chr.s3d"
+  ],
+  "WUR": [
+   "burningwood_chr.s3d",
+   "eastwastes_chr2.s3d",
+   "eastwastesshard_chr2.s3d",
+   "greatdivide_chr.s3d",
+   "necropolis_chr.s3d",
+   "skyfire_chr.s3d",
+   "skyshrine_chr.s3d",
+   "sleeper_chr.s3d",
+   "templeveeshan_chr.s3d",
+   "veeshan_chr.s3d",
+   "westwastes_chr.s3d"
+  ],
+  "WWF": [
+   "wwf.eqg"
+  ],
+  "WYR": [
+   "wyr.eqg"
+  ],
+  "WYV": [
+   "cobaltscar_chr.s3d",
+   "eastwastes_chr2.s3d",
+   "eastwastesshard_chr2.s3d",
+   "necropolis_chr.s3d",
+   "skyfire_chr.s3d",
+   "skyshrine_chr.s3d",
+   "sleeper_chr.s3d",
+   "sleeper_chr2.s3d",
+   "solrotower_chr.s3d",
+   "templeveeshan_chr.s3d",
+   "veeshan_chr.s3d",
+   "westwastes_chr.s3d",
+   "wyv_chr.s3d"
+  ],
+  "XAL": [
+   "kaesora_chr.s3d",
+   "karnor_chr.s3d"
+  ],
+  "XEF": [
+   "xef.eqg"
+  ],
+  "XEG": [
+   "poair_chr.s3d"
+  ],
+  "XEM": [
+   "xem.eqg"
+  ],
+  "XHF": [
+   "xhf.eqg"
+  ],
+  "XHM": [
+   "xhm.eqg"
+  ],
+  "XIM": [
+   "xim.eqg"
+  ],
+  "YAK": [
+   "greatdivide_chr.s3d",
+   "growthplane_chr.s3d",
+   "poknowledge_chr.s3d",
+   "wakening_chr.s3d"
+  ],
+  "YET": [
+   "charasis_chr.s3d",
+   "dreadlands_chr.s3d",
+   "frontiermtns_chr.s3d",
+   "timorous_chr.s3d",
+   "warslikswood_chr.s3d"
+  ],
+  "ZBC": [
+   "potimeb_chr.s3d"
+  ],
+  "ZEB": [
+   "potimeb_chr2.s3d"
+  ],
+  "ZEL": [
+   "dawnshroud_chr.s3d",
+   "griegsend_chr.s3d",
+   "mseru_chr.s3d",
+   "sseru_chr.s3d",
+   "umbral_chr.s3d"
+  ],
+  "ZMF": [
+   "zmf.eqg"
+  ],
+  "ZMM": [
+   "zmm.eqg"
+  ],
+  "ZOF": [
+   "befallen_chr.s3d",
+   "commons_chr.s3d",
+   "ecommons_chr.s3d",
+   "fearplane_chr.s3d",
+   "frozenshadow_chr.s3d",
+   "halas_chr.s3d",
+   "hateplane_chr.s3d",
+   "hole_chr.s3d",
+   "innothule_chr.s3d",
+   "katta_chr.s3d",
+   "kithicor_chr.s3d",
+   "mistmoore_chr.s3d",
+   "misty_chr.s3d",
+   "nektulos_chr.s3d",
+   "neriakb_chr.s3d",
+   "nro_chr.s3d",
+   "oasis_chr.s3d",
+   "paineel_chr.s3d",
+   "rathemtn_chr.s3d",
+   "sro_chr.s3d",
+   "unrest_chr.s3d"
+  ],
+  "ZOM": [
+   "befallen_chr.s3d",
+   "commons_chr.s3d",
+   "eastkarana_chr.s3d",
+   "ecommons_chr.s3d",
+   "erudsxing_chr.s3d",
+   "fearplane_chr.s3d",
+   "feerrott_chr.s3d",
+   "frozenshadow_chr.s3d",
+   "halas_chr.s3d",
+   "hateplane_chr.s3d",
+   "hole_chr.s3d",
+   "innothule_chr.s3d",
+   "katta_chr.s3d",
+   "kithicor_chr.s3d",
+   "lakerathe_chr.s3d",
+   "lfaydark_chr.s3d",
+   "mistmoore_chr.s3d",
+   "misty_chr.s3d",
+   "nektulos_chr.s3d",
+   "neriakb_chr.s3d",
+   "northkarana_chr.s3d",
+   "nro_chr.s3d",
+   "oasis_chr.s3d",
+   "paineel_chr.s3d",
+   "paw_chr.s3d",
+   "qcat_chr.s3d",
+   "qey2hh1_chr.s3d",
+   "qeynos2_chr.s3d",
+   "qeytoqrg_chr.s3d",
+   "rathemtn_chr.s3d",
+   "southkarana_chr.s3d",
+   "sro_chr.s3d",
+   "unrest_chr.s3d"
+  ]
+ }
+}

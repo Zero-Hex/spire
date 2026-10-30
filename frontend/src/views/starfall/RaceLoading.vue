@@ -105,7 +105,7 @@
                     </b-button>
                   </span>
                   <span v-if="!options(r).length" class="text-muted hint">
-                    No archive for it in Spire's race list: add it by hand below if you know one.
+                    No RoF2 archive holds its model: add one by hand below if you have it.
                   </span>
                 </div>
               </div>
@@ -168,6 +168,8 @@ export default {
       pictures: {},    // race id: its first picture in the race sprites
       codeRaces: {},   // model code: race names
       codeRace: {},    // model code: the first race id with it
+      rof2Archives: {}, // model code: the RoF2 archives holding it
+      globalArchives: {}, // archive, lower case without extension: loaded in every zone
       archiveRaces: {}, // archive, lower case without extension: race names
       notification: "",
       error: "",
@@ -286,7 +288,13 @@ export default {
         const codeRace     = {}
         const archiveRaces = {}
         this.races.forEach((race) => {
-          (race.sources || []).forEach((s) => {
+          [race.male_gender_model_code, race.female_gender_model_code, race.neutral_gender_model_code].filter((c) => c).forEach((code) => {
+            const c      = code.toUpperCase()
+            codeRaces[c] = codeRaces[c] || new Set()
+            codeRaces[c].add(race.description)
+            codeRace[c] = codeRace[c] || race.race_id
+          })
+          ;(race.sources || []).forEach((s) => {
             const a = base(s.source_file).toLowerCase()
             archiveRaces[a] = archiveRaces[a] || new Set()
             archiveRaces[a].add(race.description)
@@ -298,9 +306,25 @@ export default {
             })
           })
         })
-        this.codeRaces    = codeRaces
-        this.codeRace     = codeRace
-        this.archiveRaces = archiveRaces
+        const globalArchives = {}
+        this.races.forEach((race) => (race.sources || []).forEach((s) => {
+          if (s.is_global) {
+            globalArchives[base(s.source_file).toLowerCase()] = true
+          }
+        }))
+        // what the RoF2 client's archives hold, by model code
+        const scan = await SpireApi.v1().get("/static-map/rof2-race-archives.json")
+        const rof2 = scan.data.codes || {}
+        Object.keys(rof2).forEach((code) => rof2[code].forEach((file) => {
+          const a         = base(file).toLowerCase()
+          archiveRaces[a] = archiveRaces[a] || new Set()
+          ;(codeRaces[code] || []).forEach((name) => archiveRaces[a].add(name))
+        }))
+        this.rof2Archives   = rof2
+        this.globalArchives = globalArchives
+        this.codeRaces      = codeRaces
+        this.codeRace       = codeRace
+        this.archiveRaces   = archiveRaces
       } catch (e) {
         this.showError(e)
       }
@@ -354,27 +378,40 @@ export default {
     },
     // the lines a race could be added as: a model per archive for a zone
     // file, an archive for GlobalLoad.txt
+    // the lines a race could be added as: a model per archive for a zone
+    // file, an archive for GlobalLoad.txt. Which archives hold a model comes
+    // from the RoF2 client's own archives; the race list fills in the rest.
     options(race) {
+      const pairs = []
+      const codes = new Set([race.male_gender_model_code, race.female_gender_model_code, race.neutral_gender_model_code]
+        .filter((c) => c).map((c) => c.toUpperCase()))
+      ;(race.sources || []).forEach((s) => (s.models || []).forEach((m) => codes.add(m.code.toUpperCase())))
+      codes.forEach((c) => (this.rof2Archives[c] || []).forEach((file) => pairs.push({ code: c, file: file })))
+      ;(race.sources || []).forEach((s) => (s.models || []).forEach((m) => pairs.push({ code: m.code.toUpperCase(), file: s.source_file })))
+      if (this.file.kind === "globalload") {
+        // an archive the race list names, with no code: still the archive
+        ;(race.sources || []).forEach((s) => pairs.push({ code: "", file: s.source_file }))
+      }
+
       const out  = []
       const seen = {}
-      ;(race.sources || []).forEach((s) => {
-        const models = this.file.kind === "chr" ? (s.models || []) : [{ code: "" }]
-        models.forEach((m) => {
-          const archive = this.file.kind === "chr" ? base(s.source_file) : globalLoadName(s.source_file)
-          const key     = m.code + "," + archive.toLowerCase()
-          if (seen[key]) {
-            return
-          }
-          seen[key] = true
-          out.push({
-            key: key,
-            code: m.code,
-            archive: archive,
-            label: (m.code ? m.code.toUpperCase() + " in " : "") + archive,
-            global: s.is_global,
-            added: this.has(m.code, archive),
-            title: s.source_file + (s.loaded_via_description ? " (" + s.loaded_via_description + ")" : ""),
-          })
+      pairs.forEach((p) => {
+        const chr     = this.file.kind === "chr"
+        const archive = chr ? base(p.file) : globalLoadName(p.file)
+        const key     = (chr ? p.code : "") + "," + archive.toLowerCase()
+        if (seen[key] || (chr && !p.code)) {
+          return
+        }
+        seen[key] = true
+        const listed = (race.sources || []).find((s) => s.source_file.toLowerCase() === p.file.toLowerCase())
+        out.push({
+          key: key,
+          code: chr ? p.code : "",
+          archive: archive,
+          label: (chr ? p.code + " in " : "") + archive,
+          global: this.globalArchives[base(p.file).toLowerCase()] || false,
+          added: this.has(chr ? p.code : "", archive),
+          title: p.file + (listed && listed.loaded_via_description ? " (" + listed.loaded_via_description + ")" : ""),
         })
       })
       return out
