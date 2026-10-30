@@ -51,6 +51,25 @@
             New file: the stock client <span v-if="stockZone()">has a {{ file.path }}, and this one replaces it,
             races and all</span><span v-else>has no file for this zone</span>.
           </div>
+          <!-- models two archives both define: the one loaded first shows -->
+          <div v-if="file.kind === 'globalload' && replaced().length" class="race-replaced mb-2">
+            <b>Models with two versions</b>
+            <span class="text-muted hint">
+              Two archives here define the same models, and the one loaded first appears to win (inferred from the
+              client's behaviour: check on Beta).
+            </span>
+            <div v-for="r in replaced()" :key="r.key" class="d-flex align-items-center mt-1 flex-wrap">
+              <span class="mr-2">
+                <b>{{ r.codes.map((c) => (raceName(c) || c) + " (" + c + ")").join(", ") }}</b>:
+                <code>{{ r.first }}</code> <span class="text-success">shown</span>
+                over <code>{{ r.second }}</code>
+              </span>
+              <b-button size="sm" variant="outline-warning" @click="swapVersions(r)"
+                        :title="'Move ' + r.second + ' above ' + r.first + ' so its versions load first'">
+                <i class="fa fa-exchange mr-1"></i> Use {{ r.second }}'s
+              </b-button>
+            </div>
+          </div>
           <div v-if="file.kind === 'globalload' && hiddenCount()" class="hint mb-2">
             <a href="#" @click.prevent="showOther = !showOther">
               {{ showOther ? "Hide" : "Show" }} {{ hiddenCount() }} line(s) that load no races
@@ -504,6 +523,43 @@ export default {
     shown(l) {
       return this.file.kind !== "globalload" || this.showOther || this.info(l).kind !== "other" || !l.raw
     },
+    // pairs of race archives that both define models, in load order: the
+    // first one's versions show
+    replaced() {
+      const firstAt = {} // model code: index of the first line defining it
+      const pairs   = {}
+      this.file.lines.forEach((l, i) => {
+        const info = this.info(l)
+        if (info.kind !== "races") {
+          return
+        }
+        info.models.forEach((c) => {
+          if (firstAt[c] === undefined) {
+            firstAt[c] = i
+            return
+          }
+          if (base(this.file.lines[firstAt[c]].archive).toLowerCase() === base(l.archive).toLowerCase()) {
+            return // the same archive listed twice: one version
+          }
+          const key = firstAt[c] + "-" + i
+          pairs[key] = pairs[key] || { key: key, firstAt: firstAt[c], secondAt: i, codes: [] }
+          pairs[key].codes.push(c)
+        })
+      })
+      return Object.values(pairs).map((p) => Object.assign(p, {
+        first: this.file.lines[p.firstAt].archive,
+        second: this.file.lines[p.secondAt].archive,
+      }))
+    },
+    // the second archive's versions win: its line moves just above the first's
+    swapVersions(r) {
+      const lines = this.file.lines.slice()
+      const moved = lines.splice(r.secondAt, 1)[0]
+      lines.splice(r.firstAt, 0, moved)
+      this.file.lines = lines
+      this.expanded   = {}
+      this.dirty      = true
+    },
     hiddenCount() {
       return this.file.lines.filter((l) => this.info(l).kind === "other").length
     },
@@ -696,6 +752,12 @@ export default {
 
 .race-lines td:nth-child(2) {
   width: 100%;
+}
+
+.race-replaced {
+  border: 1px solid rgba(255, 193, 7, .35);
+  border-radius: 6px;
+  padding: 8px;
 }
 
 .race-openable {
