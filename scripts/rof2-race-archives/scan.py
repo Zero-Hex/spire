@@ -36,6 +36,8 @@ for name in sorted(os.listdir(client), key=str.lower):
     low = name.lower()
     if not low.endswith((".s3d", ".eqg")):
         continue
+    if low.startswith("starfall-"):
+        continue  # a server's own archives: Spire knows them as uploads
     all_files.append(low)
     stem = os.path.splitext(low)[0]
     race_like = (low.endswith(".s3d") and "chr" in low) or low.endswith(".eqg") or stem in named

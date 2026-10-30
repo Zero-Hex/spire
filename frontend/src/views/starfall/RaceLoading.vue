@@ -72,6 +72,10 @@
                   <b v-if="file.kind === 'chr'">{{ l.code.toUpperCase() }}</b>
                   <code class="ml-1">{{ l.archive }}</code>
                   <b-badge v-if="!l.raw" variant="success" class="ml-1">new</b-badge>
+                  <b-badge v-if="chrCheck(l) === 'missing'" variant="danger" class="ml-1"
+                           title="Neither the RoF2 client nor Spire has this archive: the line loads nothing">archive not in the client</b-badge>
+                  <b-badge v-if="chrCheck(l) === 'nocode'" variant="danger" class="ml-1"
+                           :title="'The archive holds no ' + (l.code || '').toUpperCase() + ' model: the line loads nothing'">no {{ (l.code || "").toUpperCase() }} in it</b-badge>
                   <b-badge v-if="file.kind === 'chr' && !isGlobal() && globalChr[(l.code || '').toUpperCase()]" variant="info" class="ml-1"
                            title="GlobalLoad_chr.txt already loads this model in every zone">global</b-badge>
                   <b-badge v-if="info(l).kind === 'missing'" variant="danger" class="ml-1"
@@ -408,6 +412,21 @@ export default {
       } catch (e) {
         // no pictures: the names still show
       }
+    },
+    // whether a _chr.txt line can load: "missing" when no archive of its
+    // name is in the client or Spire, "nocode" when the client's archive
+    // holds no model of its code, "" when it can (or Spire cannot tell)
+    chrCheck(l) {
+      if (this.file.kind !== "chr" || !l.archive || !l.code || !Object.keys(this.rof2Files).length) {
+        return ""
+      }
+      const name = base(l.archive).toLowerCase()
+      const file = [name + ".s3d", name + ".eqg"].find((f) => this.rof2Files[f])
+      if (!file) {
+        return this.heldArchives[name] ? "" : "missing"
+      }
+      const c = this.rof2Contents[file]
+      return c && c.models.includes(l.code.toUpperCase()) ? "" : (this.heldArchives[name] ? "" : "nocode")
     },
     // a file every zone loads
     isGlobal() {
