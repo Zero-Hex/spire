@@ -19,14 +19,23 @@ python3 -I scripts/classic-models/bake_skeleton.py <RoF2 client folder> \
 
 - It copies `global_chr.s3d` with `SKE` renamed `RON` (`rename_models.py`).
 - Classic models borrow animations they lack: the skeleton borrows from the
-  wood elf male `ELM`, in `global_chr.s3d` and `global3_chr.s3d`. The
-  borrowing rule is in Zero-Hex/Everquest_Model_Viewer's
-  `CLASSIC_BORROW`. The 64 animations the skeleton lacks are copied in as
-  `<anim>RON<bone>_TRACK`, each fitted to the skeleton like a borrowing
-  client does: a bone's shift scaled by its rest length over the lender's, and
-  its own scale kept. A bone an animation leaves alone is held at rest.
-- Result: 71 animations of its own. In the model viewer it matches the stock
-  skeleton pose for pose.
+  wood elf male `ELM` in `global_chr.s3d`. The borrowing rule is in
+  Zero-Hex/Everquest_Model_Viewer's `CLASSIC_BORROW`. The 36 animations the
+  skeleton lacks are copied in as `<anim>RON<bone>_TRACK`, each fitted to the
+  skeleton like a borrowing client does: a bone's shift scaled by its rest
+  length over the lender's, and its own scale kept. A bone an animation leaves
+  alone is held at rest.
+- `global3_chr.s3d`'s extra wood elf animations (a player's sitting pose,
+  idles, social emotes) are left out; with them the skeleton sits like a
+  player. `--global3` adds them.
+- Sitting, as the classic skeleton does it: the client plays the sit-down
+  `P02` forwards to sit and holds the sitting pose `P07`. The skeleton's `P02`
+  runs from a heap of bones to standing, so its frames are turned round
+  (standing to heap), and `P07` is the heap, held. Without a `P07` the
+  skeleton stands straight back up.
+- Result: 44 animations of its own, all from the client's files. Tested in
+  game: it stands, moves, fights, collapses when it sits, stays down and
+  reassembles when it stands.
 
 In game: upload it to Client Patch, add `3,0,TFFFC,starfall_skeleton_chr,
 Loading Characters` to Resources/GlobalLoad.txt, and set NPCs to race 197

@@ -2,13 +2,23 @@
 
 Classic models without their own full set borrow the rest from another race
 when the client shows them under their stock race number (the classic
-skeleton SKE borrows from the wood elf male ELM, in global_chr.s3d and
-global3_chr.s3d). Under another race number the client borrows wrongly, so
+skeleton SKE borrows from the wood elf male ELM in global_chr.s3d). Under another race number the client borrows wrongly, so
 here the borrowed animations are copied into the archive under the new code,
 each fitted to this model's bones as a borrowing client does: a bone's shift
 scaled by its rest length over the lender's, and the bone's own scale kept.
 
-    python3 -I bake_skeleton.py <client> out.s3d SKE RON ELM
+    python3 -I bake_skeleton.py <client> out.s3d SKE RON ELM [--global3]
+
+Only global_chr.s3d's animations are borrowed: global3_chr.s3d adds more of
+the lender's (a player's sitting pose P07, idles, social emotes), and with
+those the skeleton sits like a player instead of collapsing in a heap as the
+classic skeleton does. --global3 borrows them too.
+
+The client holds the sitting pose P07 once the sit-down P02 has played, and
+without one stands straight back up. The classic skeleton's P02 runs from a
+heap of bones to standing; under another race number the client plays P02
+forwards to sit, as a player's, so its frames are turned round here (standing
+to heap), and P07 is the heap, held. Tested in game.
 
 The archive is <client>/global_chr.s3d with SKE renamed RON (rename_models)
 and the animations added to its WLD as 0x12 tracks and 0x13 track links named
@@ -73,6 +83,7 @@ def clamp16(v):
 
 def main():
     client, out_path, code, new_code, lender = sys.argv[1:6]
+    with_global3 = "--global3" in sys.argv[6:]
     src = os.path.join(client, "global_chr.s3d")
     files = rm.read_pfs(open(src, "rb").read())
     wld = dict(files)["global_chr.wld"]
@@ -84,7 +95,7 @@ def main():
     extra_files = dict(rm.read_pfs(open(os.path.join(client, "global3_chr.s3d"), "rb").read()))
     w3 = extra_files["global3_chr.wld"]
     _, _, fr3, _ = frags(w3)
-    lend3 = tracks(w3, fr3, lender)
+    lend3 = tracks(w3, fr3, lender) if with_global3 else {}
 
     bones = sorted(s for (k, s) in own if k == "")
     own_rest = {s: read_frames(wld, own[("", s)][1])[0] for s in bones}
@@ -96,11 +107,25 @@ def main():
             if k and k not in own_keys and s in own_rest and (k, s) not in lent:
                 lent[(k, s)] = (src_w, t13, t12)
     keys = sorted({k for (k, s) in lent})
+    # sitting: the sit-down's first frame (the heap), held
+    sit = "P07" if ("P07" not in own_keys and "P07" not in keys and "P02" in own_keys) else None
+    if sit:
+        keys.append(sit)
 
     # the new names and fragments, after the renamed WLD's own
     rename = rm.renamer({code: new_code})
     counts = {"strings": 0, "bitmaps": 0, "files": 0}
-    renamed = rm.rename_wld(wld, rename, counts)
+    renamed = bytearray(rm.rename_wld(wld, rename, counts))
+    # the sit-down played forwards: standing to heap
+    if "P02" in own_keys:
+        for s in bones:
+            if ("P02", s) in own:
+                t12 = own[("P02", s)][1]
+                n = struct.unpack_from("<I", wld, t12["o"] + 8)[0]
+                at = t12["o"] + 12
+                frames = [bytes(renamed[at + i * 16: at + i * 16 + 16]) for i in range(n)]
+                renamed[at: at + 16 * n] = b"".join(reversed(frames))
+    renamed = bytes(renamed)
     table = rm.xor(renamed[28: 28 + hdr[5]])
     new_strings, new_frags = bytearray(), []
     next_index = hdr[2] + 1
@@ -112,6 +137,22 @@ def main():
 
     made = 0
     for k in keys:
+        if k == sit:
+            for s in bones:
+                t13, t12 = own.get(("P02", s)) or own[("", s)]
+                frames = [read_frames(wld, t12)[0]]
+                flags13 = struct.unpack_from("<I", wld, t13["o"] + 8)[0]
+                sleep13 = struct.unpack_from("<I", wld, t13["o"] + 12)[0] if flags13 & 1 else None
+                base = k + new_code + s
+                def_body = struct.pack("<iII", add_name(base + "_TRACKDEF"), 8, 1) + struct.pack("<8h", *frames[0])
+                new_frags.append(struct.pack("<II", len(def_body), 0x12) + def_body)
+                link = struct.pack("<iiI", add_name(base + "_TRACK"), next_index, flags13)
+                if flags13 & 1:
+                    link += struct.pack("<I", sleep13)
+                new_frags.append(struct.pack("<II", len(link), 0x13) + link)
+                next_index += 2
+                made += 1
+            continue
         # a link's flags and frame time from any lent bone of this animation
         some = next(v for (kk, s), v in lent.items() if kk == k)
         link_flags = struct.unpack_from("<I", some[0], some[1]["o"] + 8)[0]
