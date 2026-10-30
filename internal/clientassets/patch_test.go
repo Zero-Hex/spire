@@ -369,3 +369,64 @@ func TestBetaFilesGoToBetaOnly(t *testing.T) {
 		}
 	}
 }
+
+// a newer version with no folder chosen goes where the earlier one is kept
+func TestUploadGoesWhereTheEarlierCopyIs(t *testing.T) {
+	s := testStore(t)
+	for _, f := range []struct{ folder, name string }{
+		{"uifiles/starfall", "EQUI_Inventory.xml"}, // a skin folder, not the usual uifiles/default
+		{"Resources", "custom_data.txt"},           // a file with no usual folder
+		{"uifiles/default", "EQUI_Twice.xml"},
+		{"uifiles/starfall", "EQUI_Twice.xml"},
+	} {
+		if _, err := s.ImportAt(f.folder, f.name, []byte("v1")); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := s.SetMode("uifiles/starfall/EQUI_Inventory.xml", ModeBeta); err != nil {
+		t.Fatal(err)
+	}
+
+	msg, err := s.ImportAt("", "equi_inventory.xml", []byte("v2"))
+	if err != nil || !strings.Contains(msg, "uifiles/starfall/equi_inventory.xml (where the earlier copy is)") {
+		t.Fatalf("%q %v", msg, err)
+	}
+	f := s.Index().Files["uifiles/starfall/equi_inventory.xml"]
+	if f == nil || !f.Beta || s.Index().Files["uifiles/default/equi_inventory.xml"] != nil {
+		t.Errorf("%+v", s.Index().Files)
+	}
+	if b, ok := s.ClientFileData("uifiles/starfall/EQUI_Inventory.xml"); !ok || string(b) != "v2" {
+		t.Errorf("%q", b)
+	}
+	// with no usual folder, the earlier copy's folder is used rather than asking
+	if _, err := s.ImportAt("", "custom_data.txt", []byte("v2")); err != nil {
+		t.Errorf("custom_data.txt: %v", err)
+	}
+	// kept in two folders: Spire asks
+	if _, err := s.ImportAt("", "EQUI_Twice.xml", []byte("v2")); err == nil || !strings.Contains(err.Error(), "uifiles/default and uifiles/starfall") {
+		t.Errorf("twice: %v", err)
+	}
+	// a folder chosen wins
+	if _, err := s.ImportAt("uifiles/default", "EQUI_Inventory.xml", []byte("v3")); err != nil || s.Index().Files["uifiles/default/equi_inventory.xml"] == nil {
+		t.Errorf("chosen: %v", err)
+	}
+
+	// a zip with the file at its top level suggests the same folder
+	z := testZip(t, map[string][]byte{"custom_data.txt": []byte("v3"), "EQUI_Twice.xml": []byte("v3")})
+	l, err := s.StageZip("update.zip", bytes.NewReader(z))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range l.Entries {
+		switch e.Path {
+		case "custom_data.txt":
+			if e.Folder != "Resources" || e.NeedsFolder {
+				t.Errorf("%+v", e)
+			}
+		case "EQUI_Twice.xml":
+			if !e.NeedsFolder {
+				t.Errorf("%+v", e)
+			}
+		}
+	}
+}

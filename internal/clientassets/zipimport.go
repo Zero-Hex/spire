@@ -220,7 +220,13 @@ func (s *Store) describe(f *zip.File, shown string) ZipEntry {
 	case dir != "" && err == nil:
 		e.Folder = folder
 	default:
-		if f, ok := defaultFolder(base); ok {
+		kept := keptFolders(s.Index(), base)
+		if len(kept) == 1 {
+			e.Folder, e.Note = kept[0], "replaces the copy Spire holds there"
+		} else if len(kept) > 1 {
+			e.NeedsFolder = true
+			e.Note = "Spire holds copies in " + folderList(kept) + ": choose the folder"
+		} else if f, ok := defaultFolder(base); ok {
 			e.Folder = f
 		} else {
 			e.NeedsFolder = true

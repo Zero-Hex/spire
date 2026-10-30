@@ -206,7 +206,7 @@
       </div>
       <div class="mt-2 d-flex align-items-center flex-wrap">
         <span class="mr-2">Into folder</span>
-        <b-form-input size="sm" v-model="folder" placeholder="the usual one (e.g. uifiles/default)" style="max-width: 320px" class="mr-3"/>
+        <b-form-input size="sm" v-model="folder" placeholder="where the earlier copy is, else the usual one" style="max-width: 320px" class="mr-3"/>
         <b-button size="sm" variant="outline-warning" @click="$refs.folderPicker.click()" :disabled="uploading">
           <i class="fa fa-folder-open mr-1"></i> Upload a client folder
         </b-button>

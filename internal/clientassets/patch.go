@@ -142,12 +142,22 @@ func (s *Store) importClientFile(folder, name string, data []byte, explicit bool
 	if refusedExtensions[strings.ToLower(filepath.Ext(lower))] {
 		return "", fmt.Errorf("%v: programs and scripts are not sent to players", name)
 	}
+	where := ""
 	if !explicit {
-		f, ok := defaultFolder(name)
-		if !ok {
-			return "", fmt.Errorf("%v: choose the folder it goes in (or upload the client folder it is in)", name)
+		// a newer version goes where the earlier one is
+		kept := keptFolders(s.Index(), name)
+		switch {
+		case len(kept) == 1:
+			folder, where = kept[0], " (where the earlier copy is)"
+		case len(kept) > 1:
+			return "", fmt.Errorf("%v is kept in %v: choose the folder it goes in", name, folderList(kept))
+		default:
+			f, ok := defaultFolder(name)
+			if !ok {
+				return "", fmt.Errorf("%v: choose the folder it goes in (or upload the client folder it is in)", name)
+			}
+			folder = f
 		}
-		folder = f
 	}
 	path := name
 	if folder != "" {
@@ -179,7 +189,31 @@ func (s *Store) importClientFile(folder, name string, data []byte, explicit bool
 	if err := s.saveLocked(); err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("%v: kept for the client patch as %v", name, path), nil
+	return fmt.Sprintf("%v: kept for the client patch as %v%v", name, path, where), nil
+}
+
+// keptFolders lists the folders a client file of this name is kept in (or
+// removed from players in), next to eqgame.exe being ""
+func keptFolders(idx Index, name string) []string {
+	var out []string
+	for _, f := range idx.Files {
+		if strings.EqualFold(filepath.Base(f.Path), name) {
+			out = append(out, strings.TrimSuffix(strings.TrimSuffix(f.Path, filepath.Base(f.Path)), "/"))
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
+func folderList(folders []string) string {
+	var named []string
+	for _, f := range folders {
+		if f == "" {
+			f = "the client folder itself"
+		}
+		named = append(named, f)
+	}
+	return strings.Join(named, " and ")
 }
 
 // migrateFilesLocked moves client files kept by name (before they were kept
