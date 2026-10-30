@@ -3,6 +3,7 @@ package clientassets
 import (
 	"bytes"
 	"encoding/xml"
+	"fmt"
 	"image"
 	"image/color"
 	"image/png"
@@ -151,19 +152,21 @@ func TestDragItemFramesInTheRof2File(t *testing.T) {
 	if err != nil {
 		t.Skip("no client")
 	}
-	out, added, warn := AddDragItemFrames(string(b), []int{12, 179, 180})
+	// stock, or a server's own with more frames: the next two are added
+	n := strings.Count(dragItemBlock.FindString(string(b)), "<Frames>")
+	out, added, warn := AddDragItemFrames(string(b), []int{12, n + 1, n + 2})
 	if len(added) != 2 || warn != "" {
-		t.Fatalf("added %v warn %q", added, warn)
+		t.Fatalf("%d frames: added %v warn %q", n, added, warn)
 	}
-	if strings.Count(dragItemBlock.FindString(out), "<Frames>") != 180 {
-		t.Error("want 180 frames")
+	if strings.Count(dragItemBlock.FindString(out), "<Frames>") != n+2 {
+		t.Errorf("want %d frames", n+2)
 	}
 	d := xml.NewDecoder(strings.NewReader(out))
 	d.CharsetReader = func(_ string, r io.Reader) (io.Reader, error) { return r, nil } // us-ascii
 	if err := d.Decode(new(struct{})); err != nil {
 		t.Errorf("not XML any more: %v", err)
 	}
-	if len(out)-len(b) > 2000 || !strings.Contains(out, "<Texture>dragitem180.dds</Texture>") {
+	if len(out)-len(b) > 2000 || !strings.Contains(out, fmt.Sprintf("<Texture>dragitem%d.dds</Texture>", n+2)) {
 		t.Errorf("grew by %d", len(out)-len(b))
 	}
 }
