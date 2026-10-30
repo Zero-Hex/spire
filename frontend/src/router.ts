@@ -147,6 +147,11 @@ const router = new Router({
           meta: {title: "Client Patch"},
         },
         {
+          path: ROUTE.STARFALL_RACE_LOADING,
+          component: () => import('./views/starfall/RaceLoading.vue'),
+          meta: {title: "Race Loading"},
+        },
+        {
           path: ROUTE.STRINGS_DATABASE,
           component: () => import('./views/strings-database/StringsDatabase.vue'),
           meta: {title: "Strings Database (dbstr)"},

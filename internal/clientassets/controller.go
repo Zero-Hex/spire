@@ -8,6 +8,7 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -71,6 +72,9 @@ func (a *Controller) Routes() []*routes.Route {
 		routes.RegisterRoute(http.MethodPost, "client-assets/upload", a.upload, nil),
 		routes.RegisterRoute(http.MethodGet, "client-assets/archive/:name", a.archive, nil),
 		routes.RegisterRoute(http.MethodGet, "client-assets/armor-sets", a.armorSets, nil),
+		routes.RegisterRoute(http.MethodGet, "client-assets/race-files", a.raceFiles, nil),
+		routes.RegisterRoute(http.MethodGet, "client-assets/race-file", a.raceFile, nil),
+		routes.RegisterRoute(http.MethodPut, "client-assets/race-file", a.saveRaceFile, nil),
 		routes.RegisterRoute(http.MethodPost, "client-assets/model/:id/preview", a.preview, nil),
 		routes.RegisterRoute(http.MethodDelete, "client-assets/sheet/:sheet", a.removeSheet, nil),
 		routes.RegisterRoute(http.MethodDelete, "client-assets/archive/:name", a.removeArchive, nil),
@@ -269,6 +273,43 @@ func (a *Controller) addRemoval(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, echo.Map{"error": err.Error()})
 	}
 	return c.JSON(http.StatusOK, echo.Map{"result": msg})
+}
+
+// raceFiles lists the _chr.txt and GlobalLoad.txt files Spire holds, and the
+// zones the stock client has a _chr.txt for
+func (a *Controller) raceFiles(c echo.Context) error {
+	var stock []string
+	for z := range Rof2ChrZones {
+		stock = append(stock, z)
+	}
+	sort.Strings(stock)
+	return c.JSON(http.StatusOK, echo.Map{"files": a.store.RaceFiles(), "stock_chr_zones": stock})
+}
+
+// raceFile reads one (?path=)
+func (a *Controller) raceFile(c echo.Context) error {
+	f, err := a.store.ReadRaceFile(c.QueryParam("path"))
+	if err != nil {
+		return c.JSON(http.StatusNotFound, echo.Map{"error": err.Error()})
+	}
+	return c.JSON(http.StatusOK, f)
+}
+
+// saveRaceFile writes one for the patch
+func (a *Controller) saveRaceFile(c echo.Context) error {
+	var f RaceFile
+	if err := c.Bind(&f); err != nil {
+		return c.JSON(http.StatusBadRequest, echo.Map{"error": err.Error()})
+	}
+	msg, err := a.store.SaveRaceFile(f)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, echo.Map{"error": err.Error()})
+	}
+	saved, err := a.store.ReadRaceFile(f.Path)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, echo.Map{"error": err.Error()})
+	}
+	return c.JSON(http.StatusOK, echo.Map{"result": msg, "file": saved})
 }
 
 // armorSets lists the Heroes' Forge sets in the archives, by set number

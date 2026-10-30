@@ -63,6 +63,7 @@ export const ROUTE = {
   STARFALL_ICONS_MODELS: "/starfall/icons-and-models",
   STARFALL_QUEST_SCRIPTS: "/starfall/quest-scripts",
   STARFALL_CLIENT_PATCH: "/starfall/client-patch",
+  STARFALL_RACE_LOADING: "/starfall/race-loading",
   TASK_EDIT: "/tasks/%s",
   TASKS: "/tasks",
   MERCHANTS: "/merchants",

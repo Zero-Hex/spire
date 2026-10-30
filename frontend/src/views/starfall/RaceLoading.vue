@@ -1,0 +1,481 @@
+<template>
+  <div>
+    <eq-window-simple title="Race Loading">
+      <div>
+        Which race models the client loads: a zone's <code>&lt;zone&gt;_chr.txt</code> lists the models that zone loads,
+        <code>Resources/GlobalLoad.txt</code> the archives every zone loads. Files are edited where Spire keeps them for
+        the client patch, and players get them when you publish on
+        <router-link :to="clientPatchRoute">Client Patch</router-link>.
+      </div>
+
+      <div class="mt-3 d-flex align-items-center flex-wrap">
+        <span class="mr-2">File</span>
+        <b-form-select size="sm" v-model="path" :options="fileOptions()" style="max-width: 320px" class="mr-3"
+                       @change="open(path)"/>
+        <span class="mr-2">or a new zone file</span>
+        <b-form-input size="sm" v-model="newZone" placeholder="zone short name" style="max-width: 170px" class="mr-2"
+                      @keyup.enter="newFile()"/>
+        <b-button size="sm" variant="outline-warning" class="mr-3" @click="newFile()" :disabled="!newZone.trim()">New</b-button>
+        <b-button size="sm" variant="outline-secondary" @click="$refs.picker.click()">
+          <i class="fa fa-upload mr-1"></i> Upload the client's copy
+        </b-button>
+        <input ref="picker" type="file" accept=".txt" multiple style="display: none" @change="upload">
+      </div>
+      <div class="text-muted mt-1 hint">
+        Upload a zone's <code>_chr.txt</code> or <code>GlobalLoad.txt</code> from your client to edit it: Spire's copy
+        replaces the player's whole file, so start from the real one.
+      </div>
+      <info-error-banner class="mt-2" :notification="notification" :error="error"
+                         @dismiss-error="error = ''" @dismiss-notification="notification = ''"/>
+    </eq-window-simple>
+
+    <div class="row mt-3" v-if="file">
+      <!-- the file -->
+      <div class="col-lg-6">
+        <eq-window-simple :title="file.path + (dirty ? ' (not saved)' : '')">
+          <div class="d-flex align-items-center mb-2">
+            <b-button size="sm" variant="success" class="mr-2" @click="save()" :disabled="!dirty || saving">
+              <i :class="'fa ' + (saving ? 'fa-cog fa-spin' : 'fa-save') + ' mr-1'"></i> Save
+            </b-button>
+            <b-button size="sm" variant="outline-secondary" class="mr-3" @click="open(file.path)" :disabled="!dirty || saving">
+              Undo changes
+            </b-button>
+            <span class="text-muted">{{ entries().length }} {{ file.kind === "chr" ? "race models" : "archives" }}</span>
+          </div>
+          <div v-if="file.kind === 'globalload'" class="text-warning hint mb-2">
+            Every zone loads these. Removing a stock line takes those models out of every zone.
+          </div>
+          <div v-if="!held" class="text-warning hint mb-2">
+            New file: the stock client <span v-if="stockZone()">has a {{ file.path }}, and this one replaces it,
+            races and all</span><span v-else>has no file for this zone</span>.
+          </div>
+          <table class="eq-table eq-highlight-rows race-lines">
+            <tbody>
+            <tr v-for="(l, i) in file.lines" :key="i">
+              <td class="race-pic-cell">
+                <div class="race-pic">
+                  <span v-if="picture(l)" :class="'race-models-ctn-' + picture(l) + ' race-pic-sprite'"/>
+                </div>
+              </td>
+              <td v-if="!l.archive"><code class="text-muted">{{ l.raw }}</code></td>
+              <td v-else>
+                <b v-if="file.kind === 'chr'">{{ l.code.toUpperCase() }}</b>
+                <code class="ml-1">{{ l.archive }}</code>
+                <b-badge v-if="!l.raw" variant="success" class="ml-1">new</b-badge>
+                <div class="text-muted hint">{{ racesOf(l) || "not in Spire's race list" }}</div>
+              </td>
+              <td class="text-right">
+                <b-button size="sm" variant="outline-danger" @click="removeLine(i)" title="Remove">
+                  <i class="fa fa-times"></i>
+                </b-button>
+              </td>
+            </tr>
+            </tbody>
+          </table>
+        </eq-window-simple>
+      </div>
+
+      <!-- races to add -->
+      <div class="col-lg-6">
+        <eq-window-simple title="Add races">
+          <b-form-input size="sm" v-model="search" placeholder="Search races by name, ID or model code (e.g. elemental, 75, ELE)"
+                        class="mb-2" autofocus/>
+          <div class="text-muted hint mb-2">
+            Click a model to add it.
+            <span v-if="file.kind === 'globalload'">GlobalLoad.txt loads whole archives: adding one loads every race in it.</span>
+            <b-badge variant="info">global</b-badge> archives are already loaded in every zone.
+          </div>
+          <div v-if="search.trim().length < 2" class="text-muted">Type at least two letters.</div>
+          <div v-for="r in results()" :key="r.race_id" class="race-result">
+            <div class="d-flex align-items-center">
+              <span class="race-pic mr-2">
+                <span v-if="pictures[r.race_id]" :class="'race-models-ctn-' + pictures[r.race_id] + ' race-pic-sprite'"/>
+              </span>
+              <div>
+                <b>{{ r.description }}</b> <span class="text-muted">({{ r.race_id }})</span>
+                <div>
+                  <span v-for="s in options(r)" :key="s.key">
+                    <span v-if="s.added" class="race-added mr-1 mb-1" :title="s.title">
+                      <i class="fa fa-check mr-1"></i>{{ s.label }}
+                    </span>
+                    <b-button v-else size="sm" class="mr-1 mb-1" variant="outline-success" :title="s.title"
+                              @click="add(s); $event.target.blur()">
+                      {{ s.label }}
+                      <b-badge v-if="s.global" variant="info" class="ml-1">global</b-badge>
+                    </b-button>
+                  </span>
+                  <span v-if="!options(r).length" class="text-muted hint">
+                    No archive for it in Spire's race list: add it by hand below if you know one.
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="mt-3 d-flex align-items-center flex-wrap">
+            <span class="mr-2">Or by hand</span>
+            <b-form-input v-if="file.kind === 'chr'" size="sm" v-model="manualCode" placeholder="code" maxlength="3"
+                          style="max-width: 80px" class="mr-2"/>
+            <b-form-input size="sm" v-model="manualArchive"
+                          :placeholder="file.kind === 'chr' ? 'archive (rtn, tnm_chr)' : 'archive (Global_chr, rpt.eqg)'"
+                          style="max-width: 220px" class="mr-2"/>
+            <b-button size="sm" variant="outline-success" @click="addManual()"
+                      :disabled="!manualArchive.trim() || (file.kind === 'chr' && !manualCode.trim())">Add</b-button>
+          </div>
+          <div class="text-muted hint mt-1">
+            For races Spire's list lacks, such as your own models. A <code>_chr.txt</code> names the archive without
+            its extension; GlobalLoad.txt keeps <code>.eqg</code> and drops <code>.s3d</code>.
+          </div>
+        </eq-window-simple>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script>
+import EqWindowSimple  from "@/components/eq-ui/EQWindowSimple";
+import InfoErrorBanner from "@/components/InfoErrorBanner";
+import {SpireApi}      from "@/app/api/spire-api";
+import EqAssets        from "@/app/eq-assets/eq-assets";
+import {ROUTE}         from "@/routes";
+
+// an archive as each file names it
+function base(file) {
+  return file.replace(/\.(s3d|eqg)$/i, "")
+}
+
+function globalLoadName(file) {
+  return /\.eqg$/i.test(file) ? file : base(file)
+}
+
+export default {
+  name: "StarfallRaceLoading",
+  components: { EqWindowSimple, InfoErrorBanner },
+  data() {
+    return {
+      files: [],
+      stockZones: {},
+      path: null,
+      file: null,
+      held: true,
+      dirty: false,
+      saving: false,
+      newZone: "",
+      search: "",
+      manualCode: "",
+      manualArchive: "",
+      races: [],
+      pictures: {},    // race id: its first picture in the race sprites
+      codeRaces: {},   // model code: race names
+      codeRace: {},    // model code: the first race id with it
+      archiveRaces: {}, // archive, lower case without extension: race names
+      notification: "",
+      error: "",
+      clientPatchRoute: ROUTE.STARFALL_CLIENT_PATCH,
+    }
+  },
+  methods: {
+    showError(e) {
+      this.error = e && e.response && e.response.data && e.response.data.error ? e.response.data.error : String(e)
+    },
+    fileOptions() {
+      const out = [{ value: null, text: this.files.length ? "Choose a file..." : "No race files uploaded yet" }]
+      this.files.forEach((f) => out.push({ value: f.path, text: f.path + (f.beta ? " (beta only)" : f.ignore ? " (ignored)" : "") }))
+      if (this.file && !this.held) {
+        out.push({ value: this.file.path, text: this.file.path + " (new)" })
+      }
+      return out
+    },
+    async loadFiles() {
+      try {
+        const r         = await SpireApi.v1().get("client-assets/race-files")
+        this.files      = (r.data.files || []).sort((a, b) => a.path.localeCompare(b.path))
+        this.stockZones = {}
+        ;(r.data.stock_chr_zones || []).forEach((z) => (this.stockZones[z] = true))
+      } catch (e) {
+        this.showError(e)
+      }
+    },
+    confirmLeave() {
+      return !this.dirty || confirm("Drop the changes to " + this.file.path + "?")
+    },
+    async open(path) {
+      if (!path || (this.file && this.file.path !== path && !this.confirmLeave())) {
+        this.path = this.file ? this.file.path : null
+        return
+      }
+      this.error = ""
+      try {
+        const r    = await SpireApi.v1().get("client-assets/race-file", { params: { path: path } })
+        this.file  = r.data
+        this.held  = true
+        this.dirty = false
+        this.path  = r.data.path
+      } catch (e) {
+        this.showError(e)
+      }
+    },
+    newFile() {
+      const zone = this.newZone.trim().toLowerCase().replace(/_chr\.txt$/, "")
+      if (!/^[a-z0-9_]+$/.test(zone) || !this.confirmLeave()) {
+        return
+      }
+      const path = zone + "_chr.txt"
+      if (this.files.some((f) => f.path.toLowerCase() === path)) {
+        this.open(this.files.find((f) => f.path.toLowerCase() === path).path)
+        return
+      }
+      if (this.stockZones[zone] && !confirm("The stock client has " + path + ". A new one replaces it, races and all: upload the client's copy instead to add to it. Start an empty one anyway?")) {
+        return
+      }
+      this.file    = { path: path, kind: "chr", lines: [], crlf: false, read: 0 }
+      this.held    = false
+      this.dirty   = true
+      this.path    = path
+      this.newZone = ""
+    },
+    stockZone() {
+      return this.file && this.stockZones[this.file.path.toLowerCase().replace(/_chr\.txt$/, "")]
+    },
+    async upload(e) {
+      const files = Array.from(e.target.files || [])
+      e.target.value = ""
+      if (!files.length) {
+        return
+      }
+      const form = new FormData()
+      for (const f of files) {
+        const name = f.name.toLowerCase()
+        if (name === "globalload.txt") {
+          form.append("files", f, f.name)
+          form.append("paths", "Resources/" + f.name)
+        } else if (name.endsWith("_chr.txt")) {
+          form.append("files", f, f.name)
+          form.append("paths", f.name)
+        } else {
+          this.error = f.name + " is not a _chr.txt or GlobalLoad.txt"
+          return
+        }
+      }
+      try {
+        const r           = await SpireApi.v1().post("client-assets/upload", form)
+        const results     = r.data.results || []
+        this.notification = results.map((x) => x.error || x.result).join("; ")
+        await this.loadFiles()
+        if (results.length === 1 && !results[0].error) {
+          const name = files[0].name.toLowerCase()
+          const kept = this.files.find((f) => f.path.toLowerCase().endsWith(name))
+          if (kept) {
+            await this.open(kept.path)
+          }
+        }
+      } catch (err) {
+        this.showError(err)
+      }
+    },
+    entries() {
+      return this.file.lines.filter((l) => l.archive)
+    },
+
+    // ------------------------------------------------------------ races
+    async loadRaces() {
+      try {
+        const r    = await SpireApi.v1().get("/static-map/race-inventory-map.json")
+        this.races = r.data.races || []
+        const codeRaces    = {}
+        const codeRace     = {}
+        const archiveRaces = {}
+        this.races.forEach((race) => {
+          (race.sources || []).forEach((s) => {
+            const a = base(s.source_file).toLowerCase()
+            archiveRaces[a] = archiveRaces[a] || new Set()
+            archiveRaces[a].add(race.description)
+            ;(s.models || []).forEach((m) => {
+              const c      = m.code.toUpperCase()
+              codeRaces[c] = codeRaces[c] || new Set()
+              codeRaces[c].add(race.description)
+              codeRace[c] = codeRace[c] || race.race_id
+            })
+          })
+        })
+        this.codeRaces    = codeRaces
+        this.codeRace     = codeRace
+        this.archiveRaces = archiveRaces
+      } catch (e) {
+        this.showError(e)
+      }
+      try {
+        // the race sprites: the first picture of each race, texture 0 first
+        const models   = await EqAssets.getNpcModels()
+        const pictures = {}
+        models.forEach((m) => {
+          const key = m.fileName.replace(".png", "").replace("CTN_", "").replaceAll("_", "-")
+          const id  = parseInt(m.raceId)
+          if (!pictures[id] || (key.split("-")[2] === "0" && pictures[id].split("-")[2] !== "0")) {
+            pictures[id] = key
+          }
+        })
+        this.pictures = pictures
+      } catch (e) {
+        // no pictures: the names still show
+      }
+    },
+    racesOf(l) {
+      const names = this.file.kind === "chr"
+        ? this.codeRaces[(l.code || "").toUpperCase()]
+        : this.archiveRaces[base(l.archive).toLowerCase()]
+      if (!names) {
+        return ""
+      }
+      const list = Array.from(names)
+      return list.slice(0, 6).join(", ") + (list.length > 6 ? " and " + (list.length - 6) + " more" : "")
+    },
+    picture(l) {
+      if (this.file.kind !== "chr") {
+        return ""
+      }
+      const id = this.codeRace[(l.code || "").toUpperCase()]
+      return id ? this.pictures[id] : ""
+    },
+    results() {
+      const q = this.search.trim().toLowerCase()
+      if (q.length < 2 && !/^\d+$/.test(q)) {
+        return []
+      }
+      return this.races.filter((r) =>
+        r.description.toLowerCase().includes(q) ||
+        String(r.race_id) === q ||
+        [r.male_gender_model_code, r.female_gender_model_code, r.neutral_gender_model_code].some((c) => c && c.toLowerCase() === q)
+      ).slice(0, 40)
+    },
+    has(code, archive) {
+      return this.file.lines.some((l) => l.archive && base(l.archive).toLowerCase() === base(archive).toLowerCase() &&
+        (this.file.kind !== "chr" || (l.code || "").toUpperCase() === code.toUpperCase()))
+    },
+    // the lines a race could be added as: a model per archive for a zone
+    // file, an archive for GlobalLoad.txt
+    options(race) {
+      const out  = []
+      const seen = {}
+      ;(race.sources || []).forEach((s) => {
+        const models = this.file.kind === "chr" ? (s.models || []) : [{ code: "" }]
+        models.forEach((m) => {
+          const archive = this.file.kind === "chr" ? base(s.source_file) : globalLoadName(s.source_file)
+          const key     = m.code + "," + archive.toLowerCase()
+          if (seen[key]) {
+            return
+          }
+          seen[key] = true
+          out.push({
+            key: key,
+            code: m.code,
+            archive: archive,
+            label: (m.code ? m.code.toUpperCase() + " in " : "") + archive,
+            global: s.is_global,
+            added: this.has(m.code, archive),
+            title: s.source_file + (s.loaded_via_description ? " (" + s.loaded_via_description + ")" : ""),
+          })
+        })
+      })
+      return out
+    },
+    add(option) {
+      this.addLine(option.code, option.archive)
+    },
+    addManual() {
+      this.addLine(this.manualCode.trim(), this.manualArchive.trim())
+      this.manualCode    = ""
+      this.manualArchive = ""
+    },
+    addLine(code, archive) {
+      if (this.has(code, archive)) {
+        return
+      }
+      this.file.lines.push(this.file.kind === "chr" ? { code: code.toUpperCase(), archive: archive } : { archive: archive })
+      this.dirty = true
+    },
+    removeLine(i) {
+      const l = this.file.lines[i]
+      if (this.file.kind === "globalload" && l.raw && !confirm("Remove " + l.archive + " from GlobalLoad.txt? Every zone stops loading it.")) {
+        return
+      }
+      this.file.lines.splice(i, 1)
+      this.dirty = true
+    },
+    async save() {
+      this.saving = true
+      this.error  = ""
+      try {
+        const r           = await SpireApi.v1().put("client-assets/race-file", this.file)
+        this.file         = r.data.file
+        this.held         = true
+        this.dirty        = false
+        this.notification = r.data.result + ". Publish on Client Patch to send it to players."
+        await this.loadFiles()
+        this.path = this.file.path
+      } catch (e) {
+        this.showError(e)
+      }
+      this.saving = false
+    },
+  },
+  async mounted() {
+    await Promise.all([this.loadFiles(), this.loadRaces()])
+  },
+  beforeRouteLeave(to, from, next) {
+    next(this.confirmLeave())
+  },
+}
+</script>
+
+<style scoped>
+.hint {
+  font-size: 13px;
+}
+
+.race-lines td {
+  vertical-align: middle;
+}
+
+/* the race sprites are drawn large: shown at a third */
+.race-pic-cell {
+  width: 64px;
+}
+
+.race-lines td:nth-child(2) {
+  width: 100%;
+}
+
+.race-pic {
+  width: 56px;
+  height: 56px;
+  display: inline-block;
+  overflow: hidden;
+  position: relative;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
+/* out of the layout, so its full size takes no room */
+.race-pic-sprite {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform: scale(.33);
+  transform-origin: top left;
+}
+
+.race-added {
+  display: inline-block;
+  font-size: 13px;
+  padding: 3px 8px;
+  border: 1px solid rgba(255, 255, 255, .2);
+  border-radius: 4px;
+  opacity: .7;
+}
+
+.race-result {
+  border-bottom: 1px solid rgba(255, 255, 255, .1);
+  padding: 6px 0;
+}
+</style>

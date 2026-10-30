@@ -383,6 +383,12 @@ export default {
             icon: "fa fa-archive mr-1",
             routes: ['starfall/client-patch']
           },
+          {
+            title: "Race Loading",
+            to: ROUTE.STARFALL_RACE_LOADING,
+            icon: "ra ra-monster-skull mr-1",
+            routes: ['starfall/race-loading']
+          },
         ]
       },
       botNav: {
