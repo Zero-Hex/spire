@@ -154,7 +154,7 @@ const router = new Router({
         {
           path: ROUTE.STARFALL_ZONE_LOOT,
           component: () => import('./views/starfall/ZoneLoot.vue'),
-          meta: {title: "Zone Loot"},
+          meta: {title: "Zone Workbench"},
         },
         {
           path: ROUTE.STRINGS_DATABASE,

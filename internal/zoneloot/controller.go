@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/EQEmu/spire/internal/clientassets"
 	"github.com/EQEmu/spire/internal/database"
 	"github.com/EQEmu/spire/internal/http/routes"
 	"github.com/EQEmu/spire/internal/models"
@@ -21,10 +22,11 @@ import (
 type Controller struct {
 	db       *database.Resolver
 	pathmgmt *pathmgmt.PathManagement
+	store    *clientassets.Store
 }
 
-func NewController(db *database.Resolver, pathmgmt *pathmgmt.PathManagement) *Controller {
-	return &Controller{db: db, pathmgmt: pathmgmt}
+func NewController(db *database.Resolver, pathmgmt *pathmgmt.PathManagement, store *clientassets.Store) *Controller {
+	return &Controller{db: db, pathmgmt: pathmgmt, store: store}
 }
 
 func (z *Controller) Routes() []*routes.Route {
@@ -33,6 +35,9 @@ func (z *Controller) Routes() []*routes.Route {
 		routes.RegisterRoute(http.MethodPost, "zone-loot/:zone/edit", z.edit, nil),
 		routes.RegisterRoute(http.MethodGet, "zone-loot/:zone/items", z.items, nil),
 		routes.RegisterRoute(http.MethodGet, "zone-loot/:zone/pieces", z.pieces, nil),
+		routes.RegisterRoute(http.MethodGet, "zone-loot/:zone/npcs", z.npcs, nil),
+		routes.RegisterRoute(http.MethodGet, "zone-loot/:zone/models", z.models, nil),
+		routes.RegisterRoute(http.MethodPut, "zone-loot/:zone/models", z.saveModels, nil),
 		routes.RegisterRoute(http.MethodPost, "zone-loot/:zone/suggest", z.suggest, nil),
 		routes.RegisterRoute(http.MethodPost, "zone-loot/:zone/make", z.make, nil),
 		routes.RegisterRoute(http.MethodGet, "zone-loot/:zone/snapshots", z.list, nil),
@@ -229,4 +234,46 @@ func (z *Controller) make(c echo.Context) error {
 		return bad(c, err)
 	}
 	return c.JSON(http.StatusOK, echo.Map{"items": res.Items, "lootdrop_id": res.LootdropID, "zone": res.Zone, "snapshot": snap})
+}
+
+// npcs finds NPCs to add to a spawn group, by name or id
+func (z *Controller) npcs(c echo.Context) error {
+	out, err := NPCSearch(z.conn(c), c.QueryParam("q"))
+	if err != nil {
+		return bad(c, err)
+	}
+	return c.JSON(http.StatusOK, out)
+}
+
+func (z *Controller) questsDir() string {
+	if z.pathmgmt.GetEQEmuServerPath() == "" {
+		return ""
+	}
+	return z.pathmgmt.GetQuestsDir()
+}
+
+// models works out the zone's _chr.txt: the race models its NPCs need
+func (z *Controller) models(c echo.Context) error {
+	plan, err := PlanModels(z.conn(c), z.store, z.questsDir(), c.Param("zone"))
+	if err != nil {
+		return bad(c, err)
+	}
+	return c.JSON(http.StatusOK, plan)
+}
+
+// saveModels writes the zone's _chr.txt into the client patch
+func (z *Controller) saveModels(c echo.Context) error {
+	var req ModelSave
+	if err := c.Bind(&req); err != nil {
+		return bad(c, err)
+	}
+	path, err := SaveModels(z.store, c.Param("zone"), req)
+	if err != nil {
+		return bad(c, err)
+	}
+	plan, err := PlanModels(z.conn(c), z.store, z.questsDir(), c.Param("zone"))
+	if err != nil {
+		return bad(c, err)
+	}
+	return c.JSON(http.StatusOK, echo.Map{"path": path, "plan": plan})
 }

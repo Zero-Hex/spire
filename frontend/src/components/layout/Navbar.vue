@@ -390,7 +390,7 @@ export default {
             routes: ['starfall/race-loading']
           },
           {
-            title: "Zone Loot",
+            title: "Zone Workbench",
             to: ROUTE.STARFALL_ZONE_LOOT,
             icon: "ra ra-gem mr-1",
             routes: ['starfall/zone-loot']

@@ -1,10 +1,11 @@
 <template>
   <div>
-    <eq-window-simple title="Zone Loot">
+    <eq-window-simple title="Zone Workbench">
       <div>
-        What a zone's NPCs drop, worked out the way the server rolls loot: each NPC's loot table, its drop groups and
-        their items, as the expected number of each item per kill. Snapshots keep every spawn, NPC and loot row the zone
-        is made of, so you can put them back after editing.
+        A zone's spawns, NPCs and loot: what drops, worked out the way the server rolls loot (the expected number of
+        each item per kill), its spawn groups and points per zone version, and the race models its
+        <code>_chr.txt</code> needs. Snapshots keep every spawn, NPC and loot row the zone is made of, so you can put
+        them back after editing.
       </div>
       <div class="mt-3 d-flex align-items-center flex-wrap">
         <span class="mr-2">Zone</span>
@@ -16,6 +17,7 @@
         <b-button size="sm" variant="outline-warning" class="mr-3" @click="load()" :disabled="!zoneInput.trim() || loading">
           <i :class="'fa ' + (loading ? 'fa-cog fa-spin' : 'fa-search') + ' mr-1'"></i> Load
         </b-button>
+        <b-form-checkbox v-if="data" v-model="editing" switch class="mr-3">Edit</b-form-checkbox>
         <span v-if="data" class="text-muted">
           <b>{{ data.long_name || data.zone }}</b>:
           {{ data.npcs.length }} NPCs, {{ count(data.tables) }} loot tables, {{ count(data.dropgroups) }} drop groups,
@@ -51,8 +53,8 @@
         <div class="d-flex align-items-center flex-wrap">
           <span class="mr-3">
             <i v-if="previewing" class="fa fa-cog fa-spin mr-1"></i>
-            <b>{{ pendingCount() }}</b> unsaved change(s)<span v-if="pendingCount()">: drops per kill below show them</span>
-            <span v-else class="text-muted">: open an NPC and change its loot; nothing is saved until you save</span>
+            <b>{{ pendingCount() }}</b> unsaved change(s)<span v-if="pendingCount()">: the page shows them, drops per kill included</span>
+            <span v-else class="text-muted">: change an NPC's loot or a spawn group; nothing is saved until you save</span>
           </span>
           <a v-if="pendingCount()" href="#" class="mr-3" @click.prevent="showPending = !showPending">{{ showPending ? "Hide" : "Show" }} changes</a>
           <b-button size="sm" variant="success" class="mr-2" :disabled="!pendingCount() || saving" @click="save()">
@@ -68,7 +70,7 @@
           </li>
         </ul>
       </div>
-      <eq-tabs :selected="tab" @on-selected="tab = $event">
+      <eq-tabs :selected="tab" @on-selected="onTab($event)">
         <!-- by NPC -->
         <eq-tab name="By NPC" :selected="tab === 'By NPC'">
           <div class="d-flex align-items-center flex-wrap mb-2">
@@ -77,7 +79,7 @@
             <b-form-radio-group size="sm" v-model="role" :options="roleOptions()" buttons button-variant="outline-secondary"
                                 class="mr-3"/>
             <b-form-checkbox v-model="lootOnly" class="mr-3">Only NPCs with loot</b-form-checkbox>
-            <b-form-checkbox v-model="editing" switch class="mr-3">Edit loot</b-form-checkbox>
+
             <span class="text-muted">{{ npcs().length }} shown</span>
           </div>
           <table class="eq-table eq-highlight-rows zone-loot-npcs">
@@ -381,6 +383,237 @@
           </table>
         </eq-tab>
 
+        <!-- spawns -->
+        <eq-tab name="Spawns" :selected="tab === 'Spawns'">
+          <div class="d-flex align-items-center flex-wrap mb-2">
+            <b-form-input size="sm" v-model="spawnFilter" placeholder="Search spawn groups or NPCs" style="max-width: 260px" class="mr-3"/>
+            <span class="text-muted mr-3">
+              {{ spawngroups().length }} spawn groups, {{ pointCount() }} spawn points in {{ where() }}
+              <span v-if="data.versions.length > 1">(points marked <i>every version</i> are in all of them)</span>
+            </span>
+          </div>
+          <table class="eq-table eq-highlight-rows zone-loot-spawns">
+            <thead>
+            <tr>
+              <th>Spawn group</th>
+              <th class="text-center">Points</th>
+              <th>NPCs (chance)</th>
+              <th class="text-center" title="How many of its NPCs may be up at once (0: no limit)">Limit</th>
+              <th class="text-center">Respawn</th>
+            </tr>
+            </thead>
+            <tbody>
+            <template v-for="g in spawngroups()">
+              <tr :key="'g' + g.id" class="zone-loot-clickable" @click="toggleGroup(g.id)">
+                <td>
+                  <i :class="'fa fa-caret-' + (openGroup[g.id] ? 'down' : 'right') + ' mr-1 text-muted'"></i>
+                  {{ g.name }} <span class="text-muted ml-1">{{ g.id }}</span>
+                  <span v-if="isShared(g)" class="text-warning ml-1" :title="'Also used by ' + outsideNames(g.shared_by)"><i class="fa fa-share-alt"></i> shared</span>
+                </td>
+                <td class="text-center">
+                  {{ g.points.length }}
+                  <span v-if="g.points.some(p => p.version === -1) && data.versions.length > 1" class="text-warning hint">every version</span>
+                </td>
+                <td>
+                  <span v-for="e in g.entries.slice(0, 4)" :key="g.id + '-' + e.npc_id" class="mr-3" style="white-space: nowrap">
+                    {{ npcName(e.npc_id) }} <span class="text-muted">{{ share(g, e) }}</span>
+                  </span>
+                  <span v-if="g.entries.length > 4" class="text-muted">+{{ g.entries.length - 4 }} more</span>
+                  <span v-if="!g.entries.length" class="text-danger">no NPCs</span>
+                </td>
+                <td class="text-center">{{ g.spawn_limit || "–" }}</td>
+                <td class="text-center">{{ respawnRange(g) }}</td>
+              </tr>
+              <tr v-if="openGroup[g.id]" :key="'gd' + g.id" class="zone-loot-detail">
+                <td colspan="5">
+                  <!-- the group -->
+                  <div v-if="isShared(g)" class="text-warning hint mb-1">
+                    Also used by {{ outsideNames(g.shared_by) }}<span v-if="everywhere['g' + g.id]"> (editing everywhere)</span>
+                  </div>
+                  <div v-if="editing" class="zone-loot-actions mb-2">
+                    <template v-if="locked('g', g.id)">
+                      <b-button size="sm" variant="outline-warning" :disabled="structuralBlocked()" :title="structuralTitle()"
+                                @click="act({ op: 'copy_spawngroup', spawngroup_id: g.id }, 'Copy spawn group ' + g.id + ' for ' + where())">
+                        <i class="fa fa-clone mr-1"></i> Copy for {{ where() }}
+                      </b-button>
+                      <b-button size="sm" variant="outline-danger" @click="unlock('g', g.id)">Edit everywhere</b-button>
+                    </template>
+                  </div>
+                  <div class="d-flex align-items-center flex-wrap mb-2">
+                    <template v-if="!editing">
+                      <span class="text-muted mr-3">delay {{ g.delay }} ms</span>
+                      <span v-if="g.despawn" class="text-muted mr-3">despawn {{ g.despawn }} after {{ g.despawn_timer }} min</span>
+                      <span v-if="g.dist || g.max_x || g.min_x" class="text-muted mr-3">
+                        roams {{ g.dist }} within x {{ g.min_x }}–{{ g.max_x }}, y {{ g.min_y }}–{{ g.max_y }}
+                      </span>
+                    </template>
+                    <template v-else>
+                      <span class="mr-1">name</span>
+                      <b-form-input size="sm" style="max-width: 220px" class="mr-2" :disabled="locked('g', g.id)"
+                                    :value="groupValue(g, 'name')" @change="v => setGroup(g, 'name', v, true)"/>
+                      <template v-for="f in groupFields">
+                        <span :key="'gl' + f.key" class="mr-1">{{ f.label }}</span>
+                        <b-form-input :key="'gi' + f.key" size="sm" type="number" class="zone-loot-num mr-2" :disabled="locked('g', g.id)"
+                                      :title="f.title" :value="groupValue(g, f.key)" @change="v => setGroup(g, f.key, v)"/>
+                      </template>
+                    </template>
+                  </div>
+
+                  <!-- its NPCs -->
+                  <table class="zone-loot-items mb-2">
+                    <tr class="text-muted hint"><td>NPC</td><td>level</td><td class="text-right pr-2">chance</td><td>share</td><td></td></tr>
+                    <tr v-for="e in g.entries" :key="'se' + g.id + '-' + e.npc_id">
+                      <td><router-link :to="npcRoute({ id: e.npc_id })">{{ npcName(e.npc_id) }}</router-link>
+                        <span class="text-muted ml-1">{{ e.npc_id }}</span></td>
+                      <td class="text-muted pr-3">{{ npcLevel(e.npc_id) }}</td>
+                      <td class="pr-2">
+                        <span v-if="!editing">{{ e.chance }}</span>
+                        <b-form-input v-else size="sm" type="number" min="0" max="100" class="zone-loot-num zone-loot-num-sm" :disabled="locked('g', g.id)"
+                                      :value="entryChance(g, e)" @change="v => setSpawnEntry(g, e.npc_id, v)"/>
+                      </td>
+                      <td class="text-muted pr-3">{{ share(g, e) }}</td>
+                      <td>
+                        <b-button v-if="editing" size="sm" variant="outline-danger" :disabled="locked('g', g.id)" title="Take the NPC out of the group"
+                                  @click="removeSpawnEntry(g, e.npc_id)"><i class="fa fa-times"></i></b-button>
+                      </td>
+                    </tr>
+                  </table>
+                  <div v-if="editing && !locked('g', g.id)" class="zone-loot-add mb-2">
+                    <b-form-input size="sm" placeholder="Add an NPC: name or id" style="max-width: 260px"
+                                  :value="npcSearch.group === g.id ? npcSearch.q : ''" @input="v => findNPCs(g.id, v)"/>
+                    <div v-if="npcSearch.group === g.id && npcSearch.results.length" class="zone-loot-results">
+                      <div v-for="r in npcSearch.results" :key="'nr' + r.id" class="zone-loot-result" @click="addSpawnEntry(g, r)">
+                        {{ cleanName(r.name) }} <span class="text-muted">{{ r.id }}, level {{ r.level }}, race {{ r.race }}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- its points -->
+                  <table class="zone-loot-items">
+                    <tr class="text-muted hint">
+                      <td>point</td><td>x</td><td>y</td><td>z</td><td>heading</td><td>respawn s</td><td>variance s</td><td>grid</td><td>group</td><td></td>
+                    </tr>
+                    <tr v-for="p in g.points" :key="'pt' + p.id">
+                      <td class="pr-2">{{ p.id }} <span v-if="p.version === -1" class="text-warning hint">every version</span></td>
+                      <template v-if="!editing">
+                        <td class="pr-3">{{ round(p.x, 1) }}</td><td class="pr-3">{{ round(p.y, 1) }}</td><td class="pr-3">{{ round(p.z, 1) }}</td>
+                        <td class="pr-3">{{ round(p.heading, 1) }}</td><td class="pr-3">{{ p.respawntime }} <span class="text-muted hint">{{ duration(p.respawntime) }}</span></td>
+                        <td class="pr-3">{{ p.variance }}</td><td class="pr-3">{{ p.pathgrid || "–" }}</td><td class="pr-3">{{ p.spawngroup_id }}</td><td></td>
+                      </template>
+                      <template v-else>
+                        <td v-for="f in pointFields" :key="'pf' + p.id + f">
+                          <b-form-input size="sm" type="number" :step="['x', 'y', 'z', 'heading'].includes(f) ? 0.1 : 1"
+                                        class="zone-loot-num" :disabled="pointLocked(p)"
+                                        :value="pointValue(p, f)" @change="v => setPoint(p, f, v)"/>
+                        </td>
+                        <td style="white-space: nowrap">
+                          <b-button v-if="pointLocked(p)" size="sm" variant="outline-danger" class="mr-1" @click="unlock('p', p.id)"
+                                    title="This point is in every version">Edit everywhere</b-button>
+                          <b-button size="sm" variant="outline-secondary" class="mr-1" :disabled="structuralBlocked() || pointLocked(p)" :title="structuralTitle() || 'A new, empty spawn group for this point'"
+                                    @click="act({ op: 'new_spawngroup', spawn_ids: [p.id], everywhere: !!everywhere['p' + p.id] }, 'New spawn group for spawn point ' + p.id)">New group</b-button>
+                          <b-button v-if="g.points.length > 1" size="sm" variant="outline-secondary" :disabled="structuralBlocked() || pointLocked(p)"
+                                    :title="structuralTitle() || 'A copy of this group for this point only'"
+                                    @click="act({ op: 'copy_spawngroup', spawngroup_id: g.id, spawn_ids: [p.id], everywhere: !!everywhere['p' + p.id] }, 'Copy spawn group ' + g.id + ' for spawn point ' + p.id)">Copy group</b-button>
+                        </td>
+                      </template>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+            </template>
+            </tbody>
+          </table>
+        </eq-tab>
+
+        <!-- race models -->
+        <eq-tab name="Models" :selected="tab === 'Models'">
+          <div class="mb-2">
+            <code>{{ data.zone }}_chr.txt</code> lists the race models the zone loads beyond what every zone loads
+            (<code>GlobalLoad.txt</code>, <code>GlobalLoad_chr.txt</code>) and what its own <code>{{ data.zone }}_chr.s3d</code> holds.
+            One file serves every version, so this looks at every version's spawns, and NPCs the zone's quests spawn.
+            Pets and NPCs other zones' quests send here aren't counted. Saved, it goes in the client patch: publish it to
+            Beta on <router-link :to="clientPatchRoute">Client Patch</router-link>, then Promote to Live.
+          </div>
+          <div class="d-flex align-items-center mb-2">
+            <b-button size="sm" variant="outline-warning" class="mr-2" :disabled="models.busy" @click="loadModels()">
+              <i :class="'fa ' + (models.busy ? 'fa-cog fa-spin' : 'fa-refresh') + ' mr-1'"></i> Work it out again
+            </b-button>
+            <span v-if="pendingCount()" class="text-warning hint">This reads the saved spawns: save your changes first.</span>
+          </div>
+          <info-error-banner :error="models.error" :notification="models.notification"
+                             @dismiss-error="models.error = ''" @dismiss-notification="models.notification = ''"/>
+          <div v-if="models.plan">
+            <div v-if="models.plan.needs_upload" class="text-warning mb-2">
+              The client ships its own {{ models.plan.path }}, and Spire's copy replaces it: upload the client's copy first so
+              its lines are kept.
+              <b-button size="sm" variant="outline-secondary" class="ml-2" @click="$refs.chrPicker.click()">
+                <i class="fa fa-upload mr-1"></i> Upload {{ models.plan.path }}
+              </b-button>
+              <input ref="chrPicker" type="file" accept=".txt" style="display: none" @change="uploadChr">
+            </div>
+            <div v-else class="text-muted hint mb-2">
+              {{ models.plan.held ? "Spire keeps " + models.plan.path + " for the patch" + (models.plan.mode ? " (" + models.plan.mode + ")" : "") :
+                "The client has no " + models.plan.path + ": saving makes one" }}.
+              {{ models.plan.global }} models load in every zone.
+              <router-link :to="raceLoadingRoute">Open it in Race Loading</router-link>
+            </div>
+
+            <h6 class="mt-3">Models the NPCs here show</h6>
+            <table class="eq-table zone-loot-items mb-3">
+              <tr class="text-muted hint"><td>model</td><td>race</td><td>loaded by</td><td>NPCs</td></tr>
+              <tr v-for="n in models.plan.needs" :key="'mn' + n.code">
+                <td class="pr-3"><code>{{ n.code }}</code></td>
+                <td class="pr-3">{{ n.race_name }} <span class="text-muted">{{ n.race }}</span></td>
+                <td class="pr-3"><span :class="'zone-loot-from zone-loot-from-' + n.from">{{ fromLabel(n) }}</span></td>
+                <td class="text-muted hint">{{ n.npcs.map(x => cleanName(x.name)).join(", ") }}</td>
+              </tr>
+            </table>
+            <div v-if="models.plan.no_model.length" class="hint text-muted mb-2">
+              No known model for {{ models.plan.no_model.map(x => cleanName(x.name) + " (" + x.id + ")").join(", ") }}.
+            </div>
+            <div v-if="models.plan.quest_npcs.length" class="hint text-muted mb-2">
+              Counted from the zone's quests: {{ models.plan.quest_npcs.map(x => cleanName(x.name)).join(", ") }}.
+            </div>
+
+            <template v-if="!models.plan.needs_upload">
+              <h6>Lines in {{ models.plan.path }}</h6>
+              <div v-if="!models.plan.lines.length" class="text-muted hint mb-2">None yet.</div>
+              <table v-else class="eq-table zone-loot-items mb-3">
+                <tr class="text-muted hint"><td>remove</td><td>line</td><td></td><td>why</td></tr>
+                <tr v-for="l in models.plan.lines" :key="'ml' + l.index" :class="models.remove[l.index] ? 'zone-loot-struck' : ''">
+                  <td><b-form-checkbox :checked="!!models.remove[l.index]" @change="v => $set(models.remove, l.index, v)"/></td>
+                  <td class="pr-3"><code>{{ l.code }},{{ l.archive }}</code>
+                    <span v-if="models.plan.archives[l.archive] > 1" class="text-muted hint">({{ models.plan.archives[l.archive] }} models in it)</span></td>
+                  <td class="pr-3"><span :class="'zone-loot-from zone-loot-from-' + l.status">{{ l.status }}</span></td>
+                  <td class="text-muted hint">{{ l.why }}</td>
+                </tr>
+              </table>
+              <h6>Lines to add</h6>
+              <div v-if="!models.plan.adds.length" class="text-muted hint mb-2">None: every model the NPCs show is loaded.</div>
+              <table v-else class="eq-table zone-loot-items mb-3">
+                <tr class="text-muted hint"><td>add</td><td>model</td><td>from archive</td><td>for</td></tr>
+                <tr v-for="a in models.plan.adds" :key="'ma' + a.code">
+                  <td><b-form-checkbox :checked="models.add[a.code] !== false" @change="v => $set(models.add, a.code, v)"/></td>
+                  <td class="pr-3"><code>{{ a.code }}</code> {{ a.race_name }}</td>
+                  <td class="pr-3">
+                    <b-form-input size="sm" class="zone-loot-num" style="width: 150px" :value="models.archive[a.code] || a.archive"
+                                  @change="v => $set(models.archive, a.code, v)"/>
+                    <span v-if="models.plan.archives[a.archive] > 1" class="text-muted hint">({{ models.plan.archives[a.archive] }} models)</span>
+                  </td>
+                  <td class="text-muted hint">{{ a.npcs.map(x => cleanName(x.name)).join(", ") }}</td>
+                </tr>
+              </table>
+              <div class="d-flex align-items-center flex-wrap">
+                <b-form-radio-group size="sm" v-model="models.mode" class="mr-3"
+                                    :options="[{ value: 'add', text: 'Send it (Beta, then Promote to Live)' }, { value: 'beta', text: 'Beta only' }]"/>
+                <b-button size="sm" variant="success" :disabled="models.busy || !modelChanges()" @click="saveModels()">
+                  <i class="fa fa-save mr-1"></i> Save {{ models.plan.path }} ({{ modelChanges() }} change{{ modelChanges() === 1 ? "" : "s" }})
+                </b-button>
+              </div>
+            </template>
+          </div>
+        </eq-tab>
+
         <!-- snapshots -->
         <eq-tab name="Snapshots" :selected="tab === 'Snapshots'">
           <div class="mb-2">
@@ -619,6 +852,26 @@ export default {
       diffs: {},
       keyNames: KEY_NAMES,
 
+      // spawns
+      spawnFilter: "",
+      openGroup: {},
+      npcSearch: { group: 0, q: "", results: [], timer: null },
+      groupFields: [
+        { key: "spawn_limit", label: "limit", title: "How many of its NPCs may be up at once (0: no limit)" },
+        { key: "delay", label: "delay ms", title: "Roaming: how long it waits between moves" },
+        { key: "despawn", label: "despawn", title: "0 none; 1-4: how it despawns" },
+        { key: "despawn_timer", label: "after min", title: "Despawn timer, minutes" },
+        { key: "dist", label: "roam", title: "Roam distance (0: no roam box)" },
+        { key: "min_x", label: "x", title: "Roam box min x" }, { key: "max_x", label: "–", title: "Roam box max x" },
+        { key: "min_y", label: "y", title: "Roam box min y" }, { key: "max_y", label: "–", title: "Roam box max y" },
+      ],
+      pointFields: ["x", "y", "z", "heading", "respawntime", "variance", "pathgrid", "spawngroup_id"],
+
+      // race models
+      models: { plan: null, busy: false, error: "", notification: "", remove: {}, add: {}, archive: {}, mode: "add" },
+      clientPatchRoute: ROUTE.STARFALL_CLIENT_PATCH,
+      raceLoadingRoute: ROUTE.STARFALL_RACE_LOADING,
+
       // editing
       editing: false,
       pending: {},     // unsaved edits, by row
@@ -630,6 +883,7 @@ export default {
       saving: false,
       showPending: false,
       search: { drop: 0, q: "", results: [], timer: null },
+      pendingNpcNames: {},
 
       // making items
       maker: {
@@ -808,16 +1062,208 @@ export default {
       }
     },
 
+    onTab(name) {
+      this.tab = name
+      if (name === "Models" && (!this.models.plan || this.models.zone !== this.data.zone)) {
+        this.models.zone = this.data.zone
+        this.loadModels()
+      }
+    },
+
+    // --- spawns ---
+    spawngroups() {
+      const q = this.spawnFilter.trim().toLowerCase()
+      return Object.values(this.data.spawngroups || {})
+        .filter(g => !q || g.name.toLowerCase().includes(q) || String(g.id) === q ||
+          g.entries.some(e => this.npcName(e.npc_id).toLowerCase().includes(q)))
+        .sort((a, b) => a.name.localeCompare(b.name))
+    },
+    pointCount() {
+      return Object.values(this.data.spawngroups || {}).reduce((a, g) => a + g.points.length, 0)
+    },
+    npc(id) {
+      return this.data.npcs.find(n => n.id === id) || (this.base && this.base.npcs.find(n => n.id === id))
+    },
+    npcName(id) {
+      const n = this.npc(id)
+      return n ? this.cleanName(n.name) : (this.pendingNpcNames[id] || `NPC ${id}`)
+    },
+    npcLevel(id) {
+      const n = this.npc(id)
+      return n ? this.levels(n) : ""
+    },
+    share(g, e) {
+      const total = g.entries.reduce((a, x) => a + x.chance, 0)
+      return total ? this.round(e.chance / total * 100, 1) + "%" : "–"
+    },
+    respawnRange(g) {
+      if (!g.points.length) {
+        return "–"
+      }
+      const r = g.points.map(p => p.respawntime)
+      const lo = Math.min(...r), hi = Math.max(...r)
+      return lo === hi ? this.duration(lo) : `${this.duration(lo)}–${this.duration(hi)}`
+    },
+    duration(s) {
+      if (s >= 3600) {
+        return this.round(s / 3600, 1) + "h"
+      }
+      return s >= 60 ? this.round(s / 60, 1) + "m" : s + "s"
+    },
+    toggleGroup(id) {
+      this.$set(this.openGroup, id, !this.openGroup[id])
+    },
+    pointLocked(p) {
+      return p.version === -1 && this.data.versions.length > 1 && !this.everywhere["p" + p.id]
+    },
+    groupValue(g, field) {
+      return this.pendingValue(`sg:${g.id}`, field, g[field])
+    },
+    setGroup(g, field, v, text) {
+      const value = text ? String(v) : (["dist", "min_x", "max_x", "min_y", "max_y"].includes(field) ? this.num(v) : Math.round(this.num(v)))
+      this.stage(`sg:${g.id}`, { op: "spawngroup", spawngroup_id: g.id, everywhere: !!this.everywhere["g" + g.id] }, field, value)
+    },
+    entryChance(g, e) {
+      return this.pendingValue(`se:${g.id}:${e.npc_id}`, "chance", e.chance)
+    },
+    setSpawnEntry(g, npcId, v) {
+      this.stage(`se:${g.id}:${npcId}`, { op: "spawnentry", spawngroup_id: g.id, npc_id: npcId, label: this.npcName(npcId), everywhere: !!this.everywhere["g" + g.id] },
+        "chance", Math.round(this.num(v)))
+    },
+    removeSpawnEntry(g, npcId) {
+      const key = `se:${g.id}:${npcId}`
+      if (this.pending[key] && this.pending[key].added) {
+        this.undo(key)
+        return
+      }
+      this.$set(this.pending, key, { op: "spawnentry", spawngroup_id: g.id, npc_id: npcId, remove: true, label: this.npcName(npcId), everywhere: !!this.everywhere["g" + g.id] })
+      this.schedulePreview()
+    },
+    findNPCs(groupId, q) {
+      this.npcSearch.group = groupId
+      this.npcSearch.q = q
+      clearTimeout(this.npcSearch.timer)
+      if (!q.trim()) {
+        this.npcSearch.results = []
+        return
+      }
+      this.npcSearch.timer = setTimeout(async () => {
+        try {
+          const r = await SpireApi.v1().get(`zone-loot/${this.data.zone}/npcs`, { params: { q: q } })
+          if (this.npcSearch.q === q) {
+            this.npcSearch.results = r.data
+          }
+        } catch (e) {
+          this.error = this.message(e)
+        }
+      }, 250)
+    },
+    addSpawnEntry(g, n) {
+      this.$set(this.pendingNpcNames, n.id, this.cleanName(n.name))
+      this.$set(this.pending, `se:${g.id}:${n.id}`, {
+        op: "spawnentry", spawngroup_id: g.id, npc_id: n.id, chance: g.entries.length ? 10 : 100, added: true,
+        label: n.name, everywhere: !!this.everywhere["g" + g.id],
+      })
+      this.npcSearch = { group: 0, q: "", results: [], timer: null }
+      this.schedulePreview()
+    },
+    pointValue(p, field) {
+      return this.pendingValue(`s2:${p.id}`, field, p[field])
+    },
+    setPoint(p, field, v) {
+      const value = ["x", "y", "z", "heading"].includes(field) ? this.num(v) : Math.round(this.num(v))
+      this.stage(`s2:${p.id}`, { op: "spawn2", spawn_id: p.id, everywhere: !!this.everywhere["p" + p.id] }, field, value)
+    },
+
+    // --- race models ---
+    async loadModels() {
+      this.models.busy  = true
+      this.models.error = ""
+      try {
+        const r = await SpireApi.v1().get(`zone-loot/${this.data.zone}/models`)
+        this.setModelPlan(r.data)
+      } catch (e) {
+        this.models.error = this.message(e)
+      } finally {
+        this.models.busy = false
+      }
+    },
+    setModelPlan(plan) {
+      const remove = {}
+      plan.lines.forEach(l => (remove[l.index] = l.remove))
+      Object.assign(this.models, { plan: plan, remove: remove, add: {}, archive: {}, mode: plan.mode === "beta" ? "beta" : "add" })
+    },
+    fromLabel(n) {
+      return {
+        global: "every zone", zone: `${this.data.zone}_chr.s3d`, line: `line: ${n.archive}`, add: `needs a line: ${n.archive}`,
+        missing: "no archive Spire knows has it",
+      }[n.from] || n.from
+    },
+    modelChanges() {
+      const p = this.models.plan
+      if (!p) {
+        return 0
+      }
+      const removed = p.lines.filter(l => this.models.remove[l.index]).length
+      const added = p.adds.filter(a => this.models.add[a.code] !== false).length
+      const mode = (p.mode === "beta" ? "beta" : "add") !== this.models.mode && p.held ? 1 : 0
+      return removed + added + mode
+    },
+    async saveModels() {
+      const p = this.models.plan
+      this.models.busy  = true
+      this.models.error = ""
+      try {
+        const r = await SpireApi.v1().put(`zone-loot/${this.data.zone}/models`, {
+          remove: p.lines.filter(l => this.models.remove[l.index]).map(l => l.index),
+          add: p.adds.filter(a => this.models.add[a.code] !== false).map(a => ({ code: a.code, archive: this.models.archive[a.code] || a.archive })),
+          mode: this.models.mode, updated: p.updated,
+        })
+        this.setModelPlan(r.data.plan)
+        this.models.notification = `Saved ${r.data.path} to the client patch` +
+          (this.models.mode === "beta" ? " (beta only)" : "") + ": publish it on Client Patch."
+      } catch (e) {
+        this.models.error = this.message(e)
+      } finally {
+        this.models.busy = false
+      }
+    },
+    async uploadChr(ev) {
+      const f = ev.target.files[0]
+      ev.target.value = ""
+      if (!f) {
+        return
+      }
+      if (f.name.toLowerCase() !== this.models.plan.path.toLowerCase()) {
+        this.models.error = `That's ${f.name}: pick ${this.models.plan.path} from your client folder`
+        return
+      }
+      const form = new FormData()
+      form.append("files", f, f.name)
+      form.append("paths", this.models.plan.path)
+      try {
+        const r = await SpireApi.v1().post("client-assets/upload", form)
+        const res = (r.data.results || [])[0] || {}
+        if (res.error) {
+          this.models.error = res.error
+          return
+        }
+        await this.loadModels()
+      } catch (e) {
+        this.models.error = this.message(e)
+      }
+    },
+
     // --- editing ---
     pendingCount() {
       return Object.keys(this.pending).length
     },
     locked(kind, id) {
-      const x = kind === "t" ? this.data.tables[id] : this.data.dropgroups[id]
+      const x = { t: this.data.tables, d: this.data.dropgroups, g: this.data.spawngroups }[kind][id]
       return this.isShared(x) && !this.everywhere[kind + id]
     },
     unlock(kind, id) {
-      const what = kind === "t" ? `loot table ${id}` : `drop group ${id}`
+      const what = { t: `loot table ${id}`, d: `drop group ${id}`, g: `spawn group ${id}`, p: `spawn point ${id}` }[kind]
       if (confirm(`Change ${what} everywhere? Its changes reach every NPC using it, outside ${this.where()} too.`)) {
         this.$set(this.everywhere, kind + id, true)
       }
@@ -882,7 +1328,7 @@ export default {
       if (id < 0) {
         return
       }
-      this.$set(this.pending, `nt:${n.id}`, { op: "npc_loottable", npc_id: n.id, loottable_id: id, name: n.name })
+      this.$set(this.pending, `nt:${n.id}`, { op: "npc_loottable", npc_id: n.id, loottable_id: id, label: n.name })
       this.schedulePreview()
     },
     itemValue(dropId, it, field) {
@@ -898,7 +1344,7 @@ export default {
         this.undo(key)
         return
       }
-      this.$set(this.pending, key, { op: "lootdrop_entry", lootdrop_id: dropId, item_id: it.item_id, remove: true, name: this.itemName(it.item_id), everywhere: !!this.everywhere["d" + dropId] })
+      this.$set(this.pending, key, { op: "lootdrop_entry", lootdrop_id: dropId, item_id: it.item_id, remove: true, label: this.itemName(it.item_id), everywhere: !!this.everywhere["d" + dropId] })
       this.schedulePreview()
     },
     findItems(dropId, q) {
@@ -923,7 +1369,7 @@ export default {
     addItem(dropId, item) {
       this.$set(this.pending, `le:${dropId}:${item.id}`, {
         op: "lootdrop_entry", lootdrop_id: dropId, item_id: item.id, chance: 10, multiplier: 1,
-        added: true, name: item.name, everywhere: !!this.everywhere["d" + dropId],
+        added: true, label: item.name, everywhere: !!this.everywhere["d" + dropId],
       })
       this.search = { drop: 0, q: "", results: [], timer: null }
       this.schedulePreview()
@@ -939,10 +1385,10 @@ export default {
     },
     // the order they're applied in: an NPC's table first, then tables, then drop groups
     editList() {
-      const order = { npc_loottable: 0, loottable: 1, loottable_entry: 2, lootdrop: 3, lootdrop_entry: 4 }
+      const order = { spawn2: 0, spawngroup: 1, spawnentry: 2, npc_loottable: 3, loottable: 4, loottable_entry: 5, lootdrop: 6, lootdrop_entry: 7 }
       return Object.values(this.pending)
         .map(e => {
-          const { added, name, ...edit } = e
+          const { added, label, ...edit } = e
           return edit
         })
         .sort((a, b) => order[a.op] - order[b.op])
@@ -1016,7 +1462,7 @@ export default {
           version: this.data.version, edits: [edit], snapshot: !this.snapshotted, note: `before: ${what}`,
         })
         this.base = this.data = r.data.zone
-        const made = r.data.created.map(c => `${c.table === "loottable" ? "loot table" : "drop group"} ${c.id}`).join(", ")
+        const made = r.data.created.map(c => `${{ loottable: "loot table", lootdrop: "drop group", spawngroup: "spawn group" }[c.table] || c.table} ${c.id}`).join(", ")
         this.notification = `${what}: made ${made}` + (r.data.snapshot ? `; how it was is kept as snapshot ${r.data.snapshot.id}` : "")
         this.snapshotted = true
         await this.loadSnapshots()
@@ -1027,7 +1473,7 @@ export default {
       }
     },
     describe(e) {
-      const item = id => e.name || this.itemName(id)
+      const item = id => e.label || this.itemName(id)
       const fields = { chance: "chance %", multiplier: "multiplier", item_charges: "charges", equip_item: "equipped", npc_min_level: "NPC min level",
         npc_max_level: "NPC max level", droplimit: "up to", mindrop: "at least", probability: "probability %", mincash: "min cash", maxcash: "max cash" }
       const vals = Object.keys(fields).filter(f => e[f] !== undefined).map(f => `${fields[f]} ${e[f]}`).join(", ")
@@ -1046,7 +1492,18 @@ export default {
         case "loottable":
           return `Loot table ${e.loottable_id}: ${vals}${all}`
         case "npc_loottable":
-          return `${this.cleanName(e.name)} uses ${e.loottable_id ? "loot table " + e.loottable_id : "no loot table"}`
+          return `${this.cleanName(e.label)} uses ${e.loottable_id ? "loot table " + e.loottable_id : "no loot table"}`
+        case "spawn2":
+          return `Spawn point ${e.spawn_id}: ` + Object.keys(e).filter(k => !["op", "spawn_id", "everywhere", "label"].includes(k))
+            .map(k => `${k === "spawngroup_id" ? "spawn group" : k} ${e[k]}`).join(", ") + all
+        case "spawngroup":
+          return `Spawn group ${e.spawngroup_id}: ` + Object.keys(e).filter(k => !["op", "spawngroup_id", "everywhere", "label"].includes(k))
+            .map(k => `${k.replace(/_/g, " ")} ${e[k]}`).join(", ") + all
+        case "spawnentry":
+          if (e.remove) {
+            return `Take ${this.cleanName(e.label || "NPC " + e.npc_id)} out of spawn group ${e.spawngroup_id}${all}`
+          }
+          return `${e.added ? "Add" : "Change"} ${this.cleanName(e.label || "NPC " + e.npc_id)} in spawn group ${e.spawngroup_id}: chance ${e.chance}${all}`
       }
       return e.op
     },
@@ -1368,6 +1825,35 @@ export default {
 .zone-loot-result {
   padding: 3px 8px;
   cursor: pointer;
+}
+
+.zone-loot-from {
+  font-size: 0.85em;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.08);
+  white-space: nowrap;
+}
+
+.zone-loot-from-add, .zone-loot-from-unused {
+  background: rgba(255, 193, 7, 0.3);
+}
+
+.zone-loot-from-missing {
+  background: rgba(220, 53, 69, 0.4);
+}
+
+.zone-loot-from-line, .zone-loot-from-needed {
+  background: rgba(40, 167, 69, 0.3);
+}
+
+.zone-loot-from-variant {
+  background: rgba(23, 162, 184, 0.3);
+}
+
+.zone-loot-struck code {
+  text-decoration: line-through;
+  opacity: 0.6;
 }
 
 .zone-loot-maker-row {

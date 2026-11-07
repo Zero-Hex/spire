@@ -88,3 +88,10 @@ func (q *StaticMapController) getStaticMapFileCompressed(c echo.Context) error {
 
 	return c.JSONBlob(http.StatusOK, file)
 }
+
+// RaceInventoryMap is the race list: each race's model codes and the
+// archives that hold them
+func RaceInventoryMap() []byte { return raceInventoryMap }
+
+// Rof2RaceArchives is which RoF2 client archives hold each race model code
+func Rof2RaceArchives() []byte { return rof2RaceArchives }

@@ -25,6 +25,7 @@ type NPC struct {
 	Level       int     `json:"level"`
 	MaxLevel    int     `json:"maxlevel"`
 	Race        int     `json:"race"`
+	Gender      int     `json:"gender"`
 	Class       int     `json:"class"`
 	LoottableID int     `json:"loottable_id"`
 	RareSpawn   bool    `json:"rare_spawn"`
@@ -82,15 +83,16 @@ type Item struct {
 }
 
 type ZoneLoot struct {
-	Zone             string             `json:"zone"`
-	Version          int                `json:"version"`  // the zone version shown
-	Versions         []int              `json:"versions"` // versions the zone has spawns or a zone row for
-	LongName         string             `json:"long_name"`
-	GlobalMultiplier int                `json:"global_multiplier"`
-	NPCs             []NPC              `json:"npcs"`
-	Tables           map[int]*Table     `json:"tables"`
-	Dropgroups       map[int]*Dropgroup `json:"dropgroups"`
-	Items            map[int]*Item      `json:"items"`
+	Zone             string              `json:"zone"`
+	Version          int                 `json:"version"`  // the zone version shown
+	Versions         []int               `json:"versions"` // versions the zone has spawns or a zone row for
+	LongName         string              `json:"long_name"`
+	GlobalMultiplier int                 `json:"global_multiplier"`
+	NPCs             []NPC               `json:"npcs"`
+	Tables           map[int]*Table      `json:"tables"`
+	Dropgroups       map[int]*Dropgroup  `json:"dropgroups"`
+	Items            map[int]*Item       `json:"items"`
+	Spawngroups      map[int]*Spawngroup `json:"spawngroups"`
 }
 
 // scope is the rows a zone's loot is made of, by key
@@ -149,7 +151,7 @@ func nonEmpty(ids []int) []int {
 // items, and works out what each NPC drops per kill
 func Load(db *gorm.DB, zone string, version int) (*ZoneLoot, error) {
 	zone = strings.ToLower(strings.TrimSpace(zone))
-	out := &ZoneLoot{Zone: zone, Version: version, GlobalMultiplier: 1, Tables: map[int]*Table{}, Dropgroups: map[int]*Dropgroup{}, Items: map[int]*Item{}}
+	out := &ZoneLoot{Zone: zone, Version: version, GlobalMultiplier: 1, Tables: map[int]*Table{}, Dropgroups: map[int]*Dropgroup{}, Items: map[int]*Item{}, Spawngroups: map[int]*Spawngroup{}}
 	var names []struct{ LongName string }
 	if err := db.Raw("SELECT long_name FROM zone WHERE short_name = ? ORDER BY version = ? DESC, version LIMIT 1", zone, version).Scan(&names).Error; err != nil {
 		return nil, err
@@ -220,11 +222,11 @@ func Load(db *gorm.DB, zone string, version int) (*ZoneLoot, error) {
 
 	// NPCs
 	var npcs []struct {
-		ID, Level, Maxlevel, Race, Class, LoottableID int
-		Name                                          string
-		RareSpawn, RaidTarget                         int
+		ID, Level, Maxlevel, Race, Gender, Class, LoottableID int
+		Name                                                  string
+		RareSpawn, RaidTarget                                 int
 	}
-	if err := db.Raw("SELECT id, name, level, maxlevel, race, class, loottable_id, rare_spawn, raid_target FROM npc_types WHERE id IN ?", nonEmpty(s.npcs)).Scan(&npcs).Error; err != nil {
+	if err := db.Raw("SELECT id, name, level, maxlevel, race, gender, class, loottable_id, rare_spawn, raid_target FROM npc_types WHERE id IN ?", nonEmpty(s.npcs)).Scan(&npcs).Error; err != nil {
 		return nil, err
 	}
 
@@ -327,7 +329,7 @@ func Load(db *gorm.DB, zone string, version int) (*ZoneLoot, error) {
 	}
 
 	for _, n := range npcs {
-		npc := NPC{ID: n.ID, Name: n.Name, Level: n.Level, MaxLevel: n.Maxlevel, Race: n.Race, Class: n.Class,
+		npc := NPC{ID: n.ID, Name: n.Name, Level: n.Level, MaxLevel: n.Maxlevel, Race: n.Race, Gender: n.Gender, Class: n.Class,
 			LoottableID: n.LoottableID, RareSpawn: n.RareSpawn != 0, RaidTarget: n.RaidTarget != 0, Spawns: spawns[n.ID], Drops: []Drop{}}
 		switch {
 		case npc.RaidTarget:
@@ -356,6 +358,9 @@ func Load(db *gorm.DB, zone string, version int) (*ZoneLoot, error) {
 		}
 		return out.NPCs[i].Name < out.NPCs[j].Name
 	})
+	if err := loadSpawns(db, zone, version, s, out); err != nil {
+		return nil, err
+	}
 	return out, nil
 }
 

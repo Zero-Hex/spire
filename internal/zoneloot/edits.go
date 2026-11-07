@@ -26,6 +26,15 @@ import (
 //	copy_lootdrop    LootdropID, for LoottableIDs (default: every loot table here using it)
 //	new_loottable    Name, for NpcIDs
 //	new_lootdrop     Name, added to LoottableID
+//
+// Spawns (a spawn point in every version, -1, of a zone with others changes
+// only with Everywhere):
+//
+//	spawn2           SpawnID: SpawngroupID, Respawntime, Variance, Pathgrid, X, Y, Z, Heading
+//	spawngroup       SpawngroupID: Name, SpawnLimit, Delay, Despawn, DespawnTimer, Dist, MinX, MaxX, MinY, MaxY
+//	spawnentry       SpawngroupID + NpcID: Chance (a whole number), or Remove
+//	copy_spawngroup  SpawngroupID, for SpawnIDs (default: every spawn point here using it)
+//	new_spawngroup   Name, for SpawnIDs
 type Edit struct {
 	Op string `json:"op"`
 
@@ -51,6 +60,27 @@ type Edit struct {
 	NpcIDs       []int `json:"npc_ids,omitempty"`
 	Deep         bool  `json:"deep,omitempty"`
 	LoottableIDs []int `json:"loottable_ids,omitempty"`
+
+	// spawns
+	SpawnID      int      `json:"spawn_id,omitempty"`
+	SpawngroupID *int     `json:"spawngroup_id,omitempty"`
+	Respawntime  *int     `json:"respawntime,omitempty"`
+	Variance     *int     `json:"variance,omitempty"`
+	Pathgrid     *int     `json:"pathgrid,omitempty"`
+	X            *float64 `json:"x,omitempty"`
+	Y            *float64 `json:"y,omitempty"`
+	Z            *float64 `json:"z,omitempty"`
+	Heading      *float64 `json:"heading,omitempty"`
+	SpawnLimit   *int     `json:"spawn_limit,omitempty"`
+	Delay        *int     `json:"delay,omitempty"`
+	Despawn      *int     `json:"despawn,omitempty"`
+	DespawnTimer *int     `json:"despawn_timer,omitempty"`
+	Dist         *float64 `json:"dist,omitempty"`
+	MinX         *float64 `json:"min_x,omitempty"`
+	MaxX         *float64 `json:"max_x,omitempty"`
+	MinY         *float64 `json:"min_y,omitempty"`
+	MaxY         *float64 `json:"max_y,omitempty"`
+	SpawnIDs     []int    `json:"spawn_ids,omitempty"`
 
 	Everywhere bool `json:"everywhere,omitempty"`
 }
@@ -139,6 +169,7 @@ type editor struct {
 	drops   map[int]bool
 	at      int // the edit being applied
 	created []Created
+	others  bool // the zone has versions besides this one
 }
 
 func (e *editor) made(table string, id int) {
@@ -159,6 +190,7 @@ func (e *editor) refresh() error {
 		return err
 	}
 	e.sc, e.npcs, e.tables, e.drops = sc, set(sc.npcs), set(sc.tables), set(sc.drops)
+	e.others = otherVersions(e.tx, e.zone, e.version)
 	return nil
 }
 
@@ -270,6 +302,9 @@ func (c *columns) assignments() string {
 }
 
 func (e *editor) apply(ed Edit) error {
+	if done, err := e.applySpawn(ed); done {
+		return err
+	}
 	tx := e.tx
 	switch ed.Op {
 	case "npc_loottable":
