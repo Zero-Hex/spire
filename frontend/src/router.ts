@@ -152,6 +152,11 @@ const router = new Router({
           meta: {title: "Race Loading"},
         },
         {
+          path: ROUTE.STARFALL_ZONE_LOOT,
+          component: () => import('./views/starfall/ZoneLoot.vue'),
+          meta: {title: "Zone Loot"},
+        },
+        {
           path: ROUTE.STRINGS_DATABASE,
           component: () => import('./views/strings-database/StringsDatabase.vue'),
           meta: {title: "Strings Database (dbstr)"},

@@ -48,6 +48,7 @@ import (
 	"github.com/EQEmu/spire/internal/unzip"
 	"github.com/EQEmu/spire/internal/user"
 	"github.com/EQEmu/spire/internal/websocket"
+	"github.com/EQEmu/spire/internal/zoneloot"
 	"github.com/gertd/go-pluralize"
 )
 
@@ -124,6 +125,7 @@ func InitializeApplication() (App, error) {
 	clientassetsPublicController := clientassets.NewPublicController(store)
 	generator := itemgen.NewGenerator(store)
 	itemgenController := itemgen.NewController(resolver, generator)
+	zonelootController := zoneloot.NewController(resolver, pathManagement)
 	questfilesService := questfiles.NewService(pathManagement, updater)
 	checker := questfiles.NewChecker(questfilesService, parseService)
 	questfilesController := questfiles.NewController(questfilesService, checker)
@@ -133,7 +135,7 @@ func InitializeApplication() (App, error) {
 	websocketController := websocket.NewController(pathManagement, handler, clientManager, appLogger)
 	systemController := system.NewController()
 	modelsController := models.NewController()
-	bootAppControllerGroups := provideControllers(helloWorldController, controller, meController, analyticsController, connectionsController, questapiController, appController, queryController, clientfilesController, publicController, patcherController, staticMapController, eqemuanalyticsController, authedController, eqemuchangelogController, assetsController, permissionsController, userController, settingsController, eqemuserverController, eqemuserverPublicController, clientassetsController, clientassetsPublicController, itemgenController, questfilesController, eqemuserverconfigController, backupController, websocketController, systemController, modelsController)
+	bootAppControllerGroups := provideControllers(helloWorldController, controller, meController, analyticsController, connectionsController, questapiController, appController, queryController, clientfilesController, publicController, patcherController, staticMapController, eqemuanalyticsController, authedController, eqemuchangelogController, assetsController, permissionsController, userController, settingsController, eqemuserverController, eqemuserverPublicController, clientassetsController, clientassetsPublicController, itemgenController, zonelootController, questfilesController, eqemuserverconfigController, backupController, websocketController, systemController, modelsController)
 	aaAbilityController := crudcontrollers.NewAaAbilityController(resolver, userEvent)
 	aaRankController := crudcontrollers.NewAaRankController(resolver, userEvent)
 	aaRankEffectController := crudcontrollers.NewAaRankEffectController(resolver, userEvent)

@@ -52,6 +52,8 @@ func (s *Service) RegisterManualResources() map[string][]string {
 		"Quest Scripts": {"quest-files"},
 		// copies items into new ones for the uploaded models and icons
 		"Item Generator": {"item-gen"},
+		// snapshots a zone's spawn and loot rows, and restores them
+		"Zone Loot Workbench": {"zone-loot"},
 		// builds the patcher program by running its build.sh on this server
 		"Patcher Build": {"patcher-build"},
 

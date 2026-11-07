@@ -389,6 +389,12 @@ export default {
             icon: "ra ra-monster-skull mr-1",
             routes: ['starfall/race-loading']
           },
+          {
+            title: "Zone Loot",
+            to: ROUTE.STARFALL_ZONE_LOOT,
+            icon: "ra ra-gem mr-1",
+            routes: ['starfall/zone-loot']
+          },
         ]
       },
       botNav: {
