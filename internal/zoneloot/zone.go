@@ -83,6 +83,8 @@ type Item struct {
 
 type ZoneLoot struct {
 	Zone             string             `json:"zone"`
+	Version          int                `json:"version"`  // the zone version shown
+	Versions         []int              `json:"versions"` // versions the zone has spawns or a zone row for
 	LongName         string             `json:"long_name"`
 	GlobalMultiplier int                `json:"global_multiplier"`
 	NPCs             []NPC              `json:"npcs"`
@@ -96,25 +98,43 @@ type scope struct {
 	spawn2, groups, npcs, tables, drops []int
 }
 
-func zoneScope(db *gorm.DB, zone string) (scope, error) {
+// spawnsIn is the spawn2 rows the server loads for a zone version (zone/
+// spawn2.cpp: version = N or -1), or every version's when version is nil
+func spawnsIn(zone string, version *int) (string, []any) {
+	if version == nil {
+		return "zone = ?", []any{zone}
+	}
+	return "zone = ? AND (version = ? OR version = -1)", []any{zone, *version}
+}
+
+func zoneScope(db *gorm.DB, zone string, version *int) (scope, error) {
 	var s scope
+	where, args := spawnsIn(zone, version)
 	steps := []struct {
-		dst *[]int
-		sql string
-		arg func() any
+		dst  *[]int
+		sql  string
+		args func() []any
 	}{
-		{&s.spawn2, "SELECT id FROM spawn2 WHERE zone = ?", func() any { return zone }},
-		{&s.groups, "SELECT DISTINCT spawngroupID FROM spawn2 WHERE zone = ?", func() any { return zone }},
-		{&s.npcs, "SELECT DISTINCT npcID FROM spawnentry WHERE spawngroupID IN ?", func() any { return nonEmpty(s.groups) }},
-		{&s.tables, "SELECT DISTINCT loottable_id FROM npc_types WHERE id IN ? AND loottable_id > 0", func() any { return nonEmpty(s.npcs) }},
-		{&s.drops, "SELECT DISTINCT lootdrop_id FROM loottable_entries WHERE loottable_id IN ?", func() any { return nonEmpty(s.tables) }},
+		{&s.spawn2, "SELECT id FROM spawn2 WHERE " + where, func() []any { return args }},
+		{&s.groups, "SELECT DISTINCT spawngroupID FROM spawn2 WHERE " + where, func() []any { return args }},
+		{&s.npcs, "SELECT DISTINCT npcID FROM spawnentry WHERE spawngroupID IN ?", func() []any { return []any{nonEmpty(s.groups)} }},
+		{&s.tables, "SELECT DISTINCT loottable_id FROM npc_types WHERE id IN ? AND loottable_id > 0", func() []any { return []any{nonEmpty(s.npcs)} }},
+		{&s.drops, "SELECT DISTINCT lootdrop_id FROM loottable_entries WHERE loottable_id IN ?", func() []any { return []any{nonEmpty(s.tables)} }},
 	}
 	for _, st := range steps {
-		if err := db.Raw(st.sql, st.arg()).Scan(st.dst).Error; err != nil {
+		if err := db.Raw(st.sql, st.args()...).Scan(st.dst).Error; err != nil {
 			return s, err
 		}
 	}
 	return s, nil
+}
+
+// Versions is the versions a zone has spawn points or a zone row for
+func Versions(db *gorm.DB, zone string) ([]int, error) {
+	var vs []int
+	err := db.Raw("SELECT version FROM spawn2 WHERE zone = ? AND version >= 0 UNION SELECT version FROM zone WHERE short_name = ? AND version >= 0", zone, zone).Scan(&vs).Error
+	sort.Ints(vs)
+	return vs, err
 }
 
 // nonEmpty keeps "IN ?" valid for no keys: id 0 matches no row
@@ -125,19 +145,28 @@ func nonEmpty(ids []int) []int {
 	return ids
 }
 
-// Load reads a zone's spawns, NPCs, loot tables, drop groups and items, and
-// works out what each NPC drops per kill
-func Load(db *gorm.DB, zone string) (*ZoneLoot, error) {
+// Load reads a zone version's spawns, NPCs, loot tables, drop groups and
+// items, and works out what each NPC drops per kill
+func Load(db *gorm.DB, zone string, version int) (*ZoneLoot, error) {
 	zone = strings.ToLower(strings.TrimSpace(zone))
-	out := &ZoneLoot{Zone: zone, GlobalMultiplier: 1, Tables: map[int]*Table{}, Dropgroups: map[int]*Dropgroup{}, Items: map[int]*Item{}}
+	out := &ZoneLoot{Zone: zone, Version: version, GlobalMultiplier: 1, Tables: map[int]*Table{}, Dropgroups: map[int]*Dropgroup{}, Items: map[int]*Item{}}
 	var names []struct{ LongName string }
-	if err := db.Raw("SELECT long_name FROM zone WHERE short_name = ? LIMIT 1", zone).Scan(&names).Error; err != nil {
+	if err := db.Raw("SELECT long_name FROM zone WHERE short_name = ? ORDER BY version = ? DESC, version LIMIT 1", zone, version).Scan(&names).Error; err != nil {
 		return nil, err
 	}
 	if len(names) == 0 {
 		return nil, fmt.Errorf("there is no zone %q", zone)
 	}
 	out.LongName = names[0].LongName
+	versions, err := Versions(db, zone)
+	if err != nil {
+		return nil, err
+	}
+	out.Versions = versions
+	if !containsInt(out.Versions, version) {
+		out.Versions = append(out.Versions, version)
+		sort.Ints(out.Versions)
+	}
 
 	if hasTable(db, "rule_values") {
 		var rule []struct{ RuleValue string }
@@ -147,17 +176,19 @@ func Load(db *gorm.DB, zone string) (*ZoneLoot, error) {
 		}
 	}
 
-	s, err := zoneScope(db, zone)
+	s, err := zoneScope(db, zone, &version)
 	if err != nil {
 		return nil, err
 	}
+	out.NPCs = []NPC{}
 	if len(s.spawn2) == 0 {
 		return out, nil
 	}
 
 	// spawn groups: points and each NPC's share
 	var points []struct{ SpawngroupID, Points int }
-	db.Raw("SELECT spawngroupID AS spawngroup_id, COUNT(*) AS points FROM spawn2 WHERE zone = ? GROUP BY spawngroupID", zone).Scan(&points)
+	where, args := spawnsIn(zone, &version)
+	db.Raw("SELECT spawngroupID AS spawngroup_id, COUNT(*) AS points FROM spawn2 WHERE "+where+" GROUP BY spawngroupID", args...).Scan(&points)
 	var groups []struct {
 		ID   int
 		Name string
@@ -249,13 +280,20 @@ func Load(db *gorm.DB, zone string) (*ZoneLoot, error) {
 	var tableUsers []struct {
 		LoottableID, ID int
 		Name, Zone      string
+		Version         int
 	}
-	db.Raw(`SELECT n.loottable_id, n.id, n.name, COALESCE(MIN(s2.zone), '') AS zone FROM npc_types n
+	db.Raw(`SELECT DISTINCT n.loottable_id, n.id, n.name, COALESCE(s2.zone, '') AS zone, COALESCE(s2.version, 0) AS version FROM npc_types n
 		LEFT JOIN spawnentry se ON se.npcID = n.id LEFT JOIN spawn2 s2 ON s2.spawngroupID = se.spawngroupID
-		WHERE n.loottable_id IN ? GROUP BY n.id`, nonEmpty(s.tables)).Scan(&tableUsers)
+		WHERE n.loottable_id IN ? ORDER BY n.id, zone = ? DESC, version`, nonEmpty(s.tables), zone).Scan(&tableUsers)
+	listed := map[int]bool{}
 	for _, u := range tableUsers {
-		if t := out.Tables[u.LoottableID]; t != nil && !inZone[u.ID] {
-			t.SharedBy = append(t.SharedBy, Outside{ID: u.ID, Name: u.Name, Zone: u.Zone})
+		if t := out.Tables[u.LoottableID]; t != nil && !inZone[u.ID] && !listed[u.ID] {
+			listed[u.ID] = true
+			where := u.Zone
+			if u.Version != 0 && where != "" {
+				where = fmt.Sprintf("%v v%v", u.Zone, u.Version)
+			}
+			t.SharedBy = append(t.SharedBy, Outside{ID: u.ID, Name: u.Name, Zone: where})
 		}
 	}
 	inTables := map[int]bool{}
@@ -318,10 +356,16 @@ func Load(db *gorm.DB, zone string) (*ZoneLoot, error) {
 		}
 		return out.NPCs[i].Name < out.NPCs[j].Name
 	})
-	if out.NPCs == nil {
-		out.NPCs = []NPC{}
-	}
 	return out, nil
+}
+
+func containsInt(list []int, v int) bool {
+	for _, x := range list {
+		if x == v {
+			return true
+		}
+	}
+	return false
 }
 
 // isNamed says whether a name is a named NPC's: marked # or, by EQ's

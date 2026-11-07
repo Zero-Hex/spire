@@ -44,6 +44,7 @@ type Snapshot struct {
 	ID     string           `json:"id"`
 	Zone   string           `json:"zone"`
 	Note   string           `json:"note"`
+	Auto   bool             `json:"auto,omitempty"` // taken before a change; only the newest are kept
 	Taken  int64            `json:"taken"`
 	Counts map[string]int   `json:"counts"`
 	Tables map[string]*Rows `json:"tables,omitempty"`
@@ -104,7 +105,7 @@ func dump(db *gorm.DB, table, where string, args ...any) (*Rows, error) {
 
 // read is the rows a zone's loot is made of now
 func read(db *gorm.DB, zone string) (map[string]*Rows, error) {
-	sc, err := zoneScope(db, zone)
+	sc, err := zoneScope(db, zone, nil) // every version
 	if err != nil {
 		return nil, err
 	}
@@ -132,8 +133,35 @@ func read(db *gorm.DB, zone string) (map[string]*Rows, error) {
 	return out, nil
 }
 
+// how many automatic snapshots a zone keeps
+const keepAuto = 20
+
 // Take saves a snapshot of a zone's loot rows
 func (s *Snapshots) Take(db *gorm.DB, zone, note string) (*Snapshot, error) {
+	return s.take(db, zone, note, false)
+}
+
+// TakeAuto saves a snapshot before a change, and drops the oldest automatic
+// ones past keepAuto
+func (s *Snapshots) TakeAuto(db *gorm.DB, zone, note string) (*Snapshot, error) {
+	snap, err := s.take(db, zone, note, true)
+	if err != nil {
+		return nil, err
+	}
+	list, _ := s.List(zone)
+	kept := 0
+	for _, o := range list {
+		if !o.Auto {
+			continue
+		}
+		if kept++; kept > keepAuto {
+			s.Delete(zone, o.ID)
+		}
+	}
+	return snap, nil
+}
+
+func (s *Snapshots) take(db *gorm.DB, zone, note string, auto bool) (*Snapshot, error) {
 	dir, err := s.zoneDir(zone)
 	if err != nil {
 		return nil, err
@@ -146,7 +174,7 @@ func (s *Snapshots) Take(db *gorm.DB, zone, note string) (*Snapshot, error) {
 		return nil, fmt.Errorf("%v has no spawn points to keep", zone)
 	}
 	now := time.Now()
-	snap := &Snapshot{ID: now.Format("20060102-150405"), Zone: zone, Note: strings.TrimSpace(note), Taken: now.Unix(), Counts: map[string]int{}, Tables: tables}
+	snap := &Snapshot{ID: now.Format("20060102-150405"), Zone: zone, Note: strings.TrimSpace(note), Auto: auto, Taken: now.Unix(), Counts: map[string]int{}, Tables: tables}
 	for t, r := range tables {
 		snap.Counts[t] = len(r.Rows)
 	}
@@ -477,7 +505,7 @@ func (s *Snapshots) Restore(db *gorm.DB, zone, id string) (*Snapshot, map[string
 	if err != nil {
 		return nil, nil, err
 	}
-	before, err := s.Take(db, zone, "before restoring "+id)
+	before, err := s.TakeAuto(db, zone, "before restoring "+id)
 	if err != nil {
 		return nil, nil, fmt.Errorf("could not snapshot the zone before restoring: %v", err)
 	}

@@ -10,6 +10,9 @@
         <span class="mr-2">Zone</span>
         <b-form-input size="sm" v-model="zoneInput" placeholder="zone short name" style="max-width: 170px" class="mr-2"
                       @keyup.enter="load()"/>
+        <span class="mr-2">version</span>
+        <b-form-select size="sm" v-model="version" :options="versionOptions()" style="max-width: 90px" class="mr-2"
+                       @change="load()"/>
         <b-button size="sm" variant="outline-warning" class="mr-3" @click="load()" :disabled="!zoneInput.trim() || loading">
           <i :class="'fa ' + (loading ? 'fa-cog fa-spin' : 'fa-search') + ' mr-1'"></i> Load
         </b-button>
@@ -26,7 +29,7 @@
       <div v-if="data && (sharedTables().length || sharedGroups().length)" class="mt-2 text-warning hint zone-loot-shared">
         <div v-if="sharedTables().length">
           <i class="fa fa-exclamation-triangle mr-1"></i>
-          {{ sharedTables().length }} loot table(s) are also used by NPCs outside {{ data.zone }}: changing them changes those NPCs too.
+          {{ sharedTables().length }} loot table(s) are also used by NPCs outside {{ where() }}: changing them changes those NPCs too.
           <span v-for="t in sharedTables()" :key="'st' + t.id" class="mr-2">
             <code>{{ t.id }} {{ t.name }}</code>
             ({{ outsideNames(t.shared_by) }})
@@ -34,7 +37,7 @@
         </div>
         <div v-if="sharedGroups().length">
           <i class="fa fa-exclamation-triangle mr-1"></i>
-          {{ sharedGroups().length }} drop group(s) are also used by loot tables outside {{ data.zone }}:
+          {{ sharedGroups().length }} drop group(s) are also used by loot tables outside {{ where() }}:
           <span v-for="d in sharedGroups()" :key="'sd' + d.id" class="mr-2">
             <code>{{ d.id }} {{ d.name }}</code>
             ({{ outsideNames(d.shared_by) }})
@@ -44,6 +47,27 @@
     </eq-window-simple>
 
     <eq-window-simple class="mt-3" v-if="data">
+      <div v-if="editing || pendingCount()" class="zone-loot-pending">
+        <div class="d-flex align-items-center flex-wrap">
+          <span class="mr-3">
+            <i v-if="previewing" class="fa fa-cog fa-spin mr-1"></i>
+            <b>{{ pendingCount() }}</b> unsaved change(s)<span v-if="pendingCount()">: drops per kill below show them</span>
+            <span v-else class="text-muted">: open an NPC and change its loot; nothing is saved until you save</span>
+          </span>
+          <a v-if="pendingCount()" href="#" class="mr-3" @click.prevent="showPending = !showPending">{{ showPending ? "Hide" : "Show" }} changes</a>
+          <b-button size="sm" variant="success" class="mr-2" :disabled="!pendingCount() || saving" @click="save()">
+            <i :class="'fa ' + (saving ? 'fa-cog fa-spin' : 'fa-save') + ' mr-1'"></i> Save
+          </b-button>
+          <b-button size="sm" variant="outline-secondary" :disabled="!pendingCount() || saving" @click="discard()">Discard</b-button>
+          <span class="text-muted hint ml-3" v-if="!snapshotted">The zone is snapshotted before the first save.</span>
+        </div>
+        <ul v-if="showPending && pendingCount()" class="mt-2 mb-0 hint">
+          <li v-for="(e, key) in pending" :key="'p' + key">
+            {{ describe(e) }}
+            <a href="#" class="ml-2" @click.prevent="undo(key)">undo</a>
+          </li>
+        </ul>
+      </div>
       <eq-tabs :selected="tab" @on-selected="tab = $event">
         <!-- by NPC -->
         <eq-tab name="By NPC" :selected="tab === 'By NPC'">
@@ -53,6 +77,7 @@
             <b-form-radio-group size="sm" v-model="role" :options="roleOptions()" buttons button-variant="outline-secondary"
                                 class="mr-3"/>
             <b-form-checkbox v-model="lootOnly" class="mr-3">Only NPCs with loot</b-form-checkbox>
+            <b-form-checkbox v-model="editing" switch class="mr-3">Edit loot</b-form-checkbox>
             <span class="text-muted">{{ npcs().length }} shown</span>
           </div>
           <table class="eq-table eq-highlight-rows zone-loot-npcs">
@@ -102,23 +127,126 @@
                       ({{ s.points }} point(s), {{ percent(s.chance) }} of the group)
                     </span>
                   </div>
-                  <div v-if="table(n)">
-                    <div class="mb-1">
-                      Loot table <b>{{ table(n).id }}</b> <code class="ml-1">{{ table(n).name }}</code>
-                      <span v-if="table(n).maxcash" class="text-muted ml-2">cash {{ table(n).mincash }}–{{ table(n).maxcash }} copper</span>
-                      <span v-if="isShared(table(n))" class="text-warning ml-2">
+
+                  <!-- no loot table -->
+                  <div v-if="!table(n)">
+                    <span class="text-muted">No loot table.</span>
+                    <template v-if="editing">
+                      <b-button size="sm" variant="outline-warning" class="ml-2" :disabled="structuralBlocked()"
+                                :title="structuralTitle()" @click="act({ op: 'new_loottable', npc_ids: [n.id] }, 'New loot table for ' + cleanName(n.name))">
+                        <i class="fa fa-plus mr-1"></i> New loot table
+                      </b-button>
+                      <span class="ml-3 mr-1">or use loot table</span>
+                      <b-form-input size="sm" type="number" class="zone-loot-num d-inline-block" placeholder="id"
+                                    @change="v => useTable(n, v)"/>
+                    </template>
+                  </div>
+
+                  <div v-else>
+                    <!-- the loot table -->
+                    <div class="mb-1 d-flex align-items-center flex-wrap">
+                      <span class="mr-2">Loot table <b>{{ table(n).id }}</b> <code class="ml-1">{{ table(n).name }}</code></span>
+                      <template v-if="!editing">
+                        <span v-if="table(n).maxcash" class="text-muted mr-2">cash {{ table(n).mincash }}–{{ table(n).maxcash }} copper</span>
+                      </template>
+                      <template v-else>
+                        <span class="mr-1">cash</span>
+                        <b-form-input size="sm" type="number" min="0" class="zone-loot-num" :disabled="locked('t', table(n).id)"
+                                      :value="tableValue(table(n), 'mincash')" @change="v => setTable(table(n), 'mincash', v)"/>
+                        <span class="mx-1">–</span>
+                        <b-form-input size="sm" type="number" min="0" class="zone-loot-num" :disabled="locked('t', table(n).id)"
+                                      :value="tableValue(table(n), 'maxcash')" @change="v => setTable(table(n), 'maxcash', v)"/>
+                        <span class="ml-1 mr-3">copper</span>
+                      </template>
+                      <span v-if="usersHere(table(n).id).length > 1" class="text-muted mr-2"
+                            :title="usersHere(table(n).id).map(u => cleanName(u.name)).join(', ')">
+                        used by {{ usersHere(table(n).id).length }} NPCs here
+                      </span>
+                      <span v-if="isShared(table(n))" class="text-warning mr-2">
                         also used by {{ outsideNames(table(n).shared_by) }}
+                        <span v-if="everywhere['t' + table(n).id]">(editing everywhere)</span>
                       </span>
                     </div>
+                    <div v-if="editing" class="zone-loot-actions mb-2">
+                      <template v-if="locked('t', table(n).id)">
+                        <b-button size="sm" variant="outline-warning" :disabled="structuralBlocked()" :title="structuralTitle()"
+                                  @click="act({ op: 'copy_loottable', loottable_id: table(n).id, deep: true }, 'Copy loot table ' + table(n).id + ' for ' + where())">
+                          <i class="fa fa-clone mr-1"></i> Copy for {{ where() }}
+                        </b-button>
+                        <b-button size="sm" variant="outline-danger" @click="unlock('t', table(n).id)">Edit everywhere</b-button>
+                      </template>
+                      <b-button v-if="usersHere(table(n).id).length > 1" size="sm" variant="outline-secondary"
+                                :disabled="structuralBlocked()" :title="structuralTitle()"
+                                @click="act({ op: 'copy_loottable', loottable_id: table(n).id, npc_ids: [n.id], deep: true }, 'Copy loot table ' + table(n).id + ' for ' + cleanName(n.name) + ' only')">
+                        <i class="fa fa-clone mr-1"></i> Copy for this NPC only
+                      </b-button>
+                      <template v-if="!locked('t', table(n).id)">
+                        <b-button size="sm" variant="outline-secondary" :disabled="structuralBlocked()" :title="structuralTitle()"
+                                  @click="act({ op: 'new_lootdrop', loottable_id: table(n).id, everywhere: !!everywhere['t' + table(n).id] }, 'New drop group in loot table ' + table(n).id)">
+                          <i class="fa fa-plus mr-1"></i> New drop group
+                        </b-button>
+                        <span class="ml-2 mr-1">add drop group</span>
+                        <b-form-input size="sm" type="number" class="zone-loot-num d-inline-block" placeholder="id"
+                                      @change="v => addGroup(table(n), v)"/>
+                      </template>
+                      <span class="ml-3 mr-1">use loot table</span>
+                      <b-form-input size="sm" type="number" class="zone-loot-num d-inline-block" placeholder="id"
+                                    @change="v => useTable(n, v)"/>
+                      <b-button size="sm" variant="outline-secondary" class="ml-1" @click="useTable(n, 0)">No loot</b-button>
+                    </div>
+
+                    <!-- its drop groups -->
                     <div v-for="e in table(n).entries" :key="'e' + e.lootdrop_id" class="zone-loot-group">
-                      <div>
-                        Drop group <b>{{ e.lootdrop_id }}</b> <code class="ml-1">{{ groupName(e.lootdrop_id) }}</code>
-                        <span class="text-muted ml-2">{{ entryRolls(e) }}</span>
-                        <span v-if="isShared(group(e.lootdrop_id))" class="text-warning ml-2">
+                      <div class="d-flex align-items-center flex-wrap">
+                        <span class="mr-2">Drop group <b>{{ e.lootdrop_id }}</b> <code class="ml-1">{{ groupName(e.lootdrop_id) }}</code></span>
+                        <span v-if="!editing" class="text-muted mr-2">{{ entryRolls(e) }}</span>
+                        <template v-else>
+                          <span class="mr-1">rolled</span>
+                          <b-form-input size="sm" type="number" min="0" max="255" class="zone-loot-num" :disabled="locked('t', table(n).id)"
+                                        :value="entryValue(table(n), e, 'multiplier')" @change="v => setEntry(table(n), e, 'multiplier', v)"/>
+                          <span class="mx-1">×,</span>
+                          <b-form-input size="sm" type="number" min="0" max="100" step="0.1" class="zone-loot-num" :disabled="locked('t', table(n).id)"
+                                        :value="entryValue(table(n), e, 'probability')" @change="v => setEntry(table(n), e, 'probability', v)"/>
+                          <span class="mx-1">% to roll, picks: at least</span>
+                          <b-form-input size="sm" type="number" min="0" max="255" class="zone-loot-num" :disabled="locked('t', table(n).id)"
+                                        :value="entryValue(table(n), e, 'mindrop')" @change="v => setEntry(table(n), e, 'mindrop', v)"/>
+                          <span class="mx-1">up to</span>
+                          <b-form-input size="sm" type="number" min="0" max="255" class="zone-loot-num" :disabled="locked('t', table(n).id)"
+                                        :value="entryValue(table(n), e, 'droplimit')" @change="v => setEntry(table(n), e, 'droplimit', v)"
+                                        title="0 with no minimum: every item rolls on its own"/>
+                          <b-button size="sm" variant="outline-danger" class="ml-2 mr-2" :disabled="locked('t', table(n).id)"
+                                    title="Take this drop group out of the loot table" @click="removeEntry(table(n), e)">
+                            <i class="fa fa-times"></i>
+                          </b-button>
+                        </template>
+                        <span v-if="editing && tablesHere(e.lootdrop_id).length > 1" class="text-muted mr-2"
+                              :title="tablesHere(e.lootdrop_id).map(t => t.id + ' ' + t.name).join(', ')">
+                          in {{ tablesHere(e.lootdrop_id).length }} loot tables here
+                        </span>
+                        <span v-if="isShared(group(e.lootdrop_id))" class="text-warning mr-2">
                           also in {{ outsideNames(group(e.lootdrop_id).shared_by) }}
+                          <span v-if="everywhere['d' + e.lootdrop_id]">(editing everywhere)</span>
                         </span>
                       </div>
+                      <div v-if="editing" class="zone-loot-actions my-1">
+                        <template v-if="locked('d', e.lootdrop_id)">
+                          <b-button size="sm" variant="outline-warning" :disabled="structuralBlocked()" :title="structuralTitle()"
+                                    @click="act({ op: 'copy_lootdrop', lootdrop_id: e.lootdrop_id }, 'Copy drop group ' + e.lootdrop_id + ' for ' + where())">
+                            <i class="fa fa-clone mr-1"></i> Copy for {{ where() }}
+                          </b-button>
+                          <b-button size="sm" variant="outline-danger" @click="unlock('d', e.lootdrop_id)">Edit everywhere</b-button>
+                        </template>
+                        <b-button v-if="tablesHere(e.lootdrop_id).length > 1 && !locked('t', table(n).id)" size="sm" variant="outline-secondary"
+                                  :disabled="structuralBlocked()" :title="structuralTitle()"
+                                  @click="act({ op: 'copy_lootdrop', lootdrop_id: e.lootdrop_id, loottable_ids: [table(n).id] }, 'Copy drop group ' + e.lootdrop_id + ' for loot table ' + table(n).id + ' only')">
+                          <i class="fa fa-clone mr-1"></i> Copy for this loot table only
+                        </b-button>
+                      </div>
                       <table class="zone-loot-items">
+                        <tr v-if="editing" class="text-muted hint">
+                          <td></td><td></td><td class="text-right pr-2">chance %</td><td>×</td><td>NPC levels</td><td>equip</td><td></td>
+                          <td class="text-right">per kill</td>
+                        </tr>
                         <tr v-for="it in groupItems(e.lootdrop_id)" :key="e.lootdrop_id + '-' + it.item_id"
                             :class="levelOK(it, n) ? '' : 'text-muted'">
                           <td style="width: 26px"><span :class="'item-' + icon(it.item_id) + '-sm'" class="zone-loot-icon"></span></td>
@@ -126,14 +254,55 @@
                             <router-link :to="itemRoute(it.item_id)">{{ itemName(it.item_id) }}</router-link>
                             <span class="text-muted ml-1">{{ it.item_id }}</span>
                           </td>
-                          <td class="text-right pr-3">{{ round(it.chance, 2) }}%</td>
-                          <td class="text-muted">
-                            <span v-if="it.multiplier > 1">×{{ it.multiplier }}</span>
-                            <span v-if="!levelOK(it, n)">only for NPC levels {{ it.npc_min_level }}–{{ it.npc_max_level || "any" }}</span>
+                          <template v-if="!editing">
+                            <td class="text-right pr-3">{{ round(it.chance, 2) }}%</td>
+                            <td class="text-muted">
+                              <span v-if="it.multiplier > 1">×{{ it.multiplier }}</span>
+                              <span v-if="!levelOK(it, n)">only for NPC levels {{ it.npc_min_level }}–{{ it.npc_max_level || "any" }}</span>
+                            </td>
+                          </template>
+                          <template v-else>
+                            <td class="pr-2"><b-form-input size="sm" type="number" min="0" max="100" step="0.1" class="zone-loot-num"
+                                                           :disabled="locked('d', e.lootdrop_id)" :value="itemValue(e.lootdrop_id, it, 'chance')"
+                                                           @change="v => setItem(e.lootdrop_id, it, 'chance', v)"/></td>
+                            <td><b-form-input size="sm" type="number" min="0" max="255" class="zone-loot-num zone-loot-num-sm"
+                                              :disabled="locked('d', e.lootdrop_id)" :value="itemValue(e.lootdrop_id, it, 'multiplier')"
+                                              @change="v => setItem(e.lootdrop_id, it, 'multiplier', v)"/></td>
+                            <td style="white-space: nowrap">
+                              <b-form-input size="sm" type="number" min="0" class="zone-loot-num zone-loot-num-sm d-inline-block"
+                                            :disabled="locked('d', e.lootdrop_id)" :value="itemValue(e.lootdrop_id, it, 'npc_min_level')"
+                                            @change="v => setItem(e.lootdrop_id, it, 'npc_min_level', v)" title="0: any"/>
+                              –
+                              <b-form-input size="sm" type="number" min="0" class="zone-loot-num zone-loot-num-sm d-inline-block"
+                                            :disabled="locked('d', e.lootdrop_id)" :value="itemValue(e.lootdrop_id, it, 'npc_max_level')"
+                                            @change="v => setItem(e.lootdrop_id, it, 'npc_max_level', v)" title="0: any"/>
+                            </td>
+                            <td class="text-center">
+                              <b-form-checkbox :disabled="locked('d', e.lootdrop_id)" :checked="!!itemValue(e.lootdrop_id, it, 'equip_item')"
+                                               @change="v => setItem(e.lootdrop_id, it, 'equip_item', v)" title="The NPC wears it"/>
+                            </td>
+                            <td>
+                              <b-button size="sm" variant="outline-danger" :disabled="locked('d', e.lootdrop_id)" title="Remove the item"
+                                        @click="removeItem(e.lootdrop_id, it)"><i class="fa fa-times"></i></b-button>
+                            </td>
+                          </template>
+                          <td class="text-right pl-3" style="white-space: nowrap">
+                            {{ rate(expectedFor(n, it.item_id)) }}
+                            <span v-if="changedRate(n, it.item_id)" class="text-muted hint">({{ baseExpected(n, it.item_id) ? "was " + rate(baseExpected(n, it.item_id)) : "new" }})</span>
                           </td>
-                          <td class="text-right">{{ rate(expectedFor(n, it.item_id)) }}</td>
                         </tr>
                       </table>
+                      <div v-if="editing && !locked('d', e.lootdrop_id)" class="zone-loot-add">
+                        <b-form-input size="sm" placeholder="Add an item: name or id" style="max-width: 260px"
+                                      :value="search.drop === e.lootdrop_id ? search.q : ''"
+                                      @input="v => findItems(e.lootdrop_id, v)"/>
+                        <div v-if="search.drop === e.lootdrop_id && search.results.length" class="zone-loot-results">
+                          <div v-for="r in search.results" :key="'r' + r.id" class="zone-loot-result" @click="addItem(e.lootdrop_id, r)">
+                            <span :class="'item-' + r.icon + '-sm'" class="zone-loot-icon mr-1"></span>
+                            {{ r.name }} <span class="text-muted">{{ r.id }}<span v-if="r.reqlevel || r.reclevel">, level {{ r.reqlevel || r.reclevel }}</span></span>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </td>
@@ -207,7 +376,7 @@
         <!-- snapshots -->
         <eq-tab name="Snapshots" :selected="tab === 'Snapshots'">
           <div class="mb-2">
-            A snapshot keeps {{ data.zone }}'s spawn points, spawn groups and entries, its NPCs, their loot tables and
+            A snapshot keeps {{ data.zone }}'s spawn points (every version's), spawn groups and entries, its NPCs, their loot tables and
             drop groups with their items. Restoring puts those rows back as they were and removes spawn points and
             loot rows added under them since; it snapshots the zone first, so a restore can be undone too.
             Restart the zone (or the server) after restoring for it to take effect.
@@ -316,7 +485,9 @@ export default {
   data() {
     return {
       zoneInput: this.$route.query.zone || stored(ZONE_KEY, "warrens"),
-      data: null,
+      version: parseInt(this.$route.query.version || "0", 10) || 0,
+      data: null, // what's shown: the saved zone, or a preview of it with the unsaved changes
+      base: null, // the saved zone
       loading: false,
       busy: false,
       error: "",
@@ -335,6 +506,18 @@ export default {
       note: "",
       diffs: {},
       keyNames: KEY_NAMES,
+
+      // editing
+      editing: false,
+      pending: {},     // unsaved edits, by row
+      everywhere: {},  // shared tables (t<id>) and drop groups (d<id>) unlocked for editing everywhere
+      snapshotted: false,
+      previewing: false,
+      previewSeq: 0,
+      previewTimer: null,
+      saving: false,
+      showPending: false,
+      search: { drop: 0, q: "", results: [], timer: null },
     }
   },
   mounted() {
@@ -346,20 +529,32 @@ export default {
       if (!zone) {
         return
       }
+      if (this.pendingCount() && !confirm("Discard your unsaved loot changes?")) {
+        if (this.data) {
+          this.version = this.data.version
+        }
+        return
+      }
       this.loading = true
       this.error   = ""
       try {
-        const r   = await SpireApi.v1().get(`zone-loot/${zone}`)
+        const r   = await SpireApi.v1().get(`zone-loot/${zone}`, { params: { version: this.version } })
+        if (!this.data || this.data.zone !== zone) {
+          this.snapshotted = false
+          this.open = {}
+          this.openItem = {}
+        }
         this.data = r.data
-        this.open = {}
-        this.openItem = {}
+        this.base = r.data
+        this.pending = {}
+        this.everywhere = {}
         this.diffs = {}
         try {
           localStorage.setItem(ZONE_KEY, zone)
         } catch (e) {
         }
-        if (this.$route.query.zone !== zone) {
-          this.$router.replace({ query: { zone: zone } }).catch(() => {})
+        if (this.$route.query.zone !== zone || String(this.$route.query.version || 0) !== String(this.version)) {
+          this.$router.replace({ query: { zone: zone, version: String(this.version) } }).catch(() => {})
         }
         if (!this.data.npcs.length) {
           this.notification = `${zone} has no spawned NPCs`
@@ -377,6 +572,264 @@ export default {
     },
     message(e) {
       return (e.response && e.response.data && e.response.data.error) || e.message || String(e)
+    },
+
+    versionOptions() {
+      const vs = this.data && this.data.zone === this.zoneInput.trim().toLowerCase() ? this.data.versions : [this.version]
+      return vs.map(v => ({ value: v, text: String(v) }))
+    },
+    where() {
+      return this.data.version ? `${this.data.zone} v${this.data.version}` : this.data.zone
+    },
+
+    // --- editing ---
+    pendingCount() {
+      return Object.keys(this.pending).length
+    },
+    locked(kind, id) {
+      const x = kind === "t" ? this.data.tables[id] : this.data.dropgroups[id]
+      return this.isShared(x) && !this.everywhere[kind + id]
+    },
+    unlock(kind, id) {
+      const what = kind === "t" ? `loot table ${id}` : `drop group ${id}`
+      if (confirm(`Change ${what} everywhere? Its changes reach every NPC using it, outside ${this.where()} too.`)) {
+        this.$set(this.everywhere, kind + id, true)
+      }
+    },
+    usersHere(tableId) {
+      return this.data.npcs.filter(n => n.loottable_id === tableId)
+    },
+    tablesHere(dropId) {
+      return Object.values(this.data.tables).filter(t => t.entries.some(e => e.lootdrop_id === dropId))
+    },
+    num(v) {
+      if (typeof v === "boolean") {
+        return v
+      }
+      const x = parseFloat(v)
+      return isNaN(x) ? 0 : x
+    },
+    stage(key, base, field, value) {
+      const cur = this.pending[key] || base
+      this.$set(this.pending, key, field ? { ...cur, [field]: value } : { ...cur })
+      this.schedulePreview()
+    },
+    pendingValue(key, field, fallback) {
+      const p = this.pending[key]
+      return p && p[field] !== undefined ? p[field] : fallback
+    },
+    tableValue(t, field) {
+      return this.pendingValue(`lt:${t.id}`, field, t[field])
+    },
+    setTable(t, field, v) {
+      this.stage(`lt:${t.id}`, { op: "loottable", loottable_id: t.id, everywhere: !!this.everywhere["t" + t.id] }, field, Math.round(this.num(v)))
+    },
+    entryValue(t, e, field) {
+      return this.pendingValue(`te:${t.id}:${e.lootdrop_id}`, field, e[field])
+    },
+    setEntry(t, e, field, v) {
+      const value = field === "probability" ? this.num(v) : Math.round(this.num(v))
+      this.stage(`te:${t.id}:${e.lootdrop_id}`, { op: "loottable_entry", loottable_id: t.id, lootdrop_id: e.lootdrop_id, everywhere: !!this.everywhere["t" + t.id] }, field, value)
+    },
+    removeEntry(t, e) {
+      const key = `te:${t.id}:${e.lootdrop_id}`
+      if (this.pending[key] && this.pending[key].added) {
+        this.undo(key)
+        return
+      }
+      this.$set(this.pending, key, { op: "loottable_entry", loottable_id: t.id, lootdrop_id: e.lootdrop_id, remove: true, everywhere: !!this.everywhere["t" + t.id] })
+      this.schedulePreview()
+    },
+    addGroup(t, v) {
+      const id = Math.round(this.num(v))
+      if (id <= 0) {
+        return
+      }
+      this.$set(this.pending, `te:${t.id}:${id}`, {
+        op: "loottable_entry", loottable_id: t.id, lootdrop_id: id, multiplier: 1, droplimit: 1, mindrop: 0, probability: 100,
+        added: true, everywhere: !!this.everywhere["t" + t.id],
+      })
+      this.schedulePreview()
+    },
+    useTable(n, v) {
+      const id = Math.round(this.num(v))
+      if (id < 0) {
+        return
+      }
+      this.$set(this.pending, `nt:${n.id}`, { op: "npc_loottable", npc_id: n.id, loottable_id: id, name: n.name })
+      this.schedulePreview()
+    },
+    itemValue(dropId, it, field) {
+      return this.pendingValue(`le:${dropId}:${it.item_id}`, field, it[field])
+    },
+    setItem(dropId, it, field, v) {
+      const value = field === "equip_item" ? !!v : field === "chance" ? this.num(v) : Math.round(this.num(v))
+      this.stage(`le:${dropId}:${it.item_id}`, { op: "lootdrop_entry", lootdrop_id: dropId, item_id: it.item_id, everywhere: !!this.everywhere["d" + dropId] }, field, value)
+    },
+    removeItem(dropId, it) {
+      const key = `le:${dropId}:${it.item_id}`
+      if (this.pending[key] && this.pending[key].added) {
+        this.undo(key)
+        return
+      }
+      this.$set(this.pending, key, { op: "lootdrop_entry", lootdrop_id: dropId, item_id: it.item_id, remove: true, name: this.itemName(it.item_id), everywhere: !!this.everywhere["d" + dropId] })
+      this.schedulePreview()
+    },
+    findItems(dropId, q) {
+      this.search.drop = dropId
+      this.search.q = q
+      clearTimeout(this.search.timer)
+      if (!q.trim()) {
+        this.search.results = []
+        return
+      }
+      this.search.timer = setTimeout(async () => {
+        try {
+          const r = await SpireApi.v1().get(`zone-loot/${this.data.zone}/items`, { params: { q: q } })
+          if (this.search.q === q) {
+            this.search.results = r.data
+          }
+        } catch (e) {
+          this.error = this.message(e)
+        }
+      }, 250)
+    },
+    addItem(dropId, item) {
+      this.$set(this.pending, `le:${dropId}:${item.id}`, {
+        op: "lootdrop_entry", lootdrop_id: dropId, item_id: item.id, chance: 10, multiplier: 1,
+        added: true, name: item.name, everywhere: !!this.everywhere["d" + dropId],
+      })
+      this.search = { drop: 0, q: "", results: [], timer: null }
+      this.schedulePreview()
+    },
+    undo(key) {
+      this.$delete(this.pending, key)
+      this.schedulePreview()
+    },
+    discard() {
+      this.pending = {}
+      this.data = this.base
+      this.error = ""
+    },
+    // the order they're applied in: an NPC's table first, then tables, then drop groups
+    editList() {
+      const order = { npc_loottable: 0, loottable: 1, loottable_entry: 2, lootdrop: 3, lootdrop_entry: 4 }
+      return Object.values(this.pending)
+        .map(e => {
+          const { added, name, ...edit } = e
+          return edit
+        })
+        .sort((a, b) => order[a.op] - order[b.op])
+    },
+    schedulePreview() {
+      clearTimeout(this.previewTimer)
+      this.previewTimer = setTimeout(() => this.previewEdits(), 300)
+    },
+    async previewEdits() {
+      const edits = this.editList()
+      const seq   = ++this.previewSeq
+      if (!edits.length) {
+        this.data = this.base
+        this.previewing = false
+        return
+      }
+      this.previewing = true
+      try {
+        const r = await SpireApi.v1().post(`zone-loot/${this.data.zone}/edit`, { version: this.data.version, edits: edits, preview: true })
+        if (seq === this.previewSeq) {
+          this.data  = r.data.zone
+          this.error = ""
+        }
+      } catch (e) {
+        if (seq === this.previewSeq) {
+          this.error = "Can't preview: " + this.message(e)
+        }
+      } finally {
+        if (seq === this.previewSeq) {
+          this.previewing = false
+        }
+      }
+    },
+    async save() {
+      const edits = this.editList()
+      this.saving = true
+      this.error  = ""
+      try {
+        const r = await SpireApi.v1().post(`zone-loot/${this.data.zone}/edit`, {
+          version: this.data.version, edits: edits, snapshot: !this.snapshotted,
+          note: `before editing loot (${edits.length} change${edits.length === 1 ? "" : "s"})`,
+        })
+        this.base = this.data = r.data.zone
+        this.pending = {}
+        this.showPending = false
+        this.notification = `Saved ${edits.length} change(s)` +
+          (r.data.snapshot ? `; how it was is kept as snapshot ${r.data.snapshot.id}` : "") + ". Restart the zone for them to take effect."
+        this.snapshotted = true
+        await this.loadSnapshots()
+      } catch (e) {
+        this.error = "Nothing was saved: " + this.message(e)
+      } finally {
+        this.saving = false
+      }
+    },
+    structuralBlocked() {
+      return this.pendingCount() > 0 || this.saving
+    },
+    structuralTitle() {
+      return this.pendingCount() ? "Save or discard your changes first" : ""
+    },
+    // copies and new tables/groups are saved at once
+    async act(edit, what) {
+      if (!confirm(`${what}? This is saved at once.`)) {
+        return
+      }
+      this.saving = true
+      this.error  = ""
+      try {
+        const r = await SpireApi.v1().post(`zone-loot/${this.data.zone}/edit`, {
+          version: this.data.version, edits: [edit], snapshot: !this.snapshotted, note: `before: ${what}`,
+        })
+        this.base = this.data = r.data.zone
+        const made = r.data.created.map(c => `${c.table === "loottable" ? "loot table" : "drop group"} ${c.id}`).join(", ")
+        this.notification = `${what}: made ${made}` + (r.data.snapshot ? `; how it was is kept as snapshot ${r.data.snapshot.id}` : "")
+        this.snapshotted = true
+        await this.loadSnapshots()
+      } catch (e) {
+        this.error = this.message(e)
+      } finally {
+        this.saving = false
+      }
+    },
+    describe(e) {
+      const item = id => e.name || this.itemName(id)
+      const fields = { chance: "chance %", multiplier: "multiplier", item_charges: "charges", equip_item: "equipped", npc_min_level: "NPC min level",
+        npc_max_level: "NPC max level", droplimit: "up to", mindrop: "at least", probability: "probability %", mincash: "min cash", maxcash: "max cash" }
+      const vals = Object.keys(fields).filter(f => e[f] !== undefined).map(f => `${fields[f]} ${e[f]}`).join(", ")
+      const all = e.everywhere ? " (everywhere)" : ""
+      switch (e.op) {
+        case "lootdrop_entry":
+          if (e.remove) {
+            return `Remove ${item(e.item_id)} from drop group ${e.lootdrop_id}${all}`
+          }
+          return `${e.added ? "Add" : "Change"} ${item(e.item_id)} in drop group ${e.lootdrop_id}: ${vals}${all}`
+        case "loottable_entry":
+          if (e.remove) {
+            return `Take drop group ${e.lootdrop_id} out of loot table ${e.loottable_id}${all}`
+          }
+          return `${e.added ? "Add" : "Change"} drop group ${e.lootdrop_id} in loot table ${e.loottable_id}: ${vals}${all}`
+        case "loottable":
+          return `Loot table ${e.loottable_id}: ${vals}${all}`
+        case "npc_loottable":
+          return `${this.cleanName(e.name)} uses ${e.loottable_id ? "loot table " + e.loottable_id : "no loot table"}`
+      }
+      return e.op
+    },
+    baseExpected(n, itemId) {
+      const b = this.base && this.base.npcs.find(x => x.id === n.id)
+      return b ? this.expectedFor(b, itemId) : 0
+    },
+    changedRate(n, itemId) {
+      return this.data !== this.base && Math.abs(this.expectedFor(n, itemId) - this.baseExpected(n, itemId)) > 1e-9
     },
 
     count(m) {
@@ -473,7 +926,8 @@ export default {
       return this.data.items[id]
     },
     itemName(id) {
-      return (this.item(id) || {}).name || `item ${id}`
+      const it = this.item(id) || (this.base && this.base.items[id])
+      return (it || {}).name || `item ${id}`
     },
     icon(id) {
       return (this.item(id) || {}).icon || 0
@@ -644,5 +1098,53 @@ export default {
 
 .zone-loot-diff {
   margin-bottom: 4px;
+}
+
+.zone-loot-pending {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: rgba(20, 24, 34, 0.96);
+  border: 1px solid rgba(255, 193, 7, 0.4);
+  border-radius: 4px;
+  padding: 8px 12px;
+  margin-bottom: 12px;
+}
+
+.zone-loot-num {
+  width: 78px;
+  display: inline-block;
+}
+
+.zone-loot-num-sm {
+  width: 58px;
+}
+
+.zone-loot-actions .btn {
+  margin-right: 6px;
+}
+
+.zone-loot-add {
+  position: relative;
+  margin: 4px 0 4px 32px;
+}
+
+.zone-loot-results {
+  position: absolute;
+  z-index: 10;
+  background: #1b1f2a;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  max-height: 300px;
+  overflow-y: auto;
+  min-width: 340px;
+}
+
+.zone-loot-result {
+  padding: 3px 8px;
+  cursor: pointer;
+}
+
+.zone-loot-result:hover {
+  background: rgba(255, 255, 255, 0.1);
 }
 </style>

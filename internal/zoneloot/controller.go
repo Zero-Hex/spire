@@ -1,8 +1,11 @@
 package zoneloot
 
 import (
+	"fmt"
 	"net/http"
 	"path/filepath"
+	"strconv"
+	"strings"
 
 	"github.com/EQEmu/spire/internal/database"
 	"github.com/EQEmu/spire/internal/http/routes"
@@ -27,6 +30,8 @@ func NewController(db *database.Resolver, pathmgmt *pathmgmt.PathManagement) *Co
 func (z *Controller) Routes() []*routes.Route {
 	return []*routes.Route{
 		routes.RegisterRoute(http.MethodGet, "zone-loot/:zone", z.load, nil),
+		routes.RegisterRoute(http.MethodPost, "zone-loot/:zone/edit", z.edit, nil),
+		routes.RegisterRoute(http.MethodGet, "zone-loot/:zone/items", z.items, nil),
 		routes.RegisterRoute(http.MethodGet, "zone-loot/:zone/snapshots", z.list, nil),
 		routes.RegisterRoute(http.MethodPost, "zone-loot/:zone/snapshots", z.take, nil),
 		routes.RegisterRoute(http.MethodGet, "zone-loot/:zone/snapshots/:id/diff", z.diff, nil),
@@ -56,7 +61,70 @@ func (z *Controller) load(c echo.Context) error {
 	if !zoneName.MatchString(c.Param("zone")) {
 		return c.JSON(http.StatusBadRequest, echo.Map{"error": "not a zone short name"})
 	}
-	out, err := Load(z.conn(c), c.Param("zone"))
+	version, _ := strconv.Atoi(c.QueryParam("version"))
+	out, err := Load(z.conn(c), c.Param("zone"), version)
+	if err != nil {
+		return bad(c, err)
+	}
+	return c.JSON(http.StatusOK, out)
+}
+
+type editRequest struct {
+	Version int    `json:"version"`
+	Edits   []Edit `json:"edits"`
+	// preview: read the zone as the edits would leave it, changing nothing
+	Preview bool `json:"preview"`
+	// snapshot the zone first (the page asks for one before its first save)
+	Snapshot bool   `json:"snapshot"`
+	Note     string `json:"note"`
+}
+
+func (z *Controller) edit(c echo.Context) error {
+	zone := c.Param("zone")
+	if !zoneName.MatchString(zone) {
+		return c.JSON(http.StatusBadRequest, echo.Map{"error": "not a zone short name"})
+	}
+	var req editRequest
+	if err := c.Bind(&req); err != nil {
+		return bad(c, err)
+	}
+	if len(req.Edits) == 0 {
+		return c.JSON(http.StatusBadRequest, echo.Map{"error": "no changes"})
+	}
+	db := z.conn(c)
+	var snap *Snapshot
+	if req.Snapshot && !req.Preview {
+		note := req.Note
+		if note == "" {
+			note = "before editing loot"
+		}
+		var err error
+		if snap, err = z.snapshots().TakeAuto(db, zone, note); err != nil {
+			return bad(c, fmt.Errorf("could not snapshot the zone first, so nothing was changed: %v", err))
+		}
+		snap.Tables = nil
+	}
+	res, err := Apply(db, zone, req.Version, req.Edits, req.Preview)
+	if err != nil {
+		return bad(c, err)
+	}
+	return c.JSON(http.StatusOK, echo.Map{"created": res.Created, "zone": res.Zone, "snapshot": snap})
+}
+
+// items finds items to add to a drop group, by name or id
+func (z *Controller) items(c echo.Context) error {
+	q := strings.TrimSpace(c.QueryParam("q"))
+	out := []Item{}
+	if q == "" {
+		return c.JSON(http.StatusOK, out)
+	}
+	where, args := "Name LIKE ?", []any{"%" + q + "%"}
+	if id, err := strconv.Atoi(q); err == nil {
+		where, args = "id = ? OR Name LIKE ?", []any{id, "%" + q + "%"}
+	}
+	err := z.conn(c).Raw(`SELECT id, Name AS name, icon, itemtype AS item_type, slots, reqlevel AS req_level, reclevel AS rec_level, ac, hp, mana, damage, delay, classes,
+		magic, nodrop = 0 AS no_drop, (lore LIKE '*%' OR loregroup <> 0) AS lore FROM items WHERE `+where+` ORDER BY Name LIKE ? DESC, LENGTH(Name), id LIMIT 25`,
+		append(args, q+"%")...).Scan(&out).Error
 	if err != nil {
 		return bad(c, err)
 	}
