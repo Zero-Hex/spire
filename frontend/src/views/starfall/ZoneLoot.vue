@@ -181,6 +181,10 @@
                         <i class="fa fa-clone mr-1"></i> Copy for this NPC only
                       </b-button>
                       <template v-if="!locked('t', table(n).id)">
+                        <b-button size="sm" variant="outline-success" :disabled="structuralBlocked()" :title="structuralTitle()"
+                                  @click="openMaker(n, table(n), 0)">
+                          <i class="fa fa-magic mr-1"></i> Make items
+                        </b-button>
                         <b-button size="sm" variant="outline-secondary" :disabled="structuralBlocked()" :title="structuralTitle()"
                                   @click="act({ op: 'new_lootdrop', loottable_id: table(n).id, everywhere: !!everywhere['t' + table(n).id] }, 'New drop group in loot table ' + table(n).id)">
                           <i class="fa fa-plus mr-1"></i> New drop group
@@ -236,6 +240,10 @@
                           </b-button>
                           <b-button size="sm" variant="outline-danger" @click="unlock('d', e.lootdrop_id)">Edit everywhere</b-button>
                         </template>
+                        <b-button v-if="!locked('d', e.lootdrop_id)" size="sm" variant="outline-success"
+                                  :disabled="structuralBlocked()" :title="structuralTitle()" @click="openMaker(n, table(n), e.lootdrop_id)">
+                          <i class="fa fa-magic mr-1"></i> Make items for this group
+                        </b-button>
                         <b-button v-if="tablesHere(e.lootdrop_id).length > 1 && !locked('t', table(n).id)" size="sm" variant="outline-secondary"
                                   :disabled="structuralBlocked()" :title="structuralTitle()"
                                   @click="act({ op: 'copy_lootdrop', lootdrop_id: e.lootdrop_id, loottable_ids: [table(n).id] }, 'Copy drop group ' + e.lootdrop_id + ' for loot table ' + table(n).id + ' only')">
@@ -445,6 +453,91 @@
         </eq-tab>
       </eq-tabs>
     </eq-window-simple>
+    <!-- make items -->
+    <b-modal v-model="maker.show" size="xl" scrollable :title="makerTitle()" hide-footer>
+      <div v-if="maker.npc">
+        <div class="d-flex align-items-center flex-wrap mb-2">
+          <span class="mr-1">Level</span>
+          <b-form-input size="sm" type="number" min="1" max="255" v-model.number="maker.level" class="zone-loot-num mr-3"/>
+          <span class="mr-2">Tier</span>
+          <b-form-radio-group size="sm" v-model="maker.tier" :options="['trash', 'named', 'raid']" buttons
+                              button-variant="outline-secondary" class="mr-3"/>
+          <span class="mr-1">Names start</span>
+          <b-form-input size="sm" v-model="maker.prefix" style="max-width: 220px"/>
+        </div>
+        <div class="hint text-muted mb-1">
+          Stats come from what NPCs near level {{ maker.level }} drop for each piece, at the {{ tierWord() }} of those items.
+          Each item is a copy of the comparable item nearest the suggestion (its type, slots, look and classes), without its effects.
+        </div>
+        <div class="mb-2">
+          <b-form-checkbox-group v-model="maker.pieces" :options="(maker.catalog.pieces || []).map(p => ({ value: p.key, text: p.label }))"
+                                 buttons button-variant="outline-secondary" size="sm" class="zone-loot-pieces"/>
+        </div>
+        <b-button size="sm" variant="outline-warning" class="mb-3" :disabled="!maker.pieces.length || maker.busy" @click="suggest()">
+          <i :class="'fa ' + (maker.busy ? 'fa-cog fa-spin' : 'fa-lightbulb-o') + ' mr-1'"></i>
+          {{ maker.rows.length ? "Suggest again" : "Suggest stats" }}
+        </b-button>
+        <info-error-banner :error="maker.error" @dismiss-error="maker.error = ''"/>
+
+        <div v-for="(r, i) in maker.rows" :key="'mk' + i" class="zone-loot-maker-row">
+          <div class="d-flex align-items-center flex-wrap">
+            <span :class="'item-' + r.icon + '-sm'" class="zone-loot-icon mr-2"></span>
+            <b-form-input size="sm" v-model="r.name" style="max-width: 280px" class="mr-2" maxlength="64"/>
+            <span class="text-muted mr-2">{{ r.piece.label }}</span>
+            <span class="mr-1">chance</span>
+            <b-form-input size="sm" type="number" min="0" max="100" step="0.1" v-model.number="r.chance" class="zone-loot-num mr-1"/>
+            <span class="mr-3">%</span>
+            <b-form-checkbox v-model="r.nodrop" class="mr-2">No Drop</b-form-checkbox>
+            <b-form-checkbox v-model="r.lore" class="mr-2">Lore</b-form-checkbox>
+            <b-form-checkbox v-model="r.allClasses" class="mr-2">All classes</b-form-checkbox>
+            <span v-if="!r.allClasses" class="text-muted hint mr-2">{{ classNames(r.template.classes) }}</span>
+            <b-button size="sm" variant="outline-danger" class="ml-auto" title="Don't make this one" @click="maker.rows.splice(i, 1)">
+              <i class="fa fa-times"></i>
+            </b-button>
+          </div>
+          <div class="d-flex align-items-center flex-wrap mt-1 hint">
+            <span class="mr-1">copy of</span>
+            <b-form-select size="sm" :value="r.template.id" style="max-width: 300px" class="mr-2"
+                           :options="r.examples.map(x => ({ value: x.id, text: x.name + ' (' + x.id + ')' }))"
+                           @change="id => pickTemplate(r, id)"/>
+            <span class="mr-1">icon</span>
+            <b-form-input size="sm" type="number" min="0" v-model.number="r.icon" class="zone-loot-num mr-2"/>
+            <span class="mr-1">model</span>
+            <b-form-input size="sm" v-model="r.idfile" class="zone-loot-num mr-2" maxlength="30"/>
+            <span class="mr-1">req / rec level</span>
+            <b-form-input size="sm" type="number" min="0" max="255" v-model.number="r.reqlevel" class="zone-loot-num zone-loot-num-sm mr-1"/>
+            <b-form-input size="sm" type="number" min="0" max="255" v-model.number="r.reclevel" class="zone-loot-num zone-loot-num-sm mr-2"/>
+            <span class="text-muted">from {{ r.sample }} items NPCs level {{ r.levels[0] }}–{{ r.levels[1] }} drop</span>
+          </div>
+          <div class="d-flex align-items-center flex-wrap mt-1">
+            <span v-for="k in statOrder(r.stats)" :key="'st' + i + k" class="zone-loot-stat">
+              <span class="text-muted mr-1">{{ statLabel(k) }}</span>
+              <b-form-input size="sm" type="number" :value="r.stats[k]" class="zone-loot-num zone-loot-num-sm"
+                            @change="v => setStat(r, k, v)"/>
+              <a href="#" class="ml-1 text-muted" title="Remove the stat" @click.prevent="$delete(r.stats, k)">×</a>
+            </span>
+            <b-form-select size="sm" :value="null" style="max-width: 130px" @change="k => k && setStat(r, k, 1)"
+                           :key="'add' + i + '-' + Object.keys(r.stats).join()"
+                           :options="[{ value: null, text: '+ stat' }].concat(maker.catalog.stats.filter(k => r.stats[k] === undefined).map(k => ({ value: k, text: statLabel(k) })))"/>
+          </div>
+        </div>
+
+        <div v-if="maker.rows.length" class="d-flex align-items-center flex-wrap mt-3">
+          <template v-if="!maker.group">
+            <span class="mr-1">New drop group</span>
+            <b-form-input size="sm" v-model="maker.groupName" style="max-width: 240px" class="mr-3"/>
+          </template>
+          <span class="mr-1">item ids from</span>
+          <b-form-input size="sm" type="number" v-model.number="maker.start" class="zone-loot-num mr-1" style="width: 100px"/>
+          <span class="mr-1">to</span>
+          <b-form-input size="sm" type="number" v-model.number="maker.end" class="zone-loot-num mr-3" style="width: 100px"/>
+          <b-button size="sm" variant="success" :disabled="maker.busy || !maker.rows.every(r => r.name.trim())" @click="make()">
+            <i :class="'fa ' + (maker.busy ? 'fa-cog fa-spin' : 'fa-magic') + ' mr-1'"></i>
+            Make {{ maker.rows.length }} item(s) and add them
+          </b-button>
+        </div>
+      </div>
+    </b-modal>
   </div>
 </template>
 
@@ -458,6 +551,25 @@ import {ROUTE}         from "@/routes";
 import util            from "util";
 
 const ZONE_KEY = "zone-loot:zone"
+
+const PIECE_NOUNS = {
+  head: "Helm", face: "Mask", ears: "Earring", neck: "Amulet", shoulders: "Pauldrons", arms: "Sleeves", back: "Cloak",
+  wrist: "Bracer", hands: "Gauntlets", chest: "Breastplate", legs: "Greaves", feet: "Boots", waist: "Belt", fingers: "Ring",
+  range: "Talisman", charm: "Charm", "1hs": "Blade", "2hs": "Greatsword", "1hp": "Dagger", "2hp": "Spear", "1hb": "Mace",
+  "2hb": "Maul", h2h: "Knuckles", bow: "Bow", shield: "Shield",
+}
+
+const STAT_LABELS = {
+  ac: "AC", hp: "HP", mana: "Mana", endur: "End", astr: "STR", asta: "STA", aagi: "AGI", adex: "DEX", awis: "WIS", aint: "INT",
+  acha: "CHA", mr: "MR", fr: "FR", cr: "CR", dr: "DR", pr: "PR", damage: "Dmg", delay: "Delay", haste: "Haste", attack: "Atk",
+  regen: "Regen", manaregen: "Mana regen", enduranceregen: "End regen", damageshield: "DS", shielding: "Shielding",
+  spellshield: "Spell shield", avoidance: "Avoidance", accuracy: "Accuracy", strikethrough: "Strikethrough",
+  stunresist: "Stun resist", dotshielding: "DoT shield", spelldmg: "Spell dmg", healamt: "Heal amt", clairvoyance: "Clairvoyance",
+  heroic_str: "H.STR", heroic_sta: "H.STA", heroic_agi: "H.AGI", heroic_dex: "H.DEX", heroic_wis: "H.WIS", heroic_int: "H.INT",
+  heroic_cha: "H.CHA",
+}
+
+const CLASS_NAMES = ["WAR", "CLR", "PAL", "RNG", "SHD", "DRU", "MNK", "BRD", "ROG", "SHM", "NEC", "WIZ", "MAG", "ENC", "BST", "BER"]
 
 // what a changed row's key is made of, by table
 const KEY_NAMES = {
@@ -518,6 +630,13 @@ export default {
       saving: false,
       showPending: false,
       search: { drop: 0, q: "", results: [], timer: null },
+
+      // making items
+      maker: {
+        show: false, npc: null, table: 0, group: 0, level: 1, tier: "named", prefix: "", pieces: [], rows: [],
+        catalog: { pieces: [], stats: [] }, busy: false, error: "", groupName: "",
+        start: Number(stored("spire-item-gen-start", 300000)), end: Number(stored("spire-item-gen-end", 999999)),
+      },
     }
   },
   mounted() {
@@ -580,6 +699,113 @@ export default {
     },
     where() {
       return this.data.version ? `${this.data.zone} v${this.data.version}` : this.data.zone
+    },
+
+    // --- making items ---
+    async openMaker(n, t, group) {
+      const name = this.cleanName(n.name).replace(/^(a|an|the)\s+/i, "")
+      Object.assign(this.maker, {
+        show: true, npc: n, table: t.id, group: group, level: n.level, tier: n.role === "trash" ? "trash" : n.role,
+        prefix: n.role === "trash" ? "" : name + "'s", rows: [], error: "",
+        groupName: `${t.id}_${n.name.replace(/^#/, "")}_made`,
+      })
+      if (!this.maker.catalog.pieces.length) {
+        try {
+          const r = await SpireApi.v1().get(`zone-loot/${this.data.zone}/pieces`)
+          this.maker.catalog = r.data
+        } catch (e) {
+          this.maker.error = this.message(e)
+        }
+      }
+    },
+    makerTitle() {
+      const m = this.maker
+      if (!m.npc) {
+        return "Make items"
+      }
+      return `Make items for ${this.cleanName(m.npc.name)}: ` + (m.group ? `into drop group ${m.group}` : `a new drop group in loot table ${m.table}`)
+    },
+    tierWord() {
+      return { trash: "median", named: "75th percentile", raid: "90th percentile" }[this.maker.tier]
+    },
+    async suggest() {
+      const m = this.maker
+      m.busy  = true
+      m.error = ""
+      try {
+        const r = await SpireApi.v1().post(`zone-loot/${this.data.zone}/suggest`, { pieces: m.pieces, level: m.level, tier: m.tier })
+        const chance = { trash: 2, named: 15, raid: 25 }[m.tier]
+        const missing = r.data.filter(s => !s.template).map(s => s.piece.label)
+        if (missing.length) {
+          m.error = `Nothing near level ${m.level} drops to go on for: ${missing.join(", ")}`
+        }
+        m.rows = r.data.filter(s => s.template).map(s => ({
+          piece: s.piece, sample: s.sample, levels: s.levels, examples: s.examples, template: s.template,
+          name: ((m.prefix ? m.prefix.trim() + " " : "") + (PIECE_NOUNS[s.piece.key] || s.piece.label)).slice(0, 64),
+          icon: s.template.icon, idfile: s.template.idfile, stats: { ...s.stats }, reqlevel: 0, reclevel: 0,
+          chance: chance, nodrop: m.tier === "raid", lore: m.tier === "raid", allClasses: false,
+        }))
+      } catch (e) {
+        m.error = this.message(e)
+      } finally {
+        m.busy = false
+      }
+    },
+    pickTemplate(r, id) {
+      const t = r.examples.find(x => x.id === id)
+      if (t) {
+        r.template = t
+        r.icon     = t.icon
+        r.idfile   = t.idfile
+      }
+    },
+    statOrder(stats) {
+      return this.maker.catalog.stats.filter(k => stats[k] !== undefined)
+    },
+    statLabel(k) {
+      return STAT_LABELS[k] || k
+    },
+    setStat(r, k, v) {
+      this.$set(r.stats, k, Math.round(parseFloat(v) || 0))
+    },
+    classNames(mask) {
+      if ((mask & 65535) === 65535) {
+        return "all classes"
+      }
+      return CLASS_NAMES.filter((c, i) => mask & (1 << i)).join(" ") || "no classes"
+    },
+    async make() {
+      const m = this.maker
+      m.busy  = true
+      m.error = ""
+      try {
+        try {
+          localStorage.setItem("spire-item-gen-start", String(m.start))
+          localStorage.setItem("spire-item-gen-end", String(m.end))
+        } catch (e) {
+        }
+        const r = await SpireApi.v1().post(`zone-loot/${this.data.zone}/make`, {
+          version: this.data.version, start: m.start, end: m.end, loottable_id: m.table, lootdrop_id: m.group,
+          group_name: m.groupName, everywhere: !!this.everywhere["t" + m.table], snapshot: !this.snapshotted,
+          comment: `Spire Zone Loot for ${this.cleanName(m.npc.name)}`,
+          items: m.rows.map(row => ({
+            template_id: row.template.id, name: row.name, icon: row.icon, idfile: row.idfile, stats: row.stats,
+            reqlevel: row.reqlevel, reclevel: row.reclevel, classes: row.allClasses ? 65535 : 0,
+            nodrop: row.nodrop, lore: row.lore, chance: row.chance,
+          })),
+        })
+        this.base = this.data = r.data.zone
+        this.snapshotted = true
+        m.show = false
+        this.notification = `Made ${r.data.items.map(x => `${x.name} (${x.id})`).join(", ")} in drop group ${r.data.lootdrop_id}` +
+          (r.data.snapshot ? `; how the zone was is kept as snapshot ${r.data.snapshot.id}` : "") +
+          ". Restart the zone for them to drop."
+        await this.loadSnapshots()
+      } catch (e) {
+        m.error = "Nothing was made: " + this.message(e)
+      } finally {
+        m.busy = false
+      }
     },
 
     // --- editing ---
@@ -1142,6 +1368,30 @@ export default {
 .zone-loot-result {
   padding: 3px 8px;
   cursor: pointer;
+}
+
+.zone-loot-maker-row {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 4px;
+  padding: 8px 10px;
+  margin-bottom: 8px;
+}
+
+.zone-loot-stat {
+  white-space: nowrap;
+  margin: 2px 12px 2px 0;
+}
+
+.zone-loot-pieces {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.zone-loot-pieces >>> .btn {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  margin: 0 4px 4px 0;
+  border-radius: 3px !important;
 }
 
 .zone-loot-result:hover {

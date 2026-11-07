@@ -539,3 +539,76 @@ func copySQL(columns []string, templateID int, set map[string]any) (string, []an
 	args = append(args, templateID)
 	return "INSERT INTO items (" + strings.Join(names, ", ") + ") SELECT " + strings.Join(values, ", ") + " FROM items WHERE id = ?", args
 }
+
+// Copy is one item to make from a template, with columns set (lower case
+// names, as the items table has them)
+type Copy struct {
+	TemplateID int
+	Set        map[string]any
+}
+
+// ItemColumns is the items table's columns, in order
+func ItemColumns(tx *gorm.DB) ([]string, error) {
+	var columns []string
+	if err := tx.Raw("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'items' ORDER BY ORDINAL_POSITION").Scan(&columns).Error; err != nil {
+		return nil, err
+	}
+	if len(columns) == 0 {
+		return nil, errors.New("there is no items table")
+	}
+	return columns, nil
+}
+
+// CopyItems makes items in a transaction the caller holds, numbered on from
+// the highest at or above start, as Create does. Each copy's name must be set.
+func CopyItems(tx *gorm.DB, start, end int, copies []Copy) ([]Created, error) {
+	if len(copies) == 0 {
+		return nil, errors.New("no items to make")
+	}
+	columns, err := ItemColumns(tx)
+	if err != nil {
+		return nil, err
+	}
+	var templateIDs []int
+	for _, c := range copies {
+		name, _ := c.Set["name"].(string)
+		switch {
+		case strings.TrimSpace(name) == "":
+			return nil, errors.New("every item needs a name")
+		case len(name) > nameLimit:
+			return nil, fmt.Errorf("%q is longer than %d characters", name, nameLimit)
+		}
+		templateIDs = append(templateIDs, c.TemplateID)
+	}
+	var augments int64
+	if err := tx.Table("items").Where("id IN ? AND (augtype > 0 OR itemtype = ?)", templateIDs, itemtypeAugment).Count(&augments).Error; err != nil {
+		return nil, err
+	}
+	r, err := checkRange(start, end, augments > 0)
+	if err != nil {
+		return nil, err
+	}
+	ids, err := nextIDs(tx, r, len(copies))
+	if err != nil {
+		return nil, err
+	}
+	var created []Created
+	for i, c := range copies {
+		set := map[string]any{"id": ids[i], "updated": time.Now()}
+		for k, v := range c.Set {
+			set[strings.ToLower(k)] = v
+		}
+		name := strings.TrimSpace(set["name"].(string))
+		set["name"] = name
+		sql, args := copySQL(columns, c.TemplateID, set)
+		res := tx.Exec(sql, args...)
+		if res.Error != nil {
+			return nil, fmt.Errorf("%v: %v", name, res.Error)
+		}
+		if res.RowsAffected != 1 {
+			return nil, fmt.Errorf("%v: there is no item %d to copy", name, c.TemplateID)
+		}
+		created = append(created, Created{ID: ids[i], Name: name})
+	}
+	return created, nil
+}

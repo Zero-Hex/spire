@@ -93,17 +93,11 @@ func Apply(db *gorm.DB, zone string, version int, edits []Edit, preview bool) (*
 	}
 	res := &EditResult{Created: []Created{}}
 	err := db.Transaction(func(tx *gorm.DB) error {
-		e := &editor{tx: tx, zone: zone, version: version}
-		for i, ed := range edits {
-			if err := e.refresh(); err != nil {
-				return err
-			}
-			e.at = i
-			if err := e.apply(ed); err != nil {
-				return fmt.Errorf("change %d (%v): %v", i+1, ed.Op, err)
-			}
+		created, err := applyEdits(tx, zone, version, edits)
+		if err != nil {
+			return err
 		}
-		res.Created = append(res.Created, e.created...)
+		res.Created = append(res.Created, created...)
 		z, err := Load(tx, zone, version)
 		if err != nil {
 			return err
@@ -118,6 +112,21 @@ func Apply(db *gorm.DB, zone string, version int, edits []Edit, preview bool) (*
 		return nil, err
 	}
 	return res, nil
+}
+
+// applyEdits makes edits in a transaction the caller holds
+func applyEdits(tx *gorm.DB, zone string, version int, edits []Edit) ([]Created, error) {
+	e := &editor{tx: tx, zone: zone, version: version}
+	for i, ed := range edits {
+		if err := e.refresh(); err != nil {
+			return nil, err
+		}
+		e.at = i
+		if err := e.apply(ed); err != nil {
+			return nil, fmt.Errorf("change %d (%v): %v", i+1, ed.Op, err)
+		}
+	}
+	return e.created, nil
 }
 
 type editor struct {

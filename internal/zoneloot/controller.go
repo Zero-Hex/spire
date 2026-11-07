@@ -32,6 +32,9 @@ func (z *Controller) Routes() []*routes.Route {
 		routes.RegisterRoute(http.MethodGet, "zone-loot/:zone", z.load, nil),
 		routes.RegisterRoute(http.MethodPost, "zone-loot/:zone/edit", z.edit, nil),
 		routes.RegisterRoute(http.MethodGet, "zone-loot/:zone/items", z.items, nil),
+		routes.RegisterRoute(http.MethodGet, "zone-loot/:zone/pieces", z.pieces, nil),
+		routes.RegisterRoute(http.MethodPost, "zone-loot/:zone/suggest", z.suggest, nil),
+		routes.RegisterRoute(http.MethodPost, "zone-loot/:zone/make", z.make, nil),
 		routes.RegisterRoute(http.MethodGet, "zone-loot/:zone/snapshots", z.list, nil),
 		routes.RegisterRoute(http.MethodPost, "zone-loot/:zone/snapshots", z.take, nil),
 		routes.RegisterRoute(http.MethodGet, "zone-loot/:zone/snapshots/:id/diff", z.diff, nil),
@@ -177,4 +180,53 @@ func (z *Controller) delete(c echo.Context) error {
 		return bad(c, err)
 	}
 	return c.JSON(http.StatusOK, echo.Map{"deleted": c.Param("id")})
+}
+
+// pieces is what items can be made, and the stats they carry
+func (z *Controller) pieces(c echo.Context) error {
+	stats, err := liveStats(z.conn(c))
+	if err != nil {
+		return bad(c, err)
+	}
+	return c.JSON(http.StatusOK, echo.Map{"pieces": Pieces, "stats": stats})
+}
+
+func (z *Controller) suggest(c echo.Context) error {
+	var req SuggestRequest
+	if err := c.Bind(&req); err != nil {
+		return bad(c, err)
+	}
+	out, err := Suggest(z.conn(c), req)
+	if err != nil {
+		return bad(c, err)
+	}
+	return c.JSON(http.StatusOK, out)
+}
+
+func (z *Controller) make(c echo.Context) error {
+	zone := c.Param("zone")
+	if !zoneName.MatchString(zone) {
+		return c.JSON(http.StatusBadRequest, echo.Map{"error": "not a zone short name"})
+	}
+	var req struct {
+		MakeRequest
+		Snapshot bool `json:"snapshot"`
+	}
+	if err := c.Bind(&req); err != nil {
+		return bad(c, err)
+	}
+	db := z.conn(c)
+	var snap *Snapshot
+	if req.Snapshot {
+		var err error
+		if snap, err = z.snapshots().TakeAuto(db, zone, fmt.Sprintf("before making %d item(s)", len(req.Items))); err != nil {
+			return bad(c, fmt.Errorf("could not snapshot the zone first, so nothing was changed: %v", err))
+		}
+		snap.Tables = nil
+	}
+	res, err := Make(db, zone, req.MakeRequest)
+	if err != nil {
+		return bad(c, err)
+	}
+	return c.JSON(http.StatusOK, echo.Map{"items": res.Items, "lootdrop_id": res.LootdropID, "zone": res.Zone, "snapshot": snap})
 }
