@@ -18,6 +18,12 @@
           <i :class="'fa ' + (loading ? 'fa-cog fa-spin' : 'fa-search') + ' mr-1'"></i> Load
         </b-button>
         <b-form-checkbox v-if="data" v-model="editing" switch class="mr-3">Edit</b-form-checkbox>
+        <b-form-checkbox v-if="data" v-model="scaling.on" switch class="mr-2" @change="v => v && previewScaling()">Scaling preview</b-form-checkbox>
+        <template v-if="data && scaling.on">
+          <span class="mr-1">player level</span>
+          <b-form-input size="sm" type="number" min="1" max="255" v-model.number="scaling.level" class="zone-loot-num mr-3"
+                        @change="previewScaling()"/>
+        </template>
         <span v-if="data" class="text-muted">
           <b>{{ data.long_name || data.zone }}</b>:
           {{ data.npcs.length }} NPCs, {{ count(data.tables) }} loot tables, {{ count(data.dropgroups) }} drop groups,
@@ -27,6 +33,43 @@
       </div>
       <info-error-banner class="mt-2" :notification="notification" :error="error"
                          @dismiss-error="error = ''" @dismiss-notification="notification = ''"/>
+
+      <div v-if="data && scaling.on" class="zone-loot-scaling mt-2">
+        <div class="hint mb-1">
+          What <code>plugins/npc_challenge_scaling.pl</code> would make of {{ where() }}'s NPCs with a level {{ scaling.level }}
+          player in the zone (the highest level there counts; GMs don't): each NPC moves to that level plus its type's
+          offset, never more than "max raise" above its own, its HP, AC and damage scaled along the server's
+          <code>npc_scale_global_base</code> curve, then the challenge multipliers on top. It only runs in zones whose
+          <code>zone.pl</code> hooks it. NPCs with a level range are shown at their lowest level.
+          <i v-if="scaling.busy" class="fa fa-cog fa-spin ml-1"></i>
+        </div>
+        <div v-if="scaling.preview && !scaling.preview.curve" class="text-warning hint mb-1">
+          npc_scale_global_base has no rows: level scaling can't change anything.
+        </div>
+        <div v-if="scaling.rules" class="d-flex align-items-center flex-wrap hint">
+          <b-form-checkbox v-model="scaling.rules.level_enabled" class="mr-2" @change="previewScaling()">Level scaling</b-form-checkbox>
+          <span v-if="scaling.server && !scaling.server.level_enabled" class="text-warning mr-3">(off on the server)</span>
+          <template v-for="f in scaleIntFields">
+            <span :key="'sl' + f.key" class="mr-1">{{ f.label }}</span>
+            <b-form-input :key="'si' + f.key" size="sm" type="number" class="zone-loot-num zone-loot-num-sm mr-2"
+                          v-model.number="scaling.rules[f.key]" @change="previewScaling()" :title="f.title"/>
+          </template>
+          <b-form-checkbox v-model="scaling.rules.raid_targets" class="mr-2" @change="previewScaling()">raid targets</b-form-checkbox>
+          <b-form-checkbox v-model="scaling.rules.lower" class="mr-3" @change="previewScaling()">lower too</b-form-checkbox>
+          <b-form-checkbox v-model="scaling.rules.challenge_enabled" class="mr-2" @change="previewScaling()">Challenge</b-form-checkbox>
+          <template v-for="f in scaleMultFields">
+            <span :key="'ml' + f.key" class="mr-1">{{ f.label }}</span>
+            <b-form-input :key="'mi' + f.key" size="sm" type="number" step="0.05" class="zone-loot-num mr-2"
+                          v-model.number="scaling.rules[f.key]" @change="previewScaling()"/>
+          </template>
+          <a v-if="scalingChanged()" href="#" class="ml-1" @click.prevent="scalingFromServer()">the server's rules</a>
+        </div>
+        <div v-if="scaling.preview" class="hint text-muted mt-1">
+          {{ scalingSummary() }}
+          <span v-if="scaling.preview.rules_set.length < 14"> Rules the server's rule_values doesn't have yet show their defaults.</span>
+        </div>
+        <info-error-banner class="mt-1" :error="scaling.error" @dismiss-error="scaling.error = ''"/>
+      </div>
 
       <div v-if="data && (sharedTables().length || sharedGroups().length)" class="mt-2 text-warning hint zone-loot-shared">
         <div v-if="sharedTables().length">
@@ -88,6 +131,11 @@
               <th>NPC</th>
               <th>Role</th>
               <th class="text-center">Level</th>
+              <template v-if="scaled()">
+                <th class="text-right">HP</th>
+                <th class="text-right">AC</th>
+                <th class="text-center">Damage</th>
+              </template>
               <th class="text-center" title="How many are up at once, on average, over its spawn points">Up</th>
               <th>Loot table</th>
               <th>Drops per kill</th>
@@ -102,7 +150,14 @@
                   <span class="text-muted ml-1">{{ n.id }}</span>
                 </td>
                 <td><span :class="'zone-loot-role zone-loot-role-' + n.role">{{ n.role }}</span></td>
-                <td class="text-center">{{ levels(n) }}</td>
+                <td class="text-center" style="white-space: nowrap">
+                  {{ levels(n) }}<span v-if="scaledOf(n) && scaledOf(n).scaled.level !== scaledOf(n).spawn.level" class="zone-loot-up"> → {{ scaledOf(n).scaled.level }}</span>
+                </td>
+                <template v-if="scaled()">
+                  <td class="text-right" style="white-space: nowrap">{{ statChange(n, 'hp') }}</td>
+                  <td class="text-right" style="white-space: nowrap">{{ statChange(n, 'ac') }}</td>
+                  <td class="text-center" style="white-space: nowrap">{{ damageChange(n) }}</td>
+                </template>
                 <td class="text-center">{{ round(n.up, 2) }}</td>
                 <td>
                   <span v-if="!n.loottable_id" class="text-muted">none</span>
@@ -113,15 +168,18 @@
                   </span>
                 </td>
                 <td>
-                  <span v-for="d in n.drops.slice(0, 4)" :key="n.id + '-' + d.item_id" class="mr-3 zone-loot-drop">
+                  <span v-for="d in dropsOf(n).slice(0, 4)" :key="n.id + '-' + d.item_id" class="mr-3 zone-loot-drop">
                     <span :class="'item-' + icon(d.item_id) + '-sm'" class="zone-loot-icon"></span>
                     {{ itemName(d.item_id) }} <span class="text-muted">{{ rate(d.expected) }}</span>
                   </span>
-                  <span v-if="n.drops.length > 4" class="text-muted">+{{ n.drops.length - 4 }} more</span>
+                  <span v-if="dropsOf(n).length > 4" class="text-muted">+{{ dropsOf(n).length - 4 }} more</span>
                 </td>
               </tr>
               <tr v-if="open[n.id]" :key="'d' + n.id" class="zone-loot-detail">
-                <td colspan="6">
+                <td :colspan="scaled() ? 9 : 6">
+                  <div v-if="scaledOf(n)" class="hint mb-1 zone-loot-scaled-line">
+                    With a level {{ scaling.level }} player: {{ scaleDetail(n) }}
+                  </div>
                   <div class="text-muted hint mb-1">
                     Spawns in
                     <span v-for="s in n.spawns" :key="'sp' + s.spawngroup_id" class="mr-2">
@@ -867,6 +925,19 @@ export default {
       ],
       pointFields: ["x", "y", "z", "heading", "respawntime", "variance", "pathgrid", "spawngroup_id"],
 
+      // the zone scaling plugin, previewed
+      scaling: { on: false, level: 30, rules: null, server: null, preview: null, busy: false, error: "", seq: 0, timer: null },
+      scaleIntFields: [
+        { key: "trash_offset", label: "trash +", title: "Levels above the players' level trash goes to" },
+        { key: "named_offset", label: "named +", title: "Levels above the players' level named NPCs go to" },
+        { key: "raid_offset", label: "raid +", title: "Levels above the players' level raid targets go to (when raid targets scale)" },
+        { key: "max_raise", label: "max raise", title: "The most levels an NPC is raised (0: no limit)" },
+      ],
+      scaleMultFields: [
+        { key: "trash_hp", label: "trash HP ×" }, { key: "trash_ac", label: "AC ×" }, { key: "trash_damage", label: "dmg ×" },
+        { key: "boss_hp", label: "# boss HP ×" }, { key: "boss_ac", label: "AC ×" }, { key: "boss_damage", label: "dmg ×" },
+      ],
+
       // race models
       models: { plan: null, busy: false, error: "", notification: "", remove: {}, add: {}, archive: {}, mode: "add" },
       clientPatchRoute: ROUTE.STARFALL_CLIENT_PATCH,
@@ -892,6 +963,14 @@ export default {
         start: Number(stored("spire-item-gen-start", 300000)), end: Number(stored("spire-item-gen-end", 999999)),
       },
     }
+  },
+  watch: {
+    // saved changes and other zones: the preview follows
+    base() {
+      if (this.scaling.on) {
+        this.previewScaling()
+      }
+    },
   },
   mounted() {
     this.load()
@@ -1068,6 +1147,100 @@ export default {
         this.models.zone = this.data.zone
         this.loadModels()
       }
+    },
+
+    // --- scaling preview ---
+    previewScaling() {
+      clearTimeout(this.scaling.timer)
+      this.scaling.timer = setTimeout(() => this.runScalingPreview(), 250)
+    },
+    async runScalingPreview() {
+      if (!this.data || !this.scaling.on) {
+        return
+      }
+      const seq = ++this.scaling.seq
+      this.scaling.busy = true
+      try {
+        const r = await SpireApi.v1().post(`zone-loot/${this.data.zone}/scaling`, {
+          version: this.data.version, player_level: parseInt(this.scaling.level) || 0, rules: this.scaling.rules,
+        })
+        if (seq !== this.scaling.seq) {
+          return
+        }
+        if (!this.scaling.rules) {
+          // the server's rules, with level scaling on: that's what's being previewed
+          this.scaling.server = r.data.server_rules
+          this.scaling.rules  = { ...r.data.server_rules, level_enabled: true }
+          return this.runScalingPreview()
+        }
+        this.scaling.server  = r.data.server_rules
+        this.scaling.preview = r.data
+        this.scaling.error   = ""
+      } catch (e) {
+        if (seq === this.scaling.seq) {
+          this.scaling.error = this.message(e)
+        }
+      } finally {
+        if (seq === this.scaling.seq) {
+          this.scaling.busy = false
+        }
+      }
+    },
+    scalingFromServer() {
+      this.scaling.rules = { ...this.scaling.server }
+      this.previewScaling()
+    },
+    scalingChanged() {
+      const a = this.scaling.rules, b = this.scaling.server
+      return a && b && Object.keys(b).some(k => a[k] !== b[k])
+    },
+    scaled() {
+      return this.scaling.on && !!this.scaling.preview
+    },
+    scaledOf(n) {
+      return this.scaled() ? this.scaling.preview.npcs[n.id] : null
+    },
+    dropsOf(n) {
+      const s = this.scaledOf(n)
+      return s && s.drops ? s.drops : n.drops
+    },
+    statChange(n, k) {
+      const s = this.scaledOf(n)
+      if (!s) {
+        return ""
+      }
+      return s.spawn[k] === s.scaled[k] ? String(s.spawn[k]) : `${s.spawn[k]} → ${s.scaled[k]}`
+    },
+    damageChange(n) {
+      const s = this.scaledOf(n)
+      if (!s) {
+        return ""
+      }
+      const a = `${s.spawn.min_dmg}–${s.spawn.max_dmg}`, b = `${s.scaled.min_dmg}–${s.scaled.max_dmg}`
+      return a === b ? a : `${a} → ${b}`
+    },
+    scaleDetail(n) {
+      const s = this.scaledOf(n)
+      const parts = []
+      const ch = (label, a, b) => parts.push(a === b ? `${label} ${a}` : `${label} ${a} → ${b}`)
+      ch("level", s.spawn.level, s.scaled.level)
+      ch("HP", s.spawn.hp, s.scaled.hp)
+      ch("AC", s.spawn.ac, s.scaled.ac)
+      ch("damage", `${s.spawn.min_dmg}–${s.spawn.max_dmg}`, `${s.scaled.min_dmg}–${s.scaled.max_dmg}`)
+      ch("attack", s.spawn.attack, s.scaled.attack)
+      ch("accuracy", s.spawn.accuracy, s.scaled.accuracy)
+      const type = ["trash", "named", "raid target"][s.type]
+      const why = s.type === 2 && !this.scaling.rules.raid_targets ? "; raid targets don't level-scale" : ""
+      return parts.join(", ") + ` (scales as ${type}${why}; challenge: ${s.boss ? "# boss" : "trash"} multipliers)`
+    },
+    scalingSummary() {
+      const npcs = Object.values(this.scaling.preview.npcs)
+      const raised = npcs.filter(s => s.scaled.level > s.spawn.level).length
+      const lowered = npcs.filter(s => s.scaled.level < s.spawn.level).length
+      const hp = (k) => npcs.reduce((a, s) => a + s[k].hp, 0)
+      const pct = hp("spawn") ? Math.round((hp("scaled") / hp("spawn") - 1) * 100) : 0
+      return `${raised} of ${npcs.length} NPCs raised` + (lowered ? `, ${lowered} lowered` : "") +
+        `; their HP together ${pct >= 0 ? "+" : ""}${pct}%.`
     },
 
     // --- spawns ---
@@ -1541,7 +1714,7 @@ export default {
     items() {
       const by = {}
       for (const n of this.data.npcs) {
-        for (const d of n.drops) {
+        for (const d of this.dropsOf(n)) {
           const it = this.data.items[d.item_id] || { id: d.item_id, name: `item ${d.item_id}`, icon: 0 }
           const e  = by[d.item_id] || (by[d.item_id] = { ...it, droppers: [], best: 0, perClear: 0 })
           e.droppers.push({ npc: n, expected: d.expected })
@@ -1598,10 +1771,11 @@ export default {
       return parts.join(", ")
     },
     levelOK(it, n) {
-      return (!it.npc_min_level || n.level >= it.npc_min_level) && (!it.npc_max_level || n.level <= it.npc_max_level)
+      const level = this.scaledOf(n) ? this.scaledOf(n).scaled.level : n.level
+      return (!it.npc_min_level || level >= it.npc_min_level) && (!it.npc_max_level || level <= it.npc_max_level)
     },
     expectedFor(n, itemId) {
-      const d = n.drops.find(d => d.item_id === itemId)
+      const d = this.dropsOf(n).find(d => d.item_id === itemId)
       return d ? d.expected : 0
     },
 
@@ -1825,6 +1999,20 @@ export default {
 .zone-loot-result {
   padding: 3px 8px;
   cursor: pointer;
+}
+
+.zone-loot-scaling {
+  border: 1px solid rgba(23, 162, 184, 0.45);
+  border-radius: 4px;
+  padding: 6px 10px;
+}
+
+.zone-loot-up {
+  color: #5bc0de;
+}
+
+.zone-loot-scaled-line {
+  color: #8fd3e8;
 }
 
 .zone-loot-from {

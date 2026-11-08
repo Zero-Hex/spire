@@ -36,6 +36,7 @@ func (z *Controller) Routes() []*routes.Route {
 		routes.RegisterRoute(http.MethodGet, "zone-loot/:zone/items", z.items, nil),
 		routes.RegisterRoute(http.MethodGet, "zone-loot/:zone/pieces", z.pieces, nil),
 		routes.RegisterRoute(http.MethodGet, "zone-loot/:zone/npcs", z.npcs, nil),
+		routes.RegisterRoute(http.MethodPost, "zone-loot/:zone/scaling", z.scaling, nil),
 		routes.RegisterRoute(http.MethodGet, "zone-loot/:zone/models", z.models, nil),
 		routes.RegisterRoute(http.MethodPut, "zone-loot/:zone/models", z.saveModels, nil),
 		routes.RegisterRoute(http.MethodPost, "zone-loot/:zone/suggest", z.suggest, nil),
@@ -276,4 +277,25 @@ func (z *Controller) saveModels(c echo.Context) error {
 		return bad(c, err)
 	}
 	return c.JSON(http.StatusOK, echo.Map{"path": path, "plan": plan})
+}
+
+// scaling works out the Starfall zone scaling plugin for a player level: with
+// the server's rules, or the ones sent
+func (z *Controller) scaling(c echo.Context) error {
+	var req struct {
+		Version     int         `json:"version"`
+		PlayerLevel int         `json:"player_level"`
+		Rules       *ScaleRules `json:"rules"`
+	}
+	if err := c.Bind(&req); err != nil {
+		return bad(c, err)
+	}
+	if !zoneName.MatchString(c.Param("zone")) {
+		return c.JSON(http.StatusBadRequest, echo.Map{"error": "not a zone short name"})
+	}
+	out, err := PreviewScaling(z.conn(c), c.Param("zone"), req.Version, req.PlayerLevel, req.Rules)
+	if err != nil {
+		return bad(c, err)
+	}
+	return c.JSON(http.StatusOK, out)
 }
