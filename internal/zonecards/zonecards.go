@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"unicode/utf8"
 
@@ -25,7 +26,31 @@ const (
 	MaxSubtitle  = 127
 	MaxDisplayMs = 15000 // kMaxDisplayMs
 	MaxSound     = 64    // the sound column
+	MaxShroud    = 90    // kMaxShroudPct
+	// a row's shroud when it doesn't set one (the column default); zones with
+	// no row use Custom:Zone_Card_Default_Shroud
+	RowShroud = 45
 )
+
+// the columns later migrations add, their defaults, and the migration
+var laterColumns = []struct {
+	name      string
+	migration int
+	isDefault func(c models.CustomZoneCard) bool
+}{
+	{"title_font", 69, func(c models.CustomZoneCard) bool { return c.TitleFont == "" }},
+	{"title_color", 69, func(c models.CustomZoneCard) bool { return c.TitleColor == "" }},
+	{"subtitle_color", 69, func(c models.CustomZoneCard) bool { return c.SubtitleColor == "" }},
+	{"accent_color", 69, func(c models.CustomZoneCard) bool { return c.AccentColor == "" }},
+	{"emblem_icon", 69, func(c models.CustomZoneCard) bool { return c.EmblemIcon == 0 }},
+	{"reveal", 69, func(c models.CustomZoneCard) bool { return c.Reveal == "" }},
+	{"display_ms", 69, func(c models.CustomZoneCard) bool { return c.DisplayMs == 0 }},
+	{"return_card", 69, func(c models.CustomZoneCard) bool { return c.ReturnCard == 1 }},
+	{"sound", 69, func(c models.CustomZoneCard) bool { return c.Sound == "" }},
+	{"sound_on_return", 69, func(c models.CustomZoneCard) bool { return c.SoundOnReturn == 0 }},
+	{"shroud", 70, func(c models.CustomZoneCard) bool { return c.Shroud == RowShroud }},
+	{"shroud_color", 70, func(c models.CustomZoneCard) bool { return c.ShroudColor == "" }},
+}
 
 var (
 	fonts     = map[string]bool{"": true, "cinzel": true, "pirata": true, "arimo": true}
@@ -48,6 +73,10 @@ type List struct {
 	Discovered map[string]int `json:"discovered"`
 	// the server has the style columns (custom migration 69)
 	Styles bool `json:"styles"`
+	// and the shroud ones (70)
+	Shroud bool `json:"shroud"`
+	// Custom:Zone_Card_Default_Shroud: zones with no row
+	DefaultShroud int `json:"default_shroud"`
 	// MP3s Spire keeps for the client patch, by their path in the client folder
 	Sounds []string `json:"sounds"`
 }
@@ -75,7 +104,8 @@ func Read(content, server *gorm.DB) (*List, error) {
 		return nil, errNoTable
 	}
 	out := &List{Zones: []Zone{}, Cards: []models.CustomZoneCard{}, Discovered: map[string]int{}, Sounds: []string{},
-		Styles: hasColumn(server, "custom_zone_card", "title_font")}
+		Styles: hasColumn(server, "custom_zone_card", "title_font"), Shroud: hasColumn(server, "custom_zone_card", "shroud"),
+		DefaultShroud: defaultShroud(server)}
 	// one row per zone: version 0's name where there is one
 	if err := content.Raw(`SELECT z.short_name, z.long_name, z.zoneidnumber AS id FROM zone z
 		JOIN (SELECT short_name, MIN(version) AS version FROM zone WHERE short_name <> '' GROUP BY short_name) v
@@ -86,10 +116,14 @@ func Read(content, server *gorm.DB) (*List, error) {
 	if err := server.Order("zone_short_name").Find(&out.Cards).Error; err != nil {
 		return nil, err
 	}
-	// before migration 69 a row has no return_card column: it is on
+	// before migrations 69 and 70 a row has no return_card or shroud
+	// columns: it gets their defaults
 	for i := range out.Cards {
 		if !out.Styles {
 			out.Cards[i].ReturnCard = 1
+		}
+		if !out.Shroud {
+			out.Cards[i].Shroud = RowShroud
 		}
 	}
 	if hasTable(server, "custom_zone_discovered") {
@@ -125,7 +159,7 @@ func Save(content, server *gorm.DB, card models.CustomZoneCard) (*models.CustomZ
 	card.TitleFont = strings.ToLower(strings.TrimSpace(card.TitleFont))
 	card.Reveal = strings.ToLower(strings.TrimSpace(card.Reveal))
 	card.Sound = strings.TrimSpace(card.Sound)
-	for _, c := range []*string{&card.TitleColor, &card.SubtitleColor, &card.AccentColor} {
+	for _, c := range []*string{&card.TitleColor, &card.SubtitleColor, &card.AccentColor, &card.ShroudColor} {
 		*c = strings.ToUpper(strings.TrimPrefix(strings.TrimSpace(*c), "#"))
 		if *c != "" && !hexColor.MatchString(*c) {
 			return nil, fmt.Errorf("%q is not a colour: hex RRGGBB, or empty for the default", *c)
@@ -138,6 +172,8 @@ func Save(content, server *gorm.DB, card models.CustomZoneCard) (*models.CustomZ
 		return nil, fmt.Errorf("%q is not a reveal: fade, rise or letters", card.Reveal)
 	case card.DisplayMs > MaxDisplayMs:
 		return nil, fmt.Errorf("a card stays up at most %d ms", MaxDisplayMs)
+	case card.Shroud > MaxShroud:
+		return nil, fmt.Errorf("the shroud dims the scene at most %d%%", MaxShroud)
 	case card.Sound != "" && (len(card.Sound) > MaxSound || !soundPath.MatchString(card.Sound) || strings.Contains(card.Sound, "..")):
 		return nil, fmt.Errorf("%q is not an MP3 in the client folder (at most %d characters)", card.Sound, MaxSound)
 	}
@@ -164,19 +200,18 @@ func Save(content, server *gorm.DB, card models.CustomZoneCard) (*models.CustomZ
 	if !hasTable(server, "custom_zone_card") {
 		return nil, errNoTable
 	}
-	if !hasColumn(server, "custom_zone_card", "title_font") {
-		// before custom migration 69: the text and switch only
-		def := models.CustomZoneCard{ZoneShortName: card.ZoneShortName, Title: card.Title, Subtitle: card.Subtitle, Enabled: card.Enabled, ReturnCard: 1}
-		if card != def {
-			return nil, errors.New("the server has no style columns yet (Starfall custom migration 69, run when world starts on a build that has it): only the title, subtitle and shown can be saved")
+	// the columns this server has: one a later migration adds is written
+	// only once it's there, and can't be set before
+	cols := []string{"title", "subtitle", "enabled"}
+	for _, c := range laterColumns {
+		if hasColumn(server, "custom_zone_card", c.name) {
+			cols = append(cols, c.name)
+		} else if !c.isDefault(card) {
+			return nil, fmt.Errorf("this server's custom_zone_card has no %v column yet (Starfall custom migration %d, run when world starts on a build that has it)", c.name, c.migration)
 		}
-		if err := server.Select("zone_short_name", "title", "subtitle", "enabled").
-			Clauses(clause.OnConflict{DoUpdates: clause.AssignmentColumns([]string{"title", "subtitle", "enabled"})}).Create(&card).Error; err != nil {
-			return nil, err
-		}
-		return &card, nil
 	}
-	if err := server.Clauses(clause.OnConflict{UpdateAll: true}).Create(&card).Error; err != nil {
+	if err := server.Select(append([]string{"zone_short_name"}, cols...)).
+		Clauses(clause.OnConflict{DoUpdates: clause.AssignmentColumns(cols)}).Create(&card).Error; err != nil {
 		return nil, err
 	}
 	return &card, nil
@@ -208,4 +243,19 @@ func Sounds(store *clientassets.Store) []string {
 	}
 	sort.Strings(out)
 	return out
+}
+
+// defaultShroud is Custom:Zone_Card_Default_Shroud (45 unless set)
+func defaultShroud(server *gorm.DB) int {
+	v := RowShroud
+	if hasTable(server, "rule_values") {
+		var rows []struct{ RuleValue string }
+		server.Raw("SELECT rule_value FROM rule_values WHERE ruleset_id = 1 AND rule_name = 'Custom:Zone_Card_Default_Shroud' LIMIT 1").Scan(&rows)
+		if len(rows) == 1 {
+			if n, err := strconv.Atoi(strings.TrimSpace(rows[0].RuleValue)); err == nil {
+				v = n
+			}
+		}
+	}
+	return min(max(v, 0), MaxShroud)
 }

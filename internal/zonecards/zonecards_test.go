@@ -51,7 +51,7 @@ func TestZoneCards(t *testing.T) {
 	}
 
 	// a card for The Hole, like the in-game one
-	card, err := Save(db, db, models.CustomZoneCard{ZoneShortName: "hole", Subtitle: " What Paineel Buried, It Did Not Forget ", Enabled: 1, ReturnCard: 1})
+	card, err := Save(db, db, models.CustomZoneCard{ZoneShortName: "hole", Subtitle: " What Paineel Buried, It Did Not Forget ", Enabled: 1, ReturnCard: 1, Shroud: RowShroud})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -59,7 +59,7 @@ func TestZoneCards(t *testing.T) {
 		t.Errorf("saved %+v", card)
 	}
 	// saved again: the row is replaced, not doubled
-	if _, err := Save(db, db, models.CustomZoneCard{ZoneShortName: "hole", Title: "The Hole", Subtitle: "Below Paineel", Enabled: 0, ReturnCard: 1}); err != nil {
+	if _, err := Save(db, db, models.CustomZoneCard{ZoneShortName: "hole", Title: "The Hole", Subtitle: "Below Paineel", Enabled: 0, ReturnCard: 1, Shroud: RowShroud}); err != nil {
 		t.Fatal(err)
 	}
 	var rows []models.CustomZoneCard
@@ -79,14 +79,22 @@ func TestZoneCards(t *testing.T) {
 			t.Errorf("%v: saved", what)
 		}
 	}
-	if _, err := Save(db, db, models.CustomZoneCard{ZoneShortName: "hole", Title: strings.Repeat("x", 63), Subtitle: strings.Repeat("y", 127), Enabled: 1, ReturnCard: 1}); err != nil {
+	if _, err := Save(db, db, models.CustomZoneCard{ZoneShortName: "hole", Title: strings.Repeat("x", 63), Subtitle: strings.Repeat("y", 127), Enabled: 1, ReturnCard: 1, Shroud: RowShroud}); err != nil {
 		t.Errorf("at the limits: %v", err)
 	}
 
+	if hasColumn(db, "custom_zone_card", "shroud") {
+		shroud(t, db)
+	} else if _, err := Save(db, db, models.CustomZoneCard{ZoneShortName: "hole", Shroud: 60, Enabled: 1, ReturnCard: 1}); err == nil || !strings.Contains(err.Error(), "migration 70") {
+		t.Errorf("a shroud before migration 70: %v", err)
+	}
+	if l, _ := Read(db, db); l.DefaultShroud != 45 {
+		t.Errorf("default shroud %d", l.DefaultShroud)
+	}
 	if hasColumn(db, "custom_zone_card", "title_font") {
 		styles(t, db)
 	} else {
-		if _, err := Save(db, db, models.CustomZoneCard{ZoneShortName: "hole", Reveal: "rise", Enabled: 1, ReturnCard: 1}); err == nil || !strings.Contains(err.Error(), "migration 69") {
+		if _, err := Save(db, db, models.CustomZoneCard{ZoneShortName: "hole", Reveal: "rise", Enabled: 1, ReturnCard: 1, Shroud: RowShroud}); err == nil || !strings.Contains(err.Error(), "migration 69") {
 			t.Errorf("a style before migration 69: %v", err)
 		}
 		l, _ := Read(db, db)
@@ -112,18 +120,22 @@ func TestZoneCards(t *testing.T) {
 // after custom migration 69
 func styles(t *testing.T, db *gorm.DB) {
 	card, err := Save(db, db, models.CustomZoneCard{ZoneShortName: "hole", Title: "The Hole", TitleFont: "Pirata", TitleColor: "#e8e2d0",
-		AccentColor: "7fa37a", EmblemIcon: 1234, Reveal: "letters", DisplayMs: 7000, ReturnCard: 0, Sound: "sounds/hole_sting.mp3", SoundOnReturn: 1, Enabled: 1})
+		AccentColor: "7fa37a", EmblemIcon: 1234, Reveal: "letters", DisplayMs: 7000, ReturnCard: 0, Sound: "sounds/hole_sting.mp3", SoundOnReturn: 1, Enabled: 1,
+		Shroud: RowShroud})
 	if err != nil {
 		t.Fatal(err)
 	}
 	var row models.CustomZoneCard
 	db.Where("zone_short_name = 'hole'").First(&row)
+	if !hasColumn(db, "custom_zone_card", "shroud") {
+		row.Shroud = RowShroud // before migration 70: read as the default, as Read does
+	}
 	if row != *card || row.TitleFont != "pirata" || row.TitleColor != "E8E2D0" || row.AccentColor != "7FA37A" || row.Reveal != "letters" ||
 		row.DisplayMs != 7000 || row.ReturnCard != 0 || row.SoundOnReturn != 1 || row.EmblemIcon != 1234 {
 		t.Errorf("row %+v, saved %+v", row, card)
 	}
 	// the defaults are stored empty
-	card, err = Save(db, db, models.CustomZoneCard{ZoneShortName: "hole", TitleFont: "cinzel", Reveal: "fade", Enabled: 1, ReturnCard: 1})
+	card, err = Save(db, db, models.CustomZoneCard{ZoneShortName: "hole", TitleFont: "cinzel", Reveal: "fade", Enabled: 1, ReturnCard: 1, Shroud: RowShroud})
 	if err != nil || card.TitleFont != "" || card.Reveal != "" {
 		t.Errorf("defaults: %+v %v", card, err)
 	}
@@ -144,5 +156,42 @@ func styles(t *testing.T, db *gorm.DB) {
 	l, _ := Read(db, db)
 	if !l.Styles {
 		t.Error("styles not seen")
+	}
+}
+
+// after custom migration 70
+func shroud(t *testing.T, db *gorm.DB) {
+	card, err := Save(db, db, models.CustomZoneCard{ZoneShortName: "hole", Shroud: 55, ShroudColor: "#0c1a10", Enabled: 1, ReturnCard: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var row models.CustomZoneCard
+	db.Where("zone_short_name = 'hole'").First(&row)
+	if row.Shroud != 55 || row.ShroudColor != "0C1A10" || *card != row {
+		t.Errorf("row %+v", row)
+	}
+	if _, err := Save(db, db, models.CustomZoneCard{ZoneShortName: "hole", Shroud: 0, Enabled: 1, ReturnCard: 1}); err != nil {
+		t.Errorf("no shroud: %v", err)
+	}
+	db.Where("zone_short_name = 'hole'").First(&row)
+	if row.Shroud != 0 {
+		t.Errorf("shroud 0 saved as %d", row.Shroud)
+	}
+	for what, c := range map[string]models.CustomZoneCard{
+		"too dark":   {ZoneShortName: "hole", Shroud: 91, Enabled: 1},
+		"bad colour": {ZoneShortName: "hole", Shroud: 45, ShroudColor: "green", Enabled: 1},
+	} {
+		if _, err := Save(db, db, c); err == nil {
+			t.Errorf("%v: saved", what)
+		}
+	}
+	l, _ := Read(db, db)
+	if !l.Shroud {
+		t.Error("shroud columns not seen")
+	}
+	for _, c := range l.Cards {
+		if c.ZoneShortName == "paineel" && (c.Shroud != 55 || c.ShroudColor != "0C1A10") {
+			t.Errorf("paineel as seeded: %+v", c)
+		}
 	}
 }

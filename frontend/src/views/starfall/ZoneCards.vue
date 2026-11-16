@@ -58,6 +58,7 @@
         <eq-window-simple v-else :title="selected.long_name + ' (' + selected.short_name + ')' + (dirty() ? ' (not saved)' : '')">
           <!-- the preview -->
           <div ref="scene" class="zc-scene" :class="form.enabled ? '' : 'zc-scene-off'">
+            <div v-if="form.enabled && shroudPct() > 0" class="zc-shroud" :class="'zc-phase-' + play.phase" :style="shroudStyle()"></div>
             <div class="zc-card" :class="'zc-phase-' + play.phase + ' zc-reveal-' + revealName()" :style="cardStyle()">
               <div v-if="form.emblem_icon > 0" class="zc-emblem" :style="emblemStyle()">
                 <span :class="'item-' + form.emblem_icon" class="zc-emblem-icon" :style="emblemIconStyle()"></span>
@@ -168,6 +169,31 @@
               it on <router-link :to="clientPatchRoute">Client Patch</router-link> so the patcher sends it.
             </div>
           </fieldset>
+          <fieldset :disabled="!list.shroud" class="zc-style zc-shroud-controls">
+            <div class="d-flex align-items-center flex-wrap mb-1">
+              <span class="zc-label">Shroud</span>
+              <input type="range" min="0" max="90" step="1" v-model.number="form.shroud" class="zc-range mr-2"
+                     title="How far the scene dims behind the first-entry card">
+              <b-form-input size="sm" type="number" min="0" max="90" v-model.number="form.shroud" class="zc-num zc-num-sm mr-1"/>
+              <span class="mr-3">% <span class="hint text-muted">{{ form.shroud ? "" : "(none)" }}</span></span>
+              <span class="zc-label">Tint</span>
+              <span class="zc-color mr-2">
+                <input type="color" :value="'#' + (form.shroud_color || '000000')" @input="ev => setColor('shroud_color', ev.target.value)">
+                <b-form-input size="sm" :value="form.shroud_color" placeholder="black" maxlength="7" class="zc-hex"
+                              @change="v => setColor('shroud_color', v)"/>
+                <a v-if="form.shroud_color" href="#" class="hint ml-1" @click.prevent="form.shroud_color = ''" title="Back to black">default</a>
+              </span>
+            </div>
+            <div class="hint text-muted mb-2">
+              The scene darkens behind a first entry's card (evenly, and more at the edges) and clears as the card fades;
+              return visits aren't shrouded.
+              <span v-if="!cardOf(selected)">This zone has no row, so it dims {{ list.default_shroud }}% (<code>Custom:Zone_Card_Default_Shroud</code>);
+                saving a row keeps that unless you change it.</span>
+            </div>
+            <div v-if="!list.shroud" class="hint text-warning mb-2">
+              This server's <code>custom_zone_card</code> has no shroud columns yet (Starfall custom migration 70).
+            </div>
+          </fieldset>
 
           <b-form-checkbox v-model="form.enabled" class="mb-3">Show this zone's card</b-form-checkbox>
 
@@ -219,10 +245,16 @@ const FAMILIES = {
 }
 const BEAT_MS = 800, IN_MS = 1200, OUT_MS = 1600, DEFAULT_DISPLAY_MS = 4500
 
-function emptyForm() {
+// a row's shroud when it doesn't set one (the column default)
+const ROW_SHROUD = 45
+
+// a new row's form: a zone with no row dims by Custom:Zone_Card_Default_Shroud,
+// so its first row starts there
+function emptyForm(shroud) {
   return {
     title: "", subtitle: "", enabled: true, title_font: "", title_color: "", subtitle_color: "", accent_color: "",
     emblem_icon: 0, reveal: "", display_ms: 0, return_card: true, sound: "", sound_on_return: false,
+    shroud: shroud === undefined ? ROW_SHROUD : shroud, shroud_color: "",
   }
 }
 
@@ -337,13 +369,14 @@ export default {
     // the form for a card row (or the defaults)
     formOf(c) {
       if (!c) {
-        return emptyForm()
+        return emptyForm(this.list && this.list.shroud ? this.list.default_shroud : ROW_SHROUD)
       }
       return {
         title: c.title || "", subtitle: c.subtitle || "", enabled: !!c.enabled, title_font: c.title_font === "cinzel" ? "" : (c.title_font || ""),
         title_color: c.title_color || "", subtitle_color: c.subtitle_color || "", accent_color: c.accent_color || "",
         emblem_icon: c.emblem_icon || 0, reveal: c.reveal === "fade" ? "" : (c.reveal || ""), display_ms: c.display_ms || 0,
         return_card: c.return_card === undefined ? true : !!c.return_card, sound: c.sound || "", sound_on_return: !!c.sound_on_return,
+        shroud: c.shroud === undefined || c.shroud === null ? ROW_SHROUD : c.shroud, shroud_color: c.shroud_color || "",
       }
     },
     pick(z, force) {
@@ -362,6 +395,7 @@ export default {
         ...f, title: f.title.trim(), subtitle: f.subtitle.trim(), sound: f.sound.trim(), emblem_icon: parseInt(f.emblem_icon) || 0,
         display_ms: parseInt(f.display_ms) || 0, title_color: f.title_color.toUpperCase(), subtitle_color: f.subtitle_color.toUpperCase(),
         accent_color: f.accent_color.toUpperCase(), sound_on_return: !!f.sound_on_return && !!f.sound.trim(),
+        shroud: parseInt(f.shroud) || 0, shroud_color: f.shroud_color.toUpperCase(),
       })
     },
     dirty() {
@@ -373,7 +407,8 @@ export default {
     valid() {
       const hex = c => !c || /^[0-9A-Fa-f]{6}$/.test(c)
       return this.bytes(this.form.title) <= 63 && this.bytes(this.form.subtitle) <= 127 &&
-        hex(this.form.title_color) && hex(this.form.subtitle_color) && hex(this.form.accent_color) &&
+        hex(this.form.title_color) && hex(this.form.subtitle_color) && hex(this.form.accent_color) && hex(this.form.shroud_color) &&
+        this.shroudPct() >= 0 && this.shroudPct() <= 90 &&
         (!this.form.sound.trim() || /\.mp3$/i.test(this.form.sound.trim()))
     },
     textWarning(s, title) {
@@ -428,6 +463,21 @@ export default {
     },
     color(key) {
       return "#" + (this.form[key] || DEFAULT_COLORS[key])
+    },
+    shroudPct() {
+      const n = parseInt(this.form.shroud)
+      return isNaN(n) ? 0 : n
+    },
+    // the shroud: the scene darkened by shroud% at the card, more toward the edges
+    shroudStyle() {
+      const hex = this.form.shroud_color || "000000"
+      const rgb = [0, 2, 4].map(i => parseInt(hex.substr(i, 2), 16) || 0).join(", ")
+      const a = Math.min(90, Math.max(0, this.shroudPct())) / 100
+      const edge = Math.min(0.95, a + (1 - a) * 0.45)
+      return {
+        background: `radial-gradient(ellipse 70% 60% at 50% 50%, rgba(${rgb}, ${a}) 0%, rgba(${rgb}, ${a}) 35%, rgba(${rgb}, ${edge}) 100%)`,
+        "--zc-in": IN_MS + "ms", "--zc-out": OUT_MS + "ms",
+      }
     },
     cardStyle() {
       return { "--zc-accent": this.color("accent_color"), "--zc-in": IN_MS + "ms", "--zc-out": OUT_MS + "ms" }
@@ -525,6 +575,10 @@ export default {
         return_card: f.return_card ? 1 : 0, sound: q(f.sound), sound_on_return: f.sound_on_return && f.sound.trim() ? 1 : 0,
         enabled: f.enabled ? 1 : 0,
       }
+      if (this.list.shroud) {
+        cols.shroud = this.shroudPct()
+        cols.shroud_color = q(f.shroud_color)
+      }
       const names = Object.keys(cols)
       return `INSERT INTO custom_zone_card (${names.join(", ")})\nVALUES (${names.map(n => cols[n]).join(", ")})\n` +
         `ON DUPLICATE KEY UPDATE ${names.slice(1).map(n => `${n} = VALUES(${n})`).join(", ")};`
@@ -539,6 +593,7 @@ export default {
           title_color: f.title_color, subtitle_color: f.subtitle_color, accent_color: f.accent_color,
           emblem_icon: parseInt(f.emblem_icon) || 0, reveal: f.reveal, display_ms: parseInt(f.display_ms) || 0,
           return_card: f.return_card ? 1 : 0, sound: f.sound, sound_on_return: f.sound_on_return && f.sound.trim() ? 1 : 0,
+          shroud: this.shroudPct(), shroud_color: f.shroud_color,
         })
         this.list.cards = this.list.cards.filter(c => c.zone_short_name !== r.data.zone_short_name).concat([r.data])
         this.form = this.formOf(r.data)
@@ -558,7 +613,7 @@ export default {
       try {
         await SpireApi.v1().delete(`zone-cards/${this.selected.short_name}`)
         this.list.cards = this.list.cards.filter(c => c.zone_short_name !== this.selected.short_name)
-        this.form = emptyForm()
+        this.form = this.formOf(null)
         this.notification = `${this.selected.long_name}'s card is back to the default.`
       } catch (e) {
         this.error = this.message(e)
@@ -610,13 +665,53 @@ export default {
   container-type: inline-size;
   position: relative;
   aspect-ratio: 16 / 9;
-  background: radial-gradient(ellipse at 50% 40%, #3a4250 0%, #1c2028 55%, #0d0f13 100%);
+  /* a lit stand-in for the zone, so the shroud has something to dim */
+  background:
+    radial-gradient(ellipse 30% 22% at 72% 24%, rgba(255, 244, 214, 0.55), transparent 70%),
+    radial-gradient(ellipse 45% 18% at 25% 62%, rgba(70, 92, 52, 0.7), transparent 75%),
+    linear-gradient(180deg, #6f88a3 0%, #a7b6c1 40%, #8e9a7a 41%, #5f6e47 65%, #3c472f 100%);
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 4px;
   display: flex;
   align-items: center;
   justify-content: center;
   overflow: hidden;
+}
+
+.zc-shroud {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.zc-shroud.zc-phase-beat {
+  opacity: 0;
+}
+
+.zc-shroud.zc-phase-in {
+  animation: zc-fade var(--zc-in) ease-out both;
+}
+
+.zc-shroud.zc-phase-out {
+  animation: zc-fade var(--zc-out) ease-in reverse both;
+}
+
+.zc-card {
+  position: relative;
+}
+
+.zc-range {
+  width: 160px;
+  vertical-align: middle;
+}
+
+.zc-num-sm {
+  width: 64px;
+}
+
+.zc-shroud-controls {
+  border-top: none;
+  padding-top: 0;
 }
 
 .zc-scene-off .zc-card {
