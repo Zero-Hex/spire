@@ -54,6 +54,8 @@ func (s *Service) RegisterManualResources() map[string][]string {
 		"Item Generator": {"item-gen"},
 		// snapshots a zone's spawn and loot rows, and restores them
 		"Zone Loot Workbench": {"zone-loot"},
+		// the zone title cards players see on arrival
+		"Zone Cards": {"zone-cards"},
 		// builds the patcher program by running its build.sh on this server
 		"Patcher Build": {"patcher-build"},
 

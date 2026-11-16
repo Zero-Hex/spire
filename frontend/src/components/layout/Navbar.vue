@@ -395,6 +395,12 @@ export default {
             icon: "ra ra-gem mr-1",
             routes: ['starfall/zone-loot']
           },
+          {
+            title: "Zone Cards",
+            to: ROUTE.STARFALL_ZONE_CARDS,
+            icon: "ra ra-scroll-unfurled mr-1",
+            routes: ['starfall/zone-cards']
+          },
         ]
       },
       botNav: {

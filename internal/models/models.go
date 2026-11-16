@@ -85,6 +85,7 @@ func GetModels() []Modelable {
 		&CustomPetSpecie{},
 		&CustomPetSpeciesGrowth{},
 		&CustomQuestBoard{},
+		&CustomZoneCard{},
 		&Damageshieldtype{},
 		&DataBucket{},
 		&DbStr{},

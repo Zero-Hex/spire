@@ -157,6 +157,11 @@ const router = new Router({
           meta: {title: "Zone Workbench"},
         },
         {
+          path: ROUTE.STARFALL_ZONE_CARDS,
+          component: () => import('./views/starfall/ZoneCards.vue'),
+          meta: {title: "Zone Cards"},
+        },
+        {
           path: ROUTE.STRINGS_DATABASE,
           component: () => import('./views/strings-database/StringsDatabase.vue'),
           meta: {title: "Strings Database (dbstr)"},

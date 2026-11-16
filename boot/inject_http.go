@@ -27,6 +27,7 @@ import (
 	"github.com/EQEmu/spire/internal/system"
 	"github.com/EQEmu/spire/internal/user"
 	"github.com/EQEmu/spire/internal/websocket"
+	"github.com/EQEmu/spire/internal/zonecards"
 	"github.com/EQEmu/spire/internal/zoneloot"
 	"github.com/google/wire"
 	"github.com/labstack/echo/v4"
@@ -67,6 +68,7 @@ var httpSet = wire.NewSet(
 	clientassets.NewPublicController,
 	itemgen.NewController,
 	zoneloot.NewController,
+	zonecards.NewController,
 	questfiles.NewController,
 	eqemuserverconfig.NewController,
 	websocket.NewController,
@@ -209,6 +211,7 @@ func provideControllers(
 	clientAssetsPublicController *clientassets.PublicController,
 	itemGenController *itemgen.Controller,
 	zoneLootController *zoneloot.Controller,
+	zoneCardsController *zonecards.Controller,
 	questFilesController *questfiles.Controller,
 	serverconfigController *eqemuserverconfig.Controller,
 	backupController *backup.Controller,
@@ -241,6 +244,7 @@ func provideControllers(
 			clientAssetsController,
 			itemGenController,
 			zoneLootController,
+			zoneCardsController,
 			questFilesController,
 			patcherController,
 		},
