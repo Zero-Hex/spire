@@ -1,6 +1,7 @@
 package boot
 
 import (
+	"github.com/EQEmu/spire/internal/ambient"
 	"github.com/EQEmu/spire/internal/analytics"
 	"github.com/EQEmu/spire/internal/app"
 	"github.com/EQEmu/spire/internal/assets"
@@ -69,6 +70,7 @@ var httpSet = wire.NewSet(
 	itemgen.NewController,
 	zoneloot.NewController,
 	zonecards.NewController,
+	ambient.NewController,
 	questfiles.NewController,
 	eqemuserverconfig.NewController,
 	websocket.NewController,
@@ -212,6 +214,7 @@ func provideControllers(
 	itemGenController *itemgen.Controller,
 	zoneLootController *zoneloot.Controller,
 	zoneCardsController *zonecards.Controller,
+	ambientController *ambient.Controller,
 	questFilesController *questfiles.Controller,
 	serverconfigController *eqemuserverconfig.Controller,
 	backupController *backup.Controller,
@@ -245,6 +248,7 @@ func provideControllers(
 			itemGenController,
 			zoneLootController,
 			zoneCardsController,
+			ambientController,
 			questFilesController,
 			patcherController,
 		},

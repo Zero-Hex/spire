@@ -66,6 +66,7 @@ export const ROUTE = {
   STARFALL_RACE_LOADING: "/starfall/race-loading",
   STARFALL_ZONE_LOOT: "/starfall/zone-loot",
   STARFALL_ZONE_CARDS: "/starfall/zone-cards",
+  STARFALL_AMBIENT_LINES: "/starfall/ambient-lines",
   TASK_EDIT: "/tasks/%s",
   TASKS: "/tasks",
   MERCHANTS: "/merchants",

@@ -56,6 +56,8 @@ func (s *Service) RegisterManualResources() map[string][]string {
 		"Zone Loot Workbench": {"zone-loot"},
 		// the zone title cards players see on arrival
 		"Zone Cards": {"zone-cards"},
+		// what NPCs say to players near them
+		"Ambient Lines": {"ambient-lines"},
 		// builds the patcher program by running its build.sh on this server
 		"Patcher Build": {"patcher-build"},
 

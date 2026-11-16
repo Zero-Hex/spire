@@ -401,6 +401,12 @@ export default {
             icon: "ra ra-scroll-unfurled mr-1",
             routes: ['starfall/zone-cards']
           },
+          {
+            title: "Ambient Lines",
+            to: ROUTE.STARFALL_AMBIENT_LINES,
+            icon: "ra ra-speech-bubbles mr-1",
+            routes: ['starfall/ambient-lines']
+          },
         ]
       },
       botNav: {

@@ -75,6 +75,7 @@ func GetModels() []Modelable {
 		&CustomAchievementCategory{},
 		&CustomAchievementObjective{},
 		&CustomAchievementReward{},
+		&CustomAmbientLine{},
 		&CustomCollection{},
 		&CustomCollectionCategory{},
 		&CustomCollectionItem{},
