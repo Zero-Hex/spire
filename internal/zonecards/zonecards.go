@@ -4,9 +4,11 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"sort"
 	"strings"
 	"unicode/utf8"
 
+	"github.com/EQEmu/spire/internal/clientassets"
 	"github.com/EQEmu/spire/internal/models"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -19,8 +21,17 @@ import (
 // (common/starfall_link_wire.h kMaxTitle / kMaxSubtitle, less the end).
 
 const (
-	MaxTitle    = 63
-	MaxSubtitle = 127
+	MaxTitle     = 63
+	MaxSubtitle  = 127
+	MaxDisplayMs = 15000 // kMaxDisplayMs
+	MaxSound     = 64    // the sound column
+)
+
+var (
+	fonts     = map[string]bool{"": true, "cinzel": true, "pirata": true, "arimo": true}
+	reveals   = map[string]bool{"": true, "fade": true, "rise": true, "letters": true}
+	hexColor  = regexp.MustCompile(`^[0-9A-Fa-f]{6}$`)
+	soundPath = regexp.MustCompile(`^[A-Za-z0-9_][A-Za-z0-9_ ./\\-]*\.[Mm][Pp]3$`)
 )
 
 type Zone struct {
@@ -35,9 +46,19 @@ type List struct {
 	// characters who have entered each zone (custom_zone_discovered): they
 	// have had its first-entry card
 	Discovered map[string]int `json:"discovered"`
+	// the server has the style columns (custom migration 69)
+	Styles bool `json:"styles"`
+	// MP3s Spire keeps for the client patch, by their path in the client folder
+	Sounds []string `json:"sounds"`
 }
 
 var zoneName = regexp.MustCompile(`^[a-z0-9_]+$`)
+
+func hasColumn(db *gorm.DB, table, column string) bool {
+	var n int64
+	db.Raw("SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = ? AND column_name = ?", table, column).Scan(&n)
+	return n > 0
+}
 
 func hasTable(db *gorm.DB, table string) bool {
 	var n int64
@@ -53,7 +74,8 @@ func Read(content, server *gorm.DB) (*List, error) {
 	if !hasTable(server, "custom_zone_card") {
 		return nil, errNoTable
 	}
-	out := &List{Zones: []Zone{}, Cards: []models.CustomZoneCard{}, Discovered: map[string]int{}}
+	out := &List{Zones: []Zone{}, Cards: []models.CustomZoneCard{}, Discovered: map[string]int{}, Sounds: []string{},
+		Styles: hasColumn(server, "custom_zone_card", "title_font")}
 	// one row per zone: version 0's name where there is one
 	if err := content.Raw(`SELECT z.short_name, z.long_name, z.zoneidnumber AS id FROM zone z
 		JOIN (SELECT short_name, MIN(version) AS version FROM zone WHERE short_name <> '' GROUP BY short_name) v
@@ -63,6 +85,12 @@ func Read(content, server *gorm.DB) (*List, error) {
 	}
 	if err := server.Order("zone_short_name").Find(&out.Cards).Error; err != nil {
 		return nil, err
+	}
+	// before migration 69 a row has no return_card column: it is on
+	for i := range out.Cards {
+		if !out.Styles {
+			out.Cards[i].ReturnCard = 1
+		}
 	}
 	if hasTable(server, "custom_zone_discovered") {
 		var counts []struct {
@@ -94,8 +122,39 @@ func Save(content, server *gorm.DB, card models.CustomZoneCard) (*models.CustomZ
 	case strings.ContainsAny(card.Title+card.Subtitle, "\r\n\t"):
 		return nil, errors.New("a card is one line of title and one of subtitle")
 	}
+	card.TitleFont = strings.ToLower(strings.TrimSpace(card.TitleFont))
+	card.Reveal = strings.ToLower(strings.TrimSpace(card.Reveal))
+	card.Sound = strings.TrimSpace(card.Sound)
+	for _, c := range []*string{&card.TitleColor, &card.SubtitleColor, &card.AccentColor} {
+		*c = strings.ToUpper(strings.TrimPrefix(strings.TrimSpace(*c), "#"))
+		if *c != "" && !hexColor.MatchString(*c) {
+			return nil, fmt.Errorf("%q is not a colour: hex RRGGBB, or empty for the default", *c)
+		}
+	}
+	switch {
+	case !fonts[card.TitleFont]:
+		return nil, fmt.Errorf("%q is not a font: cinzel, pirata or arimo", card.TitleFont)
+	case !reveals[card.Reveal]:
+		return nil, fmt.Errorf("%q is not a reveal: fade, rise or letters", card.Reveal)
+	case card.DisplayMs > MaxDisplayMs:
+		return nil, fmt.Errorf("a card stays up at most %d ms", MaxDisplayMs)
+	case card.Sound != "" && (len(card.Sound) > MaxSound || !soundPath.MatchString(card.Sound) || strings.Contains(card.Sound, "..")):
+		return nil, fmt.Errorf("%q is not an MP3 in the client folder (at most %d characters)", card.Sound, MaxSound)
+	}
+	if card.TitleFont == "cinzel" {
+		card.TitleFont = "" // the default
+	}
+	if card.Reveal == "fade" {
+		card.Reveal = ""
+	}
 	if card.Enabled > 1 {
 		card.Enabled = 1
+	}
+	if card.ReturnCard > 1 {
+		card.ReturnCard = 1
+	}
+	if card.SoundOnReturn > 1 {
+		card.SoundOnReturn = 1
 	}
 	var n int64
 	content.Raw("SELECT COUNT(*) FROM zone WHERE short_name = ?", card.ZoneShortName).Scan(&n)
@@ -104,6 +163,18 @@ func Save(content, server *gorm.DB, card models.CustomZoneCard) (*models.CustomZ
 	}
 	if !hasTable(server, "custom_zone_card") {
 		return nil, errNoTable
+	}
+	if !hasColumn(server, "custom_zone_card", "title_font") {
+		// before custom migration 69: the text and switch only
+		def := models.CustomZoneCard{ZoneShortName: card.ZoneShortName, Title: card.Title, Subtitle: card.Subtitle, Enabled: card.Enabled, ReturnCard: 1}
+		if card != def {
+			return nil, errors.New("the server has no style columns yet (Starfall custom migration 69, run when world starts on a build that has it): only the title, subtitle and shown can be saved")
+		}
+		if err := server.Select("zone_short_name", "title", "subtitle", "enabled").
+			Clauses(clause.OnConflict{DoUpdates: clause.AssignmentColumns([]string{"title", "subtitle", "enabled"})}).Create(&card).Error; err != nil {
+			return nil, err
+		}
+		return &card, nil
 	}
 	if err := server.Clauses(clause.OnConflict{UpdateAll: true}).Create(&card).Error; err != nil {
 		return nil, err
@@ -121,4 +192,20 @@ func Delete(server *gorm.DB, zone string) error {
 		return errNoTable
 	}
 	return server.Where("zone_short_name = ?", zone).Delete(&models.CustomZoneCard{}).Error
+}
+
+// Sounds is the MP3s Spire keeps for the client patch (not ones it deletes
+// from players' clients), by their path in the client folder
+func Sounds(store *clientassets.Store) []string {
+	out := []string{}
+	if store == nil {
+		return out
+	}
+	for _, f := range store.Index().Files {
+		if f.Size > 0 && !f.Remove && strings.HasSuffix(strings.ToLower(f.Path), ".mp3") {
+			out = append(out, f.Path)
+		}
+	}
+	sort.Strings(out)
+	return out
 }

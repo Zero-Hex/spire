@@ -27,14 +27,13 @@ func testDB(t *testing.T) *gorm.DB {
 
 func TestZoneCards(t *testing.T) {
 	db := testDB(t)
-	var before []models.CustomZoneCard
-	db.Find(&before)
-	t.Cleanup(func() {
-		db.Exec("DELETE FROM custom_zone_card")
-		for _, c := range before {
-			db.Create(&c)
-		}
-	})
+	// the test makes and removes The Hole's row, and touches no other
+	var held int64
+	db.Raw("SELECT COUNT(*) FROM custom_zone_card WHERE zone_short_name = 'hole'").Scan(&held)
+	if held > 0 {
+		t.Skip("this database already has a card for hole")
+	}
+	t.Cleanup(func() { db.Exec("DELETE FROM custom_zone_card WHERE zone_short_name = 'hole'") })
 
 	l, err := Read(db, db)
 	if err != nil {
@@ -52,7 +51,7 @@ func TestZoneCards(t *testing.T) {
 	}
 
 	// a card for The Hole, like the in-game one
-	card, err := Save(db, db, models.CustomZoneCard{ZoneShortName: "hole", Subtitle: " What Paineel Buried, It Did Not Forget ", Enabled: 1})
+	card, err := Save(db, db, models.CustomZoneCard{ZoneShortName: "hole", Subtitle: " What Paineel Buried, It Did Not Forget ", Enabled: 1, ReturnCard: 1})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -60,7 +59,7 @@ func TestZoneCards(t *testing.T) {
 		t.Errorf("saved %+v", card)
 	}
 	// saved again: the row is replaced, not doubled
-	if _, err := Save(db, db, models.CustomZoneCard{ZoneShortName: "hole", Title: "The Hole", Subtitle: "Below Paineel", Enabled: 0}); err != nil {
+	if _, err := Save(db, db, models.CustomZoneCard{ZoneShortName: "hole", Title: "The Hole", Subtitle: "Below Paineel", Enabled: 0, ReturnCard: 1}); err != nil {
 		t.Fatal(err)
 	}
 	var rows []models.CustomZoneCard
@@ -80,8 +79,23 @@ func TestZoneCards(t *testing.T) {
 			t.Errorf("%v: saved", what)
 		}
 	}
-	if _, err := Save(db, db, models.CustomZoneCard{ZoneShortName: "hole", Title: strings.Repeat("x", 63), Subtitle: strings.Repeat("y", 127), Enabled: 1}); err != nil {
+	if _, err := Save(db, db, models.CustomZoneCard{ZoneShortName: "hole", Title: strings.Repeat("x", 63), Subtitle: strings.Repeat("y", 127), Enabled: 1, ReturnCard: 1}); err != nil {
 		t.Errorf("at the limits: %v", err)
+	}
+
+	if hasColumn(db, "custom_zone_card", "title_font") {
+		styles(t, db)
+	} else {
+		if _, err := Save(db, db, models.CustomZoneCard{ZoneShortName: "hole", Reveal: "rise", Enabled: 1, ReturnCard: 1}); err == nil || !strings.Contains(err.Error(), "migration 69") {
+			t.Errorf("a style before migration 69: %v", err)
+		}
+		l, _ := Read(db, db)
+		for _, c := range l.Cards {
+			if c.ReturnCard != 1 {
+				t.Errorf("before migration 69 %v reads return_card %d", c.ZoneShortName, c.ReturnCard)
+			}
+		}
+		t.Log("before custom migration 69: styles not checked")
 	}
 
 	if err := Delete(db, "hole"); err != nil {
@@ -92,5 +106,43 @@ func TestZoneCards(t *testing.T) {
 		if c.ZoneShortName == "hole" {
 			t.Error("not deleted")
 		}
+	}
+}
+
+// after custom migration 69
+func styles(t *testing.T, db *gorm.DB) {
+	card, err := Save(db, db, models.CustomZoneCard{ZoneShortName: "hole", Title: "The Hole", TitleFont: "Pirata", TitleColor: "#e8e2d0",
+		AccentColor: "7fa37a", EmblemIcon: 1234, Reveal: "letters", DisplayMs: 7000, ReturnCard: 0, Sound: "sounds/hole_sting.mp3", SoundOnReturn: 1, Enabled: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var row models.CustomZoneCard
+	db.Where("zone_short_name = 'hole'").First(&row)
+	if row != *card || row.TitleFont != "pirata" || row.TitleColor != "E8E2D0" || row.AccentColor != "7FA37A" || row.Reveal != "letters" ||
+		row.DisplayMs != 7000 || row.ReturnCard != 0 || row.SoundOnReturn != 1 || row.EmblemIcon != 1234 {
+		t.Errorf("row %+v, saved %+v", row, card)
+	}
+	// the defaults are stored empty
+	card, err = Save(db, db, models.CustomZoneCard{ZoneShortName: "hole", TitleFont: "cinzel", Reveal: "fade", Enabled: 1, ReturnCard: 1})
+	if err != nil || card.TitleFont != "" || card.Reveal != "" {
+		t.Errorf("defaults: %+v %v", card, err)
+	}
+	for what, c := range map[string]models.CustomZoneCard{
+		"font":       {ZoneShortName: "hole", TitleFont: "comic", Enabled: 1},
+		"colour":     {ZoneShortName: "hole", TitleColor: "gold", Enabled: 1},
+		"short hex":  {ZoneShortName: "hole", AccentColor: "FFF", Enabled: 1},
+		"reveal":     {ZoneShortName: "hole", Reveal: "spin", Enabled: 1},
+		"display":    {ZoneShortName: "hole", DisplayMs: 15001, Enabled: 1},
+		"not an mp3": {ZoneShortName: "hole", Sound: "sting.wav", Enabled: 1},
+		"up a level": {ZoneShortName: "hole", Sound: "../sting.mp3", Enabled: 1},
+		"too long":   {ZoneShortName: "hole", Sound: strings.Repeat("a", 61) + ".mp3", Enabled: 1},
+	} {
+		if _, err := Save(db, db, c); err == nil {
+			t.Errorf("%v: saved", what)
+		}
+	}
+	l, _ := Read(db, db)
+	if !l.Styles {
+		t.Error("styles not seen")
 	}
 }

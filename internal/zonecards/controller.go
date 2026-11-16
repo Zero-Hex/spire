@@ -2,7 +2,9 @@ package zonecards
 
 import (
 	"net/http"
+	"strings"
 
+	"github.com/EQEmu/spire/internal/clientassets"
 	"github.com/EQEmu/spire/internal/database"
 	"github.com/EQEmu/spire/internal/http/routes"
 	"github.com/EQEmu/spire/internal/models"
@@ -12,16 +14,18 @@ import (
 // Controller edits the Starfall zone title cards. Its own permission (Zone
 // Cards): what players read first about every zone.
 type Controller struct {
-	db *database.Resolver
+	db    *database.Resolver
+	store *clientassets.Store
 }
 
-func NewController(db *database.Resolver) *Controller {
-	return &Controller{db: db}
+func NewController(db *database.Resolver, store *clientassets.Store) *Controller {
+	return &Controller{db: db, store: store}
 }
 
 func (z *Controller) Routes() []*routes.Route {
 	return []*routes.Route{
 		routes.RegisterRoute(http.MethodGet, "zone-cards", z.list, nil),
+		routes.RegisterRoute(http.MethodGet, "zone-cards/sound", z.sound, nil),
 		routes.RegisterRoute(http.MethodPut, "zone-cards/:zone", z.save, nil),
 		routes.RegisterRoute(http.MethodDelete, "zone-cards/:zone", z.delete, nil),
 	}
@@ -36,6 +40,7 @@ func (z *Controller) list(c echo.Context) error {
 	if err != nil {
 		return bad(c, err)
 	}
+	out.Sounds = Sounds(z.store)
 	return c.JSON(http.StatusOK, out)
 }
 
@@ -57,4 +62,17 @@ func (z *Controller) delete(c echo.Context) error {
 		return bad(c, err)
 	}
 	return c.JSON(http.StatusOK, echo.Map{"deleted": c.Param("zone")})
+}
+
+// sound sends an MP3 Spire keeps for the client patch, to hear in the editor
+func (z *Controller) sound(c echo.Context) error {
+	path := c.QueryParam("path")
+	if !strings.HasSuffix(strings.ToLower(path), ".mp3") {
+		return c.JSON(http.StatusNotFound, echo.Map{"error": "not an MP3"})
+	}
+	b, ok := z.store.ClientFileData(strings.ReplaceAll(path, "\\", "/"))
+	if !ok {
+		return c.JSON(http.StatusNotFound, echo.Map{"error": "Spire keeps no " + path + " for the client patch"})
+	}
+	return c.Blob(http.StatusOK, "audio/mpeg", b)
 }

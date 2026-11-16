@@ -127,7 +127,7 @@ func InitializeApplication() (App, error) {
 	generator := itemgen.NewGenerator(store)
 	itemgenController := itemgen.NewController(resolver, generator)
 	zonelootController := zoneloot.NewController(resolver, pathManagement, store)
-	zonecardsController := zonecards.NewController(resolver)
+	zonecardsController := zonecards.NewController(resolver, store)
 	questfilesService := questfiles.NewService(pathManagement, updater)
 	checker := questfiles.NewChecker(questfilesService, parseService)
 	questfilesController := questfiles.NewController(questfilesService, checker)
