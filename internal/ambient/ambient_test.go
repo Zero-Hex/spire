@@ -110,6 +110,43 @@ func TestAmbientLines(t *testing.T) {
 		}
 	}
 
+	// scenes: parts split by |, empty ones dropped
+	if _, err := Save(db, db, models.CustomAmbientLine{Kind: "idle", Mode: "say", Text: " | * |  "}); err == nil {
+		t.Error("a scene of empty parts saved")
+	}
+	scene, err := Save(db, db, models.CustomAmbientLine{ZoneShortName: "paineel", Kind: "approach", Mode: "say", Text: "*bows.|Welcome, {Player}.", Enabled: 1})
+	if err != nil || scene.Text != "*bows.|Welcome, {player}." {
+		t.Errorf("scene: %+v %v", scene, err)
+	}
+
+	// faction bands (migration 73)
+	if hasColumn(db, "custom_ambient_line", "faction_from") {
+		band, err := Save(db, db, models.CustomAmbientLine{ZoneShortName: "paineel", Kind: "approach", Mode: "say", FactionFrom: "Kindly", FactionTo: "ally", Text: "Friend.", Enabled: 1})
+		if err != nil || band.FactionFrom != "ally" || band.FactionTo != "kindly" {
+			t.Errorf("band: %+v %v", band, err)
+		}
+		one, err := Save(db, db, models.CustomAmbientLine{ZoneShortName: "paineel", Kind: "approach", Mode: "say", FactionTo: "scowling", Text: "Begone.", Enabled: 1})
+		if err != nil || one.FactionFrom != "" || one.FactionTo != "scowls" {
+			t.Errorf("one standing: %+v %v", one, err)
+		}
+		if _, err := Save(db, db, models.CustomAmbientLine{Kind: "approach", Mode: "say", FactionFrom: "friendly", Text: "x"}); err == nil {
+			t.Error("an unknown standing saved")
+		}
+		l, _ := Read(db, db, "paineel")
+		seeded := 0
+		for _, x := range l.Lines {
+			if x.FactionFrom == "ally" && x.FactionTo == "kindly" && strings.HasPrefix(x.Text, "Welcome back") ||
+				x.FactionFrom == "dubious" && x.FactionTo == "scowls" && strings.Count(x.Text, "|") == 2 {
+				seeded++
+			}
+		}
+		if !l.Faction || seeded != 2 {
+			t.Errorf("migration 73's examples: %d, faction %v", seeded, l.Faction)
+		}
+	} else if _, err := Save(db, db, models.CustomAmbientLine{Kind: "approach", Mode: "say", FactionFrom: "ally", Text: "x"}); err == nil || !strings.Contains(err.Error(), "migration 73") {
+		t.Errorf("a band before migration 73: %v", err)
+	}
+
 	// a line for every zone shows with each zone's
 	every, err := Save(db, db, models.CustomAmbientLine{Kind: "idle", Mode: "emote", Text: "sneezes.", Enabled: 1})
 	if err != nil {

@@ -32,6 +32,40 @@ var (
 	fills     = map[string]bool{"{player}": true, "{race}": true, "{class}": true, "{npc}": true}
 )
 
+// Standings: the faction con an NPC has toward a player (common/faction.h
+// FACTION_VALUE), with the other spellings plugins/ambient.pl accepts
+var Standings = []string{"ally", "warmly", "kindly", "amiably", "indifferent", "apprehensive", "dubious", "threatening", "scowls"}
+
+var standingAliases = map[string]string{"amiable": "amiably", "indifferently": "indifferent", "apprehensively": "apprehensive",
+	"dubiously": "dubious", "threateningly": "threatening", "scowling": "scowls"}
+
+func standing(name string) (string, int, bool) {
+	n := strings.ToLower(strings.TrimSpace(name))
+	if a, ok := standingAliases[n]; ok {
+		n = a
+	}
+	if n == "" {
+		return "", 0, true
+	}
+	for i, s := range Standings {
+		if s == n {
+			return s, i + 1, true
+		}
+	}
+	return "", 0, false
+}
+
+// the columns later migrations add
+var laterColumns = []struct {
+	name      string
+	migration int
+	isDefault func(l models.CustomAmbientLine) bool
+}{
+	{"audience", 72, func(l models.CustomAmbientLine) bool { return l.Audience == "" }},
+	{"faction_from", 73, func(l models.CustomAmbientLine) bool { return l.FactionFrom == "" }},
+	{"faction_to", 73, func(l models.CustomAmbientLine) bool { return l.FactionTo == "" }},
+}
+
 var errNoTable = errors.New("there is no custom_ambient_line table: the server makes it (Starfall custom migration 71) when world starts on a build with ambient lines")
 
 func hasTable(db *gorm.DB, table string) bool {
@@ -64,10 +98,11 @@ type NPC struct {
 
 type List struct {
 	Zones    []Zone                     `json:"zones"`
-	Counts   map[string]int             `json:"counts"` // lines per zone, "" = every zone
-	Lines    []models.CustomAmbientLine `json:"lines"`  // the zone's and every zone's
-	NPCs     []NPC                      `json:"npcs"`   // the zone's, every version
-	Audience bool                       `json:"audience"`
+	Counts   map[string]int             `json:"counts"`   // lines per zone, "" = every zone
+	Lines    []models.CustomAmbientLine `json:"lines"`    // the zone's and every zone's
+	NPCs     []NPC                      `json:"npcs"`     // the zone's, every version
+	Audience bool                       `json:"audience"` // migration 72
+	Faction  bool                       `json:"faction"`  // migration 73
 }
 
 // CleanName is EQEmu's CleanMobName: _ to a space, letters and ` kept
@@ -96,7 +131,7 @@ func Read(content, server *gorm.DB, zone string) (*List, error) {
 		return nil, errNoTable
 	}
 	out := &List{Zones: []Zone{}, Counts: map[string]int{}, Lines: []models.CustomAmbientLine{}, NPCs: []NPC{},
-		Audience: hasColumn(server, "custom_ambient_line", "audience")}
+		Audience: hasColumn(server, "custom_ambient_line", "audience"), Faction: hasColumn(server, "custom_ambient_line", "faction_from")}
 	if err := content.Raw(`SELECT z.short_name, z.long_name FROM zone z
 		JOIN (SELECT short_name, MIN(version) AS version FROM zone WHERE short_name <> '' GROUP BY short_name) v
 		ON v.short_name = z.short_name AND v.version = z.version GROUP BY z.short_name ORDER BY z.long_name`).Scan(&out.Zones).Error; err != nil {
@@ -114,9 +149,12 @@ func Read(content, server *gorm.DB, zone string) (*List, error) {
 	if zone != "" && !zoneName.MatchString(zone) {
 		return nil, fmt.Errorf("%q is not a zone short name", zone)
 	}
-	cols := "*"
-	if !out.Audience {
-		cols = "id, zone_short_name, npc_type_id, npc_race, npc_bodytype, npc_name, kind, mode, time_of_day, player_race, player_class, min_level, max_level, weight, cooldown, text, enabled, notes"
+	cols := []string{"id", "zone_short_name", "npc_type_id", "npc_race", "npc_bodytype", "npc_name", "kind", "mode", "time_of_day",
+		"player_race", "player_class", "min_level", "max_level", "weight", "cooldown", "text", "enabled", "notes"}
+	for _, c := range laterColumns {
+		if hasColumn(server, "custom_ambient_line", c.name) {
+			cols = append(cols, c.name)
+		}
 	}
 	if err := server.Select(cols).Where("zone_short_name = ? OR zone_short_name = ''", zone).Order("zone_short_name DESC, kind, id").Find(&out.Lines).Error; err != nil {
 		return nil, err
@@ -180,6 +218,28 @@ func Save(content, server *gorm.DB, l models.CustomAmbientLine) (*models.CustomA
 	case l.MinLevel > 0 && l.MaxLevel > 0 && l.MinLevel > l.MaxLevel:
 		return nil, errors.New("the lowest level is above the highest")
 	}
+	// a scene: parts split by |, the plugin dropping empty ones
+	parts := 0
+	for _, p := range strings.Split(l.Text, "|") {
+		if p = strings.TrimSpace(p); p != "" && strings.TrimSpace(strings.TrimPrefix(p, "*")) != "" {
+			parts++
+		}
+	}
+	if parts == 0 {
+		return nil, errors.New("a line needs its text")
+	}
+	// the faction band: canonical names, the better standing first
+	from, f1, ok1 := standing(l.FactionFrom)
+	to, f2, ok2 := standing(l.FactionTo)
+	switch {
+	case !ok1:
+		return nil, fmt.Errorf("%q is not a standing: %v", l.FactionFrom, strings.Join(Standings, ", "))
+	case !ok2:
+		return nil, fmt.Errorf("%q is not a standing: %v", l.FactionTo, strings.Join(Standings, ", "))
+	case f1 > 0 && f2 > 0 && f2 < f1:
+		from, to = to, from
+	}
+	l.FactionFrom, l.FactionTo = from, to
 	for _, b := range braces.FindAllString(l.Text, -1) {
 		if !fills[strings.ToLower(b)] {
 			return nil, fmt.Errorf("%v isn't filled in: the text can use {player}, {race}, {class} and {npc}", b)
@@ -207,10 +267,12 @@ func Save(content, server *gorm.DB, l models.CustomAmbientLine) (*models.CustomA
 	}
 	cols := []string{"zone_short_name", "npc_type_id", "npc_race", "npc_bodytype", "npc_name", "kind", "mode", "time_of_day",
 		"player_race", "player_class", "min_level", "max_level", "weight", "cooldown", "text", "enabled", "notes"}
-	if hasColumn(server, "custom_ambient_line", "audience") {
-		cols = append(cols, "audience")
-	} else if l.Audience != "" {
-		return nil, errors.New("this server's custom_ambient_line has no audience column yet (Starfall custom migration 72, run when world starts on a build that has it)")
+	for _, c := range laterColumns {
+		if hasColumn(server, "custom_ambient_line", c.name) {
+			cols = append(cols, c.name)
+		} else if !c.isDefault(l) {
+			return nil, fmt.Errorf("this server's custom_ambient_line has no %v column yet (Starfall custom migration %d, run when world starts on a build that has it)", c.name, c.migration)
+		}
 	}
 	if l.ID == 0 {
 		if err := server.Select(cols).Create(&l).Error; err != nil {

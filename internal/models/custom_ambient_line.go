@@ -1,6 +1,6 @@
 package models
 
-// CustomAmbientLine is a Starfall ambient line (custom migrations 71 and 72,
+// CustomAmbientLine is a Starfall ambient line (custom migrations 71-73,
 // plugins/ambient.pl): idle chatter or a greeting for NPCs near players.
 // 0 / empty in a filter means "any".
 type CustomAmbientLine struct {
@@ -18,9 +18,11 @@ type CustomAmbientLine struct {
 	PlayerClass   uint32 `json:"player_class" gorm:"Column:player_class"`
 	MinLevel      uint32 `json:"min_level" gorm:"Column:min_level"`
 	MaxLevel      uint32 `json:"max_level" gorm:"Column:max_level"`
+	FactionFrom   string `json:"faction_from" gorm:"Column:faction_from"` // ally .. scowls; empty: any (73)
+	FactionTo     string `json:"faction_to" gorm:"Column:faction_to"`
 	Weight        uint32 `json:"weight" gorm:"Column:weight"`
 	Cooldown      uint32 `json:"cooldown" gorm:"Column:cooldown"` // seconds; 0: 120
-	Text          string `json:"text" gorm:"Column:text"`
+	Text          string `json:"text" gorm:"Column:text"`         // parts split by | play as a scene; *part: an emote
 	Enabled       uint8  `json:"enabled" gorm:"Column:enabled"`
 	Notes         string `json:"notes" gorm:"Column:notes"`
 }
