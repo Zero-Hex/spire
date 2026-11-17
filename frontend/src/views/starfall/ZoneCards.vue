@@ -57,34 +57,8 @@
         </eq-window-simple>
         <eq-window-simple v-else :title="selected.long_name + ' (' + selected.short_name + ')' + (dirty() ? ' (not saved)' : '')">
           <!-- the preview -->
-          <div ref="scene" class="zc-scene" :class="form.enabled ? '' : 'zc-scene-off'">
-            <div v-if="form.enabled && shroudPct() > 0" class="zc-shroud" :class="'zc-phase-' + play.phase" :style="shroudStyle()"></div>
-            <div class="zc-card" :class="'zc-phase-' + play.phase + ' zc-reveal-' + revealName()" :style="cardStyle()">
-              <div v-if="form.emblem_icon > 0" class="zc-emblem" :style="emblemStyle()">
-                <span :class="'item-' + form.emblem_icon" class="zc-emblem-icon" :style="emblemIconStyle()"></span>
-              </div>
-              <div class="zc-rule"></div>
-              <div class="zc-title" :style="titleStyle()">{{ shownTitle() }}<span class="zc-unwritten">{{ unwrittenTitle() }}</span></div>
-              <div class="zc-rule"></div>
-              <div v-if="form.subtitle.trim()" class="zc-subtitle" :style="subtitleStyle()">{{ form.subtitle.trim() }}</div>
-            </div>
-            <div v-if="!form.enabled" class="zc-off">Hidden: players see no card here</div>
-            <div v-if="play.phase !== 'idle'" class="zc-phase">{{ phaseLabel() }}</div>
-          </div>
-          <div class="d-flex justify-content-between align-items-center flex-wrap hint text-muted mt-1">
-            <span>
-              First entry, roughly as on a
-              <b-form-select size="sm" v-model="screen" :options="screens.map(s => ({ value: s.w, text: s.w + '×' + s.h }))"
-                             class="zc-screen"/>
-              screen.
-            </span>
-            <span>
-              <b-button size="sm" variant="outline-warning" class="mr-2" @click="playCard()" :disabled="!form.enabled">
-                <i :class="'fa ' + (play.phase === 'idle' ? 'fa-play' : 'fa-repeat') + ' mr-1'"></i> Play it
-              </b-button>
-              {{ timingText() }}
-            </span>
-          </div>
+          <title-card :card="previewCard()" :shown="form.enabled" hidden-text="Hidden: players see no card here"
+                      caption="First entry" :timing="firstTiming()" @appear="cardAppears" @stop="stopSound"/>
           <div class="zc-return-scene mt-2 mb-3">
             <span class="hint text-muted mr-2">Return visit:</span>
             <span v-if="!form.return_card" class="hint text-warning">none for this zone</span>
@@ -148,7 +122,9 @@
               <span class="zc-label ml-2">Stays up</span>
               <b-form-input size="sm" type="number" min="0" max="15" step="0.5" :value="displaySeconds()" class="zc-num mr-1"
                             @change="v => setDisplay(v)" placeholder="4.5"/>
-              <span class="hint text-muted">seconds (empty: 4.5, at most 15)</span>
+              <span class="hint text-muted">{{ list.rules && list.rules.until_input
+                ? "seconds, if Custom:Zone_Card_Until_Input is turned off (it's on: a first entry stays until the player acts)"
+                : "seconds (empty: 4.5, at most 15)" }}</span>
             </div>
             <div class="d-flex align-items-center flex-wrap mb-2">
               <span class="zc-label">Sound</span>
@@ -227,23 +203,14 @@
 </template>
 
 <script>
-import "@fontsource/cinzel/latin-600.css";
-import "@fontsource/pirata-one/latin-400.css";
-import "@fontsource/arimo/latin-400.css";
 import EqWindowSimple   from "@/components/eq-ui/EQWindowSimple";
 import InfoErrorBanner  from "@/components/InfoErrorBanner";
 import ItemIconSelector from "@/views/items/components/ItemIconSelector";
+import TitleCard, {DEFAULT_COLORS, FAMILIES, FONTS} from "@/components/starfall/TitleCard";
 import {SpireApi}       from "@/app/api/spire-api";
 import {ROUTE}          from "@/routes";
 
-// as the DLL draws it (starfall-3 docs/design/zone_cards.md)
-const DEFAULT_COLORS = { title_color: "F6F0E2", subtitle_color: "CDC4B0", accent_color: "DEBA5C" }
-const FAMILIES = {
-  "": { family: "Cinzel", weight: 600 },
-  pirata: { family: "'Pirata One'", weight: 400 },
-  arimo: { family: "Arimo", weight: 400 },
-}
-const BEAT_MS = 800, IN_MS = 1200, OUT_MS = 1600, DEFAULT_DISPLAY_MS = 4500
+const DEFAULT_DISPLAY_MS = 4500
 
 // a row's shroud when it doesn't set one (the column default)
 const ROW_SHROUD = 45
@@ -260,7 +227,7 @@ function emptyForm(shroud) {
 
 export default {
   name: "ZoneCards",
-  components: { EqWindowSimple, InfoErrorBanner, ItemIconSelector },
+  components: { EqWindowSimple, InfoErrorBanner, ItemIconSelector, TitleCard },
   data() {
     return {
       list: null,
@@ -268,22 +235,14 @@ export default {
       filter: "all",
       selected: null,
       form: emptyForm(),
-      screen: 1920,
-      screens: [{ w: 1280, h: 720 }, { w: 1920, h: 1080 }, { w: 2560, h: 1440 }],
-      fonts: [
-        { value: "", text: "Cinzel", family: "Cinzel", weight: 600 },
-        { value: "pirata", text: "Pirata", family: "'Pirata One'", weight: 400 },
-        { value: "arimo", text: "Arimo", family: "Arimo", weight: 400 },
-      ],
+      fonts: FONTS,
       reveals: [{ value: "", text: "Fade" }, { value: "rise", text: "Rise" }, { value: "letters", text: "Letters" }],
       colors: [
         { key: "title_color", label: "Title", def: DEFAULT_COLORS.title_color, name: "ivory" },
         { key: "subtitle_color", label: "Subtitle", def: DEFAULT_COLORS.subtitle_color, name: "parchment" },
         { key: "accent_color", label: "Lines", def: DEFAULT_COLORS.accent_color, name: "gold" },
       ],
-      play: { phase: "idle", letters: -1, timers: [] },
       audio: null,
-      sceneW: 0, // the preview's width, for the icon sprite's scale
       picking: false,
       busy: false,
       error: "",
@@ -299,23 +258,8 @@ export default {
       this.pick(z)
     }
   },
-  updated() {
-    const el = this.$refs.scene
-    if (el && el !== this.observed) {
-      if (this.resizer) {
-        this.resizer.disconnect()
-      }
-      this.observed = el
-      this.resizer  = new ResizeObserver(() => (this.sceneW = el.clientWidth))
-      this.resizer.observe(el)
-      this.sceneW = el.clientWidth
-    }
-  },
   beforeDestroy() {
-    this.stopPlay()
-    if (this.resizer) {
-      this.resizer.disconnect()
-    }
+    this.stopSound()
   },
   methods: {
     async load() {
@@ -383,7 +327,7 @@ export default {
       if (!force && this.selected && this.selected.short_name !== z.short_name && this.dirty() && !confirm("Leave your changes to this card?")) {
         return
       }
-      this.stopPlay()
+      this.stopSound()
       this.selected = z
       this.form = this.formOf(this.cardOf(z))
       if (this.$route.query.zone !== z.short_name) {
@@ -444,120 +388,36 @@ export default {
       }
     },
 
-    // --- the preview, sized as the DLL sizes it: the title 8.5% of the screen
-    // height (48-120px), the subtitle 3.4%, the return card's name 4.5% ---
-    screenSize() {
-      return this.screens.find(s => s.w === this.screen) || this.screens[1]
+    // --- the preview (components/starfall/TitleCard.vue) ---
+    previewCard() {
+      return { ...this.form, title: this.form.title.trim() || this.selected.long_name, shroud: this.shroudPct() }
     },
-    cqw(px) {
-      return `${px / this.screen * 100}cqw`
+    // a first entry: up until the player acts (Custom:Zone_Card_Until_Input), else
+    // for its display time
+    firstTiming() {
+      const r = this.list.rules || {}
+      return {
+        displayMs: this.form.display_ms || DEFAULT_DISPLAY_MS, untilInput: !!r.until_input,
+        minMs: Math.max(r.hold_ms || 0, 2500), maxMs: r.max_ms || 0, outMs: r.until_input ? 1000 : 1600,
+      }
     },
-    titlePx() {
-      return Math.min(120, Math.max(48, this.screenSize().h * 0.085))
+    cardAppears() {
+      if (this.form.sound.trim() && this.soundHeld()) {
+        this.playSound()
+      }
     },
-    revealName() {
-      return this.form.reveal || "fade"
-    },
-    family() {
-      return FAMILIES[this.form.title_font] || FAMILIES[""]
-    },
-    color(key) {
-      return "#" + (this.form[key] || DEFAULT_COLORS[key])
+    stopSound() {
+      if (this.audio) {
+        this.audio.pause()
+      }
     },
     shroudPct() {
       const n = parseInt(this.form.shroud)
       return isNaN(n) ? 0 : n
     },
-    // the shroud: the scene darkened by shroud% at the card, more toward the edges
-    shroudStyle() {
-      const hex = this.form.shroud_color || "000000"
-      const rgb = [0, 2, 4].map(i => parseInt(hex.substr(i, 2), 16) || 0).join(", ")
-      const a = Math.min(90, Math.max(0, this.shroudPct())) / 100
-      const edge = Math.min(0.95, a + (1 - a) * 0.45)
-      return {
-        background: `radial-gradient(ellipse 70% 60% at 50% 50%, rgba(${rgb}, ${a}) 0%, rgba(${rgb}, ${a}) 35%, rgba(${rgb}, ${edge}) 100%)`,
-        "--zc-in": IN_MS + "ms", "--zc-out": OUT_MS + "ms",
-      }
-    },
-    cardStyle() {
-      return { "--zc-accent": this.color("accent_color"), "--zc-in": IN_MS + "ms", "--zc-out": OUT_MS + "ms" }
-    },
-    titleStyle() {
-      const f = this.family()
-      return { fontFamily: f.family, fontWeight: f.weight, fontSize: this.cqw(this.titlePx()), color: this.color("title_color") }
-    },
-    subtitleStyle() {
-      return { fontSize: this.cqw(this.screenSize().h * 0.034), color: this.color("subtitle_color") }
-    },
-    emblemStyle() {
-      const size = this.titlePx() * 1.1
-      return { width: this.cqw(size), height: this.cqw(size) }
-    },
-    emblemIconStyle() {
-      // the item icon sprites are 40px: scaled to the emblem's size
-      return { transform: `scale(${this.titlePx() * 1.1 / 40 * (this.sceneW || 600) / this.screen})` }
-    },
     returnStyle() {
-      const f = this.family()
-      return { fontFamily: f.family, fontWeight: f.weight, color: this.color("title_color") }
-    },
-    shownTitle() {
-      const t = this.form.title.trim() || this.selected.long_name
-      return this.play.letters >= 0 ? t.slice(0, this.play.letters) : t
-    },
-    unwrittenTitle() {
-      // the rest, kept invisible so the card doesn't shift as it writes out
-      const t = this.form.title.trim() || this.selected.long_name
-      return this.play.letters >= 0 ? t.slice(this.play.letters) : ""
-    },
-    displayMs() {
-      return this.form.display_ms || DEFAULT_DISPLAY_MS
-    },
-    timingText() {
-      const s = ms => (ms / 1000).toFixed(1).replace(/\.0$/, "") + " s"
-      return `${s(BEAT_MS)} beat, ${s(IN_MS)} in, ${s(this.displayMs())} up, ${s(OUT_MS)} out`
-    },
-    phaseLabel() {
-      return { beat: "…", in: "in", hold: "up", out: "out" }[this.play.phase] || ""
-    },
-    stopPlay() {
-      this.play.timers.forEach(t => clearTimeout(t))
-      this.play.timers = []
-      this.play.phase = "idle"
-      this.play.letters = -1
-      if (this.audio) {
-        this.audio.pause()
-      }
-    },
-    after(ms, fn) {
-      this.play.timers.push(setTimeout(fn, ms))
-    },
-    playCard() {
-      this.stopPlay()
-      this.play.phase = "beat"
-      const title = this.form.title.trim() || this.selected.long_name
-      const letters = this.form.reveal === "letters"
-      // letters: the title writes itself out over the reveal, then the subtitle
-      const inMs = letters ? IN_MS + 600 : IN_MS
-      this.after(BEAT_MS, () => {
-        this.play.phase = "in"
-        if (this.form.sound.trim() && this.soundHeld()) {
-          this.playSound()
-        }
-        if (letters) {
-          this.play.letters = 0
-          const step = IN_MS / Math.max(title.length, 1)
-          for (let i = 1; i <= title.length; i++) {
-            this.after(step * i, () => (this.play.letters = i))
-          }
-        }
-      })
-      this.after(BEAT_MS + inMs, () => (this.play.phase = "hold"))
-      this.after(BEAT_MS + inMs + this.displayMs(), () => (this.play.phase = "out"))
-      this.after(BEAT_MS + inMs + this.displayMs() + OUT_MS, () => {
-        this.play.phase = "idle"
-        this.play.letters = -1
-      })
+      const f = FAMILIES[this.form.title_font] || FAMILIES[""]
+      return { fontFamily: f.family, fontWeight: f.weight, color: "#" + (this.form.title_color || DEFAULT_COLORS.title_color) }
     },
 
     sql() {
@@ -660,46 +520,6 @@ export default {
   background: rgba(220, 53, 69, 0.35);
 }
 
-/* the scene: a screen, sized in cqw so the card keeps the DLL's proportions */
-.zc-scene {
-  container-type: inline-size;
-  position: relative;
-  aspect-ratio: 16 / 9;
-  /* a lit stand-in for the zone, so the shroud has something to dim */
-  background:
-    radial-gradient(ellipse 30% 22% at 72% 24%, rgba(255, 244, 214, 0.55), transparent 70%),
-    radial-gradient(ellipse 45% 18% at 25% 62%, rgba(70, 92, 52, 0.7), transparent 75%),
-    linear-gradient(180deg, #6f88a3 0%, #a7b6c1 40%, #8e9a7a 41%, #5f6e47 65%, #3c472f 100%);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 4px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-}
-
-.zc-shroud {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-}
-
-.zc-shroud.zc-phase-beat {
-  opacity: 0;
-}
-
-.zc-shroud.zc-phase-in {
-  animation: zc-fade var(--zc-in) ease-out both;
-}
-
-.zc-shroud.zc-phase-out {
-  animation: zc-fade var(--zc-out) ease-in reverse both;
-}
-
-.zc-card {
-  position: relative;
-}
-
 .zc-range {
   width: 160px;
   vertical-align: middle;
@@ -714,111 +534,6 @@ export default {
   padding-top: 0;
 }
 
-.zc-scene-off .zc-card {
-  opacity: 0.25;
-}
-
-.zc-card {
-  text-align: center;
-  max-width: 92%;
-}
-
-.zc-emblem {
-  margin: 0 auto 0.6cqw;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.zc-emblem-icon {
-  display: inline-block;
-  transform-origin: center;
-}
-
-.zc-title {
-  line-height: 1.2;
-  letter-spacing: 0.02em;
-  text-shadow: 0 0 0.25em rgba(0, 0, 0, 0.9);
-  padding: 0.12em 0;
-}
-
-.zc-unwritten {
-  visibility: hidden;
-}
-
-.zc-rule {
-  height: 1px;
-  margin: 0 auto;
-  width: 30cqw;
-  background: linear-gradient(90deg, transparent 0%, var(--zc-accent) 30%, var(--zc-accent) 70%, transparent 100%);
-}
-
-.zc-subtitle {
-  font-family: Arimo, Arial, sans-serif;
-  margin-top: 0.6em;
-  text-shadow: 0 0 0.3em rgba(0, 0, 0, 0.9);
-}
-
-/* playing: beat (nothing), in (the reveal), hold, out (fade) */
-.zc-phase-beat {
-  opacity: 0;
-}
-
-.zc-phase-beat .zc-rule {
-  transform: scaleX(0);
-}
-
-.zc-phase-in .zc-rule {
-  animation: zc-draw var(--zc-in) ease-out both;
-}
-
-.zc-phase-in.zc-reveal-fade .zc-title, .zc-phase-in.zc-reveal-fade .zc-subtitle, .zc-phase-in .zc-emblem {
-  animation: zc-fade var(--zc-in) ease-out both;
-}
-
-.zc-phase-in.zc-reveal-rise .zc-title, .zc-phase-in.zc-reveal-rise .zc-subtitle {
-  animation: zc-rise var(--zc-in) ease-out both;
-}
-
-.zc-phase-in.zc-reveal-letters .zc-subtitle {
-  animation: zc-fade 600ms ease-out var(--zc-in) both;
-}
-
-.zc-phase-out {
-  animation: zc-fade var(--zc-out) ease-in reverse both;
-}
-
-@keyframes zc-fade {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-@keyframes zc-rise {
-  from { opacity: 0; transform: translateY(0.6em); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes zc-draw {
-  from { transform: scaleX(0); }
-  to { transform: scaleX(1); }
-}
-
-.zc-off {
-  position: absolute;
-  bottom: 8px;
-  right: 12px;
-  font-size: 0.85em;
-  color: #e88;
-}
-
-.zc-phase {
-  position: absolute;
-  top: 6px;
-  left: 10px;
-  font-size: 0.8em;
-  color: rgba(255, 255, 255, 0.4);
-}
-
 .zc-return-scene {
   background: #1c2028;
   border-radius: 3px;
@@ -831,13 +546,6 @@ export default {
   text-shadow: 0 0 0.3em rgba(0, 0, 0, 0.9);
 }
 
-.zc-screen {
-  width: auto;
-  display: inline-block;
-  height: auto;
-  padding: 0 4px;
-  font-size: 1em;
-}
 
 .zc-style {
   border-top: 1px solid rgba(255, 255, 255, 0.1);

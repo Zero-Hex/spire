@@ -54,7 +54,7 @@ func (s *Service) RegisterManualResources() map[string][]string {
 		"Item Generator": {"item-gen"},
 		// snapshots a zone's spawn and loot rows, and restores them
 		"Zone Loot Workbench": {"zone-loot"},
-		// the zone title cards players see on arrival
+		// the zone title cards players see on arrival, and boss title cards
 		"Zone Cards": {"zone-cards"},
 		// what NPCs say to players near them
 		"Ambient Lines": {"ambient-lines"},

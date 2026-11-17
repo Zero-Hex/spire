@@ -195,3 +195,79 @@ func shroud(t *testing.T, db *gorm.DB) {
 		}
 	}
 }
+
+func TestBossCards(t *testing.T) {
+	db := testDB(t)
+	if l, _ := Read(db, db); !l.Rules.UntilInput || l.Rules.MaxMs != 60000 || l.Rules.HoldMs != 2000 {
+		t.Errorf("zone card rules (defaults here): %+v", l.Rules)
+	}
+	if !hasTable(db, "custom_boss_card") {
+		if _, err := ReadBosses(db, db); err == nil || !strings.Contains(err.Error(), "migration 74") {
+			t.Errorf("before migration 74: %v", err)
+		}
+		t.Log("before custom migration 74: boss cards not checked")
+		return
+	}
+	var held int64
+	db.Raw("SELECT COUNT(*) FROM custom_boss_card WHERE npc_type_id = 101109").Scan(&held)
+	if held > 0 {
+		t.Skip("this database already has a card for King Gragnar")
+	}
+	t.Cleanup(func() { db.Exec("DELETE FROM custom_boss_card WHERE npc_type_id = 101109") })
+
+	b, err := SaveBoss(db, db, models.CustomBossCard{NpcTypeID: 101109, Subtitle: " Who Would Not Stay Dead ", TitleFont: "Pirata",
+		AccentColor: "#7fa37a", Sound: "boss_sting.mp3", Radius: 300, Shroud: 35, DisplayMs: 3500, RepeatSeconds: 3600, Enabled: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if b.Subtitle != "Who Would Not Stay Dead" || b.TitleFont != "pirata" || b.AccentColor != "7FA37A" || b.Reveal != "fade" || b.Trigger != "engage" {
+		t.Errorf("saved %+v", b)
+	}
+	// again: replaced, the reserved-word column included
+	if _, err := SaveBoss(db, db, models.CustomBossCard{NpcTypeID: 101109, Title: "The King Below", Trigger: "spawn", Reveal: "rise", Radius: 500, Shroud: 50, Enabled: 1}); err != nil {
+		t.Fatal(err)
+	}
+	l, err := ReadBosses(db, db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, x := range l.Bosses {
+		if x.NpcTypeID == 101109 {
+			found = true
+			if x.Title != "The King Below" || x.Trigger != "spawn" || x.Radius != 500 || x.NPC.Name != "King_Gragnar" || !strings.Contains(x.NPC.Zones, "warrens") {
+				t.Errorf("listed %+v", x)
+			}
+		}
+	}
+	if !found {
+		t.Error("not listed")
+	}
+	for what, c := range map[string]models.CustomBossCard{
+		"no npc":     {Radius: 300},
+		"no such":    {NpcTypeID: 999999999, Radius: 300},
+		"trigger":    {NpcTypeID: 101109, Trigger: "death", Radius: 300},
+		"reveal":     {NpcTypeID: 101109, Reveal: "spin", Radius: 300},
+		"radius":     {NpcTypeID: 101109, Radius: 0},
+		"far":        {NpcTypeID: 101109, Radius: 5001},
+		"shroud":     {NpcTypeID: 101109, Radius: 300, Shroud: 91},
+		"display":    {NpcTypeID: 101109, Radius: 300, DisplayMs: 15001},
+		"colour":     {NpcTypeID: 101109, Radius: 300, TitleColor: "red"},
+		"sound":      {NpcTypeID: 101109, Radius: 300, Sound: "../x.mp3"},
+		"long title": {NpcTypeID: 101109, Radius: 300, Title: strings.Repeat("x", 64)},
+	} {
+		if _, err := SaveBoss(db, db, c); err == nil {
+			t.Errorf("%v: saved", what)
+		}
+	}
+	hits, err := SearchNPCs(db, "king gragnar")
+	if err != nil || len(hits) == 0 || hits[0].ID != 101109 {
+		t.Errorf("search: %+v %v", hits, err)
+	}
+	if err := DeleteBoss(db, 101109); err != nil {
+		t.Fatal(err)
+	}
+	if err := DeleteBoss(db, 101109); err == nil {
+		t.Error("deleted twice")
+	}
+}

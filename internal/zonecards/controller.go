@@ -2,6 +2,7 @@ package zonecards
 
 import (
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/EQEmu/spire/internal/clientassets"
@@ -26,6 +27,10 @@ func (z *Controller) Routes() []*routes.Route {
 	return []*routes.Route{
 		routes.RegisterRoute(http.MethodGet, "zone-cards", z.list, nil),
 		routes.RegisterRoute(http.MethodGet, "zone-cards/sound", z.sound, nil),
+		routes.RegisterRoute(http.MethodGet, "zone-cards/bosses", z.bosses, nil),
+		routes.RegisterRoute(http.MethodGet, "zone-cards/bosses/npcs", z.bossNPCs, nil),
+		routes.RegisterRoute(http.MethodPut, "zone-cards/bosses/:npc", z.saveBoss, nil),
+		routes.RegisterRoute(http.MethodDelete, "zone-cards/bosses/:npc", z.deleteBoss, nil),
 		routes.RegisterRoute(http.MethodPut, "zone-cards/:zone", z.save, nil),
 		routes.RegisterRoute(http.MethodDelete, "zone-cards/:zone", z.delete, nil),
 	}
@@ -75,4 +80,50 @@ func (z *Controller) sound(c echo.Context) error {
 		return c.JSON(http.StatusNotFound, echo.Map{"error": "Spire keeps no " + path + " for the client patch"})
 	}
 	return c.Blob(http.StatusOK, "audio/mpeg", b)
+}
+
+// --- boss title cards ---
+
+func (z *Controller) bosses(c echo.Context) error {
+	out, err := ReadBosses(z.db.Get(&models.Zone{}, c), z.db.Get(&models.CustomBossCard{}, c))
+	if err != nil {
+		return bad(c, err)
+	}
+	return c.JSON(http.StatusOK, echo.Map{"bosses": out.Bosses, "sounds": Sounds(z.store)})
+}
+
+func (z *Controller) bossNPCs(c echo.Context) error {
+	out, err := SearchNPCs(z.db.Get(&models.Zone{}, c), c.QueryParam("q"))
+	if err != nil {
+		return bad(c, err)
+	}
+	return c.JSON(http.StatusOK, out)
+}
+
+func (z *Controller) saveBoss(c echo.Context) error {
+	var b models.CustomBossCard
+	if err := c.Bind(&b); err != nil {
+		return bad(c, err)
+	}
+	id, err := strconv.ParseUint(c.Param("npc"), 10, 32)
+	if err != nil {
+		return bad(c, err)
+	}
+	b.NpcTypeID = uint32(id)
+	out, err := SaveBoss(z.db.Get(&models.Zone{}, c), z.db.Get(&models.CustomBossCard{}, c), b)
+	if err != nil {
+		return bad(c, err)
+	}
+	return c.JSON(http.StatusOK, out)
+}
+
+func (z *Controller) deleteBoss(c echo.Context) error {
+	id, err := strconv.ParseUint(c.Param("npc"), 10, 32)
+	if err != nil {
+		return bad(c, err)
+	}
+	if err := DeleteBoss(z.db.Get(&models.CustomBossCard{}, c), uint32(id)); err != nil {
+		return bad(c, err)
+	}
+	return c.JSON(http.StatusOK, echo.Map{"deleted": id})
 }

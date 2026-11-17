@@ -337,6 +337,12 @@ export default {
             routes: ['starfall/zone-cards']
           },
           {
+            title: "Boss Cards",
+            to: ROUTE.STARFALL_BOSS_CARDS,
+            icon: "ra ra-dragon-breath mr-1",
+            routes: ['starfall/boss-cards']
+          },
+          {
             title: "Ambient Lines",
             to: ROUTE.STARFALL_AMBIENT_LINES,
             icon: "ra ra-speech-bubbles mr-1",

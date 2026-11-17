@@ -77,6 +77,8 @@ type List struct {
 	Shroud bool `json:"shroud"`
 	// Custom:Zone_Card_Default_Shroud: zones with no row
 	DefaultShroud int `json:"default_shroud"`
+	// how long a first-entry card stays up
+	Rules Rules `json:"rules"`
 	// MP3s Spire keeps for the client patch, by their path in the client folder
 	Sounds []string `json:"sounds"`
 }
@@ -105,7 +107,7 @@ func Read(content, server *gorm.DB) (*List, error) {
 	}
 	out := &List{Zones: []Zone{}, Cards: []models.CustomZoneCard{}, Discovered: map[string]int{}, Sounds: []string{},
 		Styles: hasColumn(server, "custom_zone_card", "title_font"), Shroud: hasColumn(server, "custom_zone_card", "shroud"),
-		DefaultShroud: defaultShroud(server)}
+		DefaultShroud: defaultShroud(server), Rules: readRules(server)}
 	// one row per zone: version 0's name where there is one
 	if err := content.Raw(`SELECT z.short_name, z.long_name, z.zoneidnumber AS id FROM zone z
 		JOIN (SELECT short_name, MIN(version) AS version FROM zone WHERE short_name <> '' GROUP BY short_name) v
@@ -258,4 +260,41 @@ func defaultShroud(server *gorm.DB) int {
 		}
 	}
 	return min(max(v, 0), MaxShroud)
+}
+
+// Rules are the zone card rules the preview follows
+type Rules struct {
+	UntilInput bool `json:"until_input"` // Custom:Zone_Card_Until_Input: a first entry stays until the player acts
+	MaxMs      int  `json:"max_ms"`      // Custom:Zone_Card_Max_Ms: ... but at most this long (0: never)
+	HoldMs     int  `json:"hold_ms"`     // Custom:Zone_Card_Hold_Ms: the keyboard pause
+}
+
+func ruleValue(server *gorm.DB, name string) (string, bool) {
+	if !hasTable(server, "rule_values") {
+		return "", false
+	}
+	var rows []struct{ RuleValue string }
+	server.Raw("SELECT rule_value FROM rule_values WHERE ruleset_id = 1 AND rule_name = ? LIMIT 1", name).Scan(&rows)
+	if len(rows) == 0 {
+		return "", false
+	}
+	return strings.TrimSpace(rows[0].RuleValue), true
+}
+
+func readRules(server *gorm.DB) Rules {
+	r := Rules{UntilInput: true, MaxMs: 60000, HoldMs: 2000} // ruletypes.h
+	if v, ok := ruleValue(server, "Custom:Zone_Card_Until_Input"); ok {
+		r.UntilInput = strings.EqualFold(v, "true") || v == "1"
+	}
+	if v, ok := ruleValue(server, "Custom:Zone_Card_Max_Ms"); ok {
+		if n, err := strconv.Atoi(v); err == nil {
+			r.MaxMs = min(max(n, 0), 60000)
+		}
+	}
+	if v, ok := ruleValue(server, "Custom:Zone_Card_Hold_Ms"); ok {
+		if n, err := strconv.Atoi(v); err == nil {
+			r.HoldMs = min(max(n, 0), 5000)
+		}
+	}
+	return r
 }

@@ -162,6 +162,11 @@ const router = new Router({
           meta: {title: "Zone Cards"},
         },
         {
+          path: ROUTE.STARFALL_BOSS_CARDS,
+          component: () => import('./views/starfall/BossCards.vue'),
+          meta: {title: "Boss Cards"},
+        },
+        {
           path: ROUTE.STARFALL_AMBIENT_LINES,
           component: () => import('./views/starfall/AmbientLines.vue'),
           meta: {title: "Ambient Lines"},
