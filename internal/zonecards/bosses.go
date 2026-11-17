@@ -3,6 +3,7 @@ package zonecards
 import (
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"unicode/utf8"
 
@@ -19,7 +20,60 @@ import (
 const (
 	MaxRadius = 5000
 	MaxNotes  = 255
+	// the camera shot (custom migration 75): 0 for none, else the server
+	// clamps it to this
+	MinCameraMs = 1000
+	MaxCameraMs = 6000
 )
+
+// cameraModes are the shot's framings (custom migration 76; boss_cards.cpp
+// CameraMode): ” auto, keep, or a client camera mode by name; the server also
+// takes the mode's number, stored here as its name
+var cameraModes = []string{"first", "top", "close", "side", "far", "front"}
+
+// bossColumns are the columns custom migration 74 made
+var bossColumns = []string{"title", "subtitle", "trigger", "radius", "title_font", "title_color", "subtitle_color", "accent_color",
+	"emblem_icon", "reveal", "display_ms", "shroud", "shroud_color", "sound", "repeat_seconds", "enabled", "notes"}
+
+// laterBossColumns are the ones later migrations add, with their defaults
+var laterBossColumns = []struct {
+	name      string
+	migration int
+	isDefault func(b models.CustomBossCard) bool
+}{
+	{"camera_ms", 75, func(b models.CustomBossCard) bool { return b.CameraMs == 0 }},
+	// before 76 a shot kept the player's own camera mode, and before 77 every
+	// shot was live: a server without the column does that, which a card
+	// with no shot doesn't care about
+	{"camera_mode", 76, func(b models.CustomBossCard) bool { return b.CameraMs == 0 || b.CameraMode == "keep" }},
+	{"camera_style", 77, func(b models.CustomBossCard) bool { return b.CameraMs == 0 || b.CameraStyle == "live" }},
+}
+
+// CameraMode is a framing as it is stored: ” (auto), keep or a mode name;
+// ok is false for one the server would read as auto by mistake
+func CameraMode(v string) (string, bool) {
+	v = strings.ToLower(strings.TrimSpace(v))
+	switch v {
+	case "", "auto":
+		return "", true
+	case "keep":
+		return v, true
+	}
+	for i, m := range cameraModes {
+		if v == m || v == strconv.Itoa(i) {
+			return m, true
+		}
+	}
+	return "", false
+}
+
+// cameraStyle is how the server reads a style: anything but live is a portrait
+func cameraStyle(v string) string {
+	if strings.EqualFold(strings.TrimSpace(v), "live") {
+		return "live"
+	}
+	return "snap"
+}
 
 var (
 	triggers    = map[string]bool{"engage": true, "spawn": true}
@@ -33,8 +87,12 @@ type BossNPC struct {
 	Name  string `json:"name"`
 	Level int    `json:"level"`
 	Race  int    `json:"race"`
-	Zones string `json:"zones"` // where it spawns
-	Found bool   `json:"found"` // npc_types has it
+	// its look: the race model picture
+	Gender      int    `json:"gender"`
+	Texture     int    `json:"texture"`
+	HelmTexture int    `json:"helmtexture"`
+	Zones       string `json:"zones"` // where it spawns
+	Found       bool   `json:"found"` // npc_types has it
 }
 
 type Boss struct {
@@ -42,8 +100,30 @@ type Boss struct {
 	NPC BossNPC `json:"npc"`
 }
 
+// BossCamera is which camera columns the server has, and the portrait rule
+type BossCamera struct {
+	Shot  bool `json:"shot"`  // camera_ms (custom migration 75)
+	Mode  bool `json:"mode"`  // camera_mode (76)
+	Style bool `json:"style"` // camera_style (77)
+	// Custom:Boss_Snap_Hide_Ui_Value: the screen mode that hides the client's
+	// UI while a portrait is captured (-1: left alone)
+	HideUiValue int `json:"hide_ui_value"`
+}
+
 type BossList struct {
-	Bosses []Boss `json:"bosses"`
+	Bosses []Boss     `json:"bosses"`
+	Camera BossCamera `json:"camera"`
+}
+
+func readBossCamera(server *gorm.DB) BossCamera {
+	c := BossCamera{Shot: hasColumn(server, "custom_boss_card", "camera_ms"), Mode: hasColumn(server, "custom_boss_card", "camera_mode"),
+		Style: hasColumn(server, "custom_boss_card", "camera_style"), HideUiValue: -1}
+	if v, ok := ruleValue(server, "Custom:Boss_Snap_Hide_Ui_Value"); ok {
+		if n, err := strconv.Atoi(v); err == nil {
+			c.HideUiValue = n
+		}
+	}
+	return c
 }
 
 // npcInfo is each NPC's name and where it spawns
@@ -53,7 +133,7 @@ func npcInfo(content *gorm.DB, ids []uint32) map[uint32]BossNPC {
 		return out
 	}
 	var rows []BossNPC
-	content.Raw(`SELECT n.id, n.name, n.level, n.race, COALESCE(GROUP_CONCAT(DISTINCT s.zone ORDER BY s.zone SEPARATOR ', '), '') AS zones
+	content.Raw(`SELECT n.id, n.name, n.level, n.race, n.gender, n.texture, n.helmtexture, COALESCE(GROUP_CONCAT(DISTINCT s.zone ORDER BY s.zone SEPARATOR ', '), '') AS zones
 		FROM npc_types n LEFT JOIN spawnentry e ON e.npcID = n.id LEFT JOIN spawn2 s ON s.spawngroupID = e.spawngroupID
 		WHERE n.id IN ? GROUP BY n.id`, ids).Scan(&rows)
 	for _, r := range rows {
@@ -77,8 +157,18 @@ func ReadBosses(content, server *gorm.DB) (*BossList, error) {
 		ids = append(ids, r.NpcTypeID)
 	}
 	info := npcInfo(content, ids)
-	out := &BossList{Bosses: []Boss{}}
+	out := &BossList{Bosses: []Boss{}, Camera: readBossCamera(server)}
 	for _, r := range rows {
+		// as the server reads them, and what a server without migration 76 or
+		// 77 does
+		r.CameraMode, _ = CameraMode(r.CameraMode)
+		r.CameraStyle = cameraStyle(r.CameraStyle)
+		if !out.Camera.Mode {
+			r.CameraMode = "keep"
+		}
+		if !out.Camera.Style {
+			r.CameraStyle = "live"
+		}
 		n, ok := info[r.NpcTypeID]
 		if !ok {
 			n = BossNPC{ID: r.NpcTypeID}
@@ -123,6 +213,12 @@ func SaveBoss(content, server *gorm.DB, b models.CustomBossCard) (*models.Custom
 	if b.Trigger == "" {
 		b.Trigger = "engage"
 	}
+	mode, modeOK := CameraMode(b.CameraMode)
+	b.CameraMode = mode
+	b.CameraStyle = strings.ToLower(strings.TrimSpace(b.CameraStyle))
+	if b.CameraStyle == "" {
+		b.CameraStyle = "snap"
+	}
 	for _, c := range []*string{&b.TitleColor, &b.SubtitleColor, &b.AccentColor, &b.ShroudColor} {
 		*c = strings.ToUpper(strings.TrimPrefix(strings.TrimSpace(*c), "#"))
 		if *c != "" && !hexColor.MatchString(*c) {
@@ -154,6 +250,12 @@ func SaveBoss(content, server *gorm.DB, b models.CustomBossCard) (*models.Custom
 		return nil, fmt.Errorf("%q is not an MP3 in the client folder (at most %d characters)", b.Sound, MaxSound)
 	case len(b.Notes) > MaxNotes:
 		return nil, fmt.Errorf("the notes are at most %d characters", MaxNotes)
+	case b.CameraMs != 0 && (b.CameraMs < MinCameraMs || b.CameraMs > MaxCameraMs):
+		return nil, fmt.Errorf("a camera shot lasts %d to %d ms (0 for none)", MinCameraMs, MaxCameraMs)
+	case !modeOK:
+		return nil, fmt.Errorf("%q is not a camera framing: auto, keep, first, top, close, side, far or front", strings.TrimSpace(b.CameraMode))
+	case b.CameraStyle != "snap" && b.CameraStyle != "live":
+		return nil, fmt.Errorf("%q is not a camera style: snap (a portrait) or live", b.CameraStyle)
 	}
 	if b.TitleFont == "cinzel" {
 		b.TitleFont = ""
@@ -169,7 +271,18 @@ func SaveBoss(content, server *gorm.DB, b models.CustomBossCard) (*models.Custom
 	if !hasTable(server, "custom_boss_card") {
 		return nil, errNoBoss
 	}
-	if err := server.Clauses(clause.OnConflict{UpdateAll: true}).Create(&b).Error; err != nil {
+	// the columns this server has: one a later migration adds is written only
+	// once it's there, and can't be set before
+	cols := append([]string{}, bossColumns...)
+	for _, c := range laterBossColumns {
+		if hasColumn(server, "custom_boss_card", c.name) {
+			cols = append(cols, c.name)
+		} else if !c.isDefault(b) {
+			return nil, fmt.Errorf("this server's custom_boss_card has no %v column yet (Starfall custom migration %d, run when world starts on a build that has it)", c.name, c.migration)
+		}
+	}
+	if err := server.Select(append([]string{"npc_type_id"}, cols...)).
+		Clauses(clause.OnConflict{DoUpdates: clause.AssignmentColumns(cols)}).Create(&b).Error; err != nil {
 		return nil, err
 	}
 	return &b, nil

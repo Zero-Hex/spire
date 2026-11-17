@@ -6,6 +6,7 @@
         in a display face with its epithet beneath, an emblem and a sting. It shows on the first pull of each fight
         (or when the boss spawns), to everyone within its radius who runs the Starfall DLL, at most once per player per
         repeat time; it never holds the keyboard or waits for input, since they may already be fighting.
+        It can also show players the boss itself: a portrait taken from the camera's view of it, or a live shot.
       </div>
       <div class="text-muted hint mt-1">
         Zones read the table once: after saving, <code>#bosscard reload</code> in the zone, then target the boss and
@@ -43,6 +44,9 @@
                 {{ b.npc_type_id }}<span v-if="b.npc.zones"> · {{ b.npc.zones }}</span>
                 <div>
                   <span class="bc-badge">{{ b.trigger === 'spawn' ? 'on spawn' : 'on pull' }}</span>
+                  <span v-if="b.camera_ms > 0" class="bc-badge bc-badge-cam" :title="cameraSummary(b)">
+                    <i class="fa fa-camera"></i> {{ b.camera_style === 'live' ? 'live' : 'portrait' }}
+                  </span>
                   <span v-if="!b.enabled" class="bc-badge bc-badge-off">off</span>
                   <span v-if="!b.npc.found" class="bc-badge bc-badge-off">no such NPC</span>
                 </div>
@@ -59,8 +63,15 @@
           <div class="text-muted">Pick a boss, or add one.</div>
         </eq-window-simple>
         <eq-window-simple v-else :title="npcLabel() + (isNew ? ' (new)' : '') + (dirty() ? ' (not saved)' : '')">
-          <title-card :card="previewCard()" :shown="!!editing.enabled" hidden-text="Off: no card for this boss"
-                      caption="As it engages" :timing="timing()" @appear="cardAppears" @stop="stopSound"/>
+          <boss-portrait v-if="portrait() && editing.enabled" :title="previewCard().title" :subtitle="editing.subtitle.trim()"
+                         :npc="editing.npc" :ms="parseInt(editing.camera_ms)" :ui-hidden="list.camera.hide_ui_value >= 0"
+                         :caption="portraitCaption()" @appear="cardAppears" @stop="stopSound"/>
+          <title-card v-else :card="previewCard()" :shown="!!editing.enabled" hidden-text="Off: no card for this boss"
+                      :caption="cardCaption()" :timing="timing()" @appear="cardAppears" @stop="stopSound"/>
+          <div v-if="portrait() && editing.enabled" class="hint text-muted mt-1">
+            A portrait carries only the title and epithet, in the card's default lettering: the font, colours, emblem,
+            reveal, shroud and time below are for the full card, which nobody gets while the shot is a portrait.
+          </div>
 
           <div class="row mt-3">
             <div class="col-md-6 form-group mb-2">
@@ -146,6 +157,72 @@
             A wipe and re-pull within the repeat time doesn't show it again to the same player.
           </div>
 
+          <h6 class="bc-h">Camera</h6>
+          <div v-if="!list.camera.shot" class="hint text-muted mb-2">
+            Showing players the boss needs the <code>camera_ms</code> column, which this server's
+            <code>custom_boss_card</code> doesn't have yet (Starfall custom migration 75, run when world starts on a
+            build that has it).
+          </div>
+          <template v-else>
+            <div class="d-flex align-items-center flex-wrap mb-2">
+              <b-form-checkbox switch class="mr-3 bc-cam-on" :checked="editing.camera_ms > 0" @change="v => setCamera(v)">
+                Show the boss
+              </b-form-checkbox>
+              <template v-if="editing.camera_ms > 0">
+                <span class="bc-label">For</span>
+                <b-form-input size="sm" type="number" min="1" max="6" step="0.5" :value="editing.camera_ms / 1000"
+                              class="bc-num bc-num-sm mr-1 bc-cam-secs" @change="v => setCameraSecs(v)"/>
+                <span class="mr-3">seconds <span class="hint text-muted">(1 to 6)</span></span>
+                <span class="bc-label">As</span>
+                <b-form-radio-group size="sm" v-model="editing.camera_style" buttons button-variant="outline-secondary"
+                                    class="mr-3 bc-cam-style" :options="styleOptions()"/>
+              </template>
+            </div>
+            <template v-if="editing.camera_ms > 0">
+              <div class="hint text-muted mb-2">
+                <template v-if="editing.camera_style === 'live'">
+                  <b>Live shot:</b> players near it who aren't fighting (no aggro) get the full card, and their camera
+                  goes to the boss for {{ secs(editing.camera_ms) }} with their keyboard and mouse held, then comes back
+                  exactly as it was. Taking damage ends it at once; players already fighting get just the card. A
+                  player running at the time keeps running blind, so mind cliffs and lava near it.
+                </template>
+                <template v-else>
+                  <b>Portrait:</b> everyone in range, fighting or running, gets it instead of the full card: behind a
+                  warm flash their camera goes to the boss for a few frames, one frame is captured and the camera comes
+                  straight back (no input held). The frame then shows for {{ secs(editing.camera_ms) }}, framed, with the
+                  title and epithet beneath, and the sound plays.
+                </template>
+              </div>
+              <div v-if="!list.camera.style" class="hint text-warning mb-2">
+                Portraits need the <code>camera_style</code> column (Starfall custom migration 77): until then this
+                server's shot is live.
+              </div>
+              <div class="d-flex align-items-center flex-wrap mb-2">
+                <span class="bc-label">Framing</span>
+                <b-form-select size="sm" v-model="editing.camera_mode" :options="modeOptions()" :disabled="!list.camera.mode"
+                               class="bc-cam-mode mr-2" style="max-width: 260px"/>
+                <span class="hint text-muted">{{ modeHint() }}</span>
+              </div>
+              <div v-if="!list.camera.mode" class="hint text-warning mb-2">
+                Framing needs the <code>camera_mode</code> column (Starfall custom migration 76): until then each player's
+                own camera mode is used.
+              </div>
+              <div v-if="editing.camera_style !== 'live'" class="hint text-muted mb-2">
+                <template v-if="list.camera.hide_ui_value >= 0">
+                  The client's windows are hidden while the frame is captured
+                  (<code>Custom:Boss_Snap_Hide_Ui_Value</code> = {{ list.camera.hide_ui_value }}).
+                </template>
+                <template v-else>
+                  The frame catches the client's windows (chat, hotbars) too. To leave them out, find the screen-mode value
+                  that hides them with <code>#bosscam uihide &lt;value&gt;</code> and set
+                  <code>Custom:Boss_Snap_Hide_Ui_Value</code> to it.
+                </template>
+                Try one on your own client: target the boss, <code>#bosscam snap [seconds] [frames]</code> (raise
+                <i>frames</i> if the portrait catches the camera half-moved).
+              </div>
+            </template>
+          </template>
+
           <div class="d-flex align-items-center flex-wrap mb-3">
             <b-form-checkbox v-model="editing.enabled" :value="1" :unchecked-value="0" class="mr-3">Enabled</b-form-checkbox>
             <b-form-input size="sm" v-model="editing.notes" maxlength="255" placeholder="Notes (players don't see them)"/>
@@ -179,23 +256,40 @@ import EqWindowSimple   from "@/components/eq-ui/EQWindowSimple";
 import InfoErrorBanner  from "@/components/InfoErrorBanner";
 import ItemIconSelector from "@/views/items/components/ItemIconSelector";
 import TitleCard, {DEFAULT_COLORS, FAMILIES, FONTS} from "@/components/starfall/TitleCard";
+import BossPortrait     from "@/components/starfall/BossPortrait";
 import {SpireApi}       from "@/app/api/spire-api";
 
-// a new boss card: the table's defaults (custom migration 74)
-function blank(npc) {
+// a new boss card: the table's defaults (custom migrations 74-77); without
+// migration 76 or 77 a shot keeps the player's own camera mode and is live
+function blank(npc, camera) {
   return {
     npc_type_id: npc.id, title: "", subtitle: "", trigger: "engage", radius: 300, title_font: "", title_color: "", subtitle_color: "",
-    accent_color: "", emblem_icon: 0, reveal: "rise", display_ms: 3500, shroud: 35, shroud_color: "", sound: "",
-    repeat_seconds: 3600, enabled: 1, notes: "", npc: npc,
+    accent_color: "", emblem_icon: 0, reveal: "rise", display_ms: 3500, camera_ms: 0, camera_mode: camera.mode ? "" : "keep",
+    camera_style: camera.style ? "snap" : "live", shroud: 35, shroud_color: "", sound: "", repeat_seconds: 3600, enabled: 1, notes: "", npc: npc,
   }
 }
 
 const FIELDS = ["title", "subtitle", "trigger", "radius", "title_font", "title_color", "subtitle_color", "accent_color", "emblem_icon",
-  "reveal", "display_ms", "shroud", "shroud_color", "sound", "repeat_seconds", "enabled", "notes"]
+  "reveal", "display_ms", "shroud", "shroud_color", "sound", "repeat_seconds", "enabled", "notes", "camera_ms", "camera_mode", "camera_style"]
+
+// the camera columns, with the flag for each in the list's camera
+const CAMERA = { camera_ms: "shot", camera_mode: "mode", camera_style: "style" }
+
+// the shot's framings (boss_cards.cpp CameraMode; the client's F9 modes)
+const MODES = [
+  { value: "", text: "Auto", hint: "players in first person see it from far behind; everyone else through their own camera mode" },
+  { value: "keep", text: "Their own view", hint: "everyone's own camera mode: a player in first person sees out of the boss's eyes" },
+  { value: "first", text: "First person", hint: "from inside the boss, for everyone" },
+  { value: "top", text: "From above", hint: "the top-down view, for everyone" },
+  { value: "close", text: "Close behind", hint: "the chase view, close behind it, for everyone" },
+  { value: "side", text: "Behind, to the side", hint: "for everyone" },
+  { value: "far", text: "Far behind", hint: "for everyone" },
+  { value: "front", text: "From the front", hint: "facing it, side-on, for everyone" },
+]
 
 export default {
   name: "BossCards",
-  components: { EqWindowSimple, InfoErrorBanner, ItemIconSelector, TitleCard },
+  components: { EqWindowSimple, InfoErrorBanner, ItemIconSelector, TitleCard, BossPortrait },
   data() {
     return {
       list: null,
@@ -289,7 +383,7 @@ export default {
       if (!this.leave()) {
         return
       }
-      this.editing  = blank({ ...npc, found: true })
+      this.editing  = blank({ ...npc, found: true }, this.list.camera)
       this.original = ""
       this.isNew    = true
     },
@@ -328,7 +422,8 @@ export default {
       const hex = c => !c || /^[0-9A-Fa-f]{6}$/.test(c)
       return !this.busy && (this.isNew || this.dirty()) && this.bytes(e.title) <= 63 && this.bytes(e.subtitle) <= 127 &&
         hex(e.title_color) && hex(e.subtitle_color) && hex(e.accent_color) && hex(e.shroud_color) &&
-        e.radius >= 1 && e.radius <= 5000 && e.shroud >= 0 && e.shroud <= 90
+        e.radius >= 1 && e.radius <= 5000 && e.shroud >= 0 && e.shroud <= 90 &&
+        (!e.camera_ms || (e.camera_ms >= 1000 && e.camera_ms <= 6000))
     },
     setColor(key, v) {
       this.editing[key] = String(v || "").trim().replace(/^#/, "").toUpperCase()
@@ -346,6 +441,49 @@ export default {
         return Math.round(s / 360) / 10 + " h"
       }
       return s >= 60 ? Math.round(s / 6) / 10 + " min" : s + " s"
+    },
+    secs(ms) {
+      return (ms / 1000).toFixed(1).replace(/\.0$/, "") + " s"
+    },
+    // the fields this server has a column for
+    fields() {
+      return FIELDS.filter(f => !CAMERA[f] || this.list.camera[CAMERA[f]])
+    },
+    setCamera(on) {
+      this.editing.camera_ms = on ? 3000 : 0
+    },
+    setCameraSecs(v) {
+      const s = parseFloat(v)
+      this.editing.camera_ms = isNaN(s) || s <= 0 ? 0 : Math.min(6000, Math.max(1000, Math.round(s * 1000)))
+    },
+    styleOptions() {
+      return [
+        { value: "snap", text: "A portrait", disabled: !this.list.camera.style },
+        { value: "live", text: "A live shot" },
+      ]
+    },
+    modeOptions() {
+      return MODES.map(m => ({ value: m.value, text: m.text }))
+    },
+    modeHint() {
+      const m = MODES.find(x => x.value === this.editing.camera_mode)
+      return m ? m.hint : ""
+    },
+    // the shot is a portrait (which replaces the card)
+    portrait() {
+      return this.editing.camera_ms > 0 && this.editing.camera_style !== "live"
+    },
+    portraitCaption() {
+      return (this.editing.trigger === "spawn" ? "As it spawns" : "As it engages") +
+        ": its portrait (Spire shows its model picture where the game shows the captured frame)"
+    },
+    cardCaption() {
+      const as = this.editing.trigger === "spawn" ? "As it spawns" : "As it engages"
+      return this.editing.camera_ms > 0 ? `${as}, with ${this.secs(this.editing.camera_ms)} of camera on it for players not fighting` : as
+    },
+    cameraSummary(b) {
+      const m = MODES.find(x => x.value === b.camera_mode)
+      return `${b.camera_style === "live" ? "A live shot" : "A portrait"}, ${this.secs(b.camera_ms)}, framing: ${m ? m.text : b.camera_mode}`
     },
     previewCard() {
       const e = this.editing
@@ -383,7 +521,7 @@ export default {
       const e = this.editing
       const q = s => "'" + String(s || "").trim().replace(/\\/g, "\\\\").replace(/'/g, "''") + "'"
       const cols = { npc_type_id: e.npc_type_id }
-      FIELDS.forEach(f => (cols[f] = typeof e[f] === "number" ? e[f] : q(e[f])))
+      this.fields().forEach(f => (cols[f] = typeof e[f] === "number" ? e[f] : q(e[f])))
       const names = Object.keys(cols).map(n => n === "trigger" ? "`trigger`" : n)
       return `INSERT INTO custom_boss_card (${names.join(", ")})\nVALUES (${Object.values(cols).join(", ")})\n` +
         `ON DUPLICATE KEY UPDATE ${names.slice(1).map(n => `${n} = VALUES(${n})`).join(", ")};`
@@ -395,7 +533,7 @@ export default {
         const e = this.editing
         const body = {}
         FIELDS.forEach(f => (body[f] = e[f]))
-        ;["radius", "emblem_icon", "display_ms", "shroud", "repeat_seconds"].forEach(f => (body[f] = parseInt(body[f]) || 0))
+        ;["radius", "emblem_icon", "display_ms", "shroud", "repeat_seconds", "camera_ms"].forEach(f => (body[f] = parseInt(body[f]) || 0))
         await SpireApi.v1().put(`zone-cards/bosses/${e.npc_type_id}`, body)
         this.notification = `Saved ${this.bossName()}'s card. In its zone, #bosscard reload picks it up.`
         this.original = this.snapshot()
@@ -478,6 +616,10 @@ export default {
   margin-left: 4px;
   background: rgba(212, 175, 55, 0.3);
   color: #f1e3b0;
+}
+
+.bc-badge-cam {
+  background: rgba(23, 162, 184, 0.35);
 }
 
 .bc-badge-off {

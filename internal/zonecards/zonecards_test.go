@@ -260,6 +260,7 @@ func TestBossCards(t *testing.T) {
 			t.Errorf("%v: saved", what)
 		}
 	}
+	bossCamera(t, db)
 	hits, err := SearchNPCs(db, "king gragnar")
 	if err != nil || len(hits) == 0 || hits[0].ID != 101109 {
 		t.Errorf("search: %+v %v", hits, err)
@@ -269,5 +270,99 @@ func TestBossCards(t *testing.T) {
 	}
 	if err := DeleteBoss(db, 101109); err == nil {
 		t.Error("deleted twice")
+	}
+}
+
+// the camera shot: custom migrations 75 (camera_ms), 76 (camera_mode) and 77
+// (camera_style), each checked if the server has it and refused if not
+func bossCamera(t *testing.T, db *gorm.DB) {
+	cam := readBossCamera(db)
+	base := models.CustomBossCard{NpcTypeID: 101109, Radius: 300, Enabled: 1}
+	with := func(f func(b *models.CustomBossCard)) models.CustomBossCard { b := base; f(&b); return b }
+	read := func() models.CustomBossCard {
+		l, err := ReadBosses(db, db)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, x := range l.Bosses {
+			if x.NpcTypeID == 101109 {
+				return x.CustomBossCard
+			}
+		}
+		t.Fatal("not listed")
+		return models.CustomBossCard{}
+	}
+	if cam.HideUiValue != -1 {
+		t.Errorf("Custom:Boss_Snap_Hide_Ui_Value (unset here): %d", cam.HideUiValue)
+	}
+	// a card with no shot saves on any of them, whatever it says of the rest
+	if _, err := SaveBoss(db, db, with(func(b *models.CustomBossCard) { b.CameraMode = "auto"; b.CameraStyle = "" })); err != nil {
+		t.Fatal(err)
+	}
+	if !cam.Shot {
+		if _, err := SaveBoss(db, db, with(func(b *models.CustomBossCard) { b.CameraMs = 3000; b.CameraMode = "keep"; b.CameraStyle = "live" })); err == nil || !strings.Contains(err.Error(), "migration 75") {
+			t.Errorf("a shot before migration 75: %v", err)
+		}
+		t.Log("before custom migration 75: the camera shot not checked")
+		return
+	}
+	for what, c := range map[string]models.CustomBossCard{
+		"short": with(func(b *models.CustomBossCard) { b.CameraMs = 999 }),
+		"long":  with(func(b *models.CustomBossCard) { b.CameraMs = 6001 }),
+		"mode":  with(func(b *models.CustomBossCard) { b.CameraMs = 3000; b.CameraMode = "orbit" }),
+		"num":   with(func(b *models.CustomBossCard) { b.CameraMs = 3000; b.CameraMode = "6" }),
+		"style": with(func(b *models.CustomBossCard) { b.CameraMs = 3000; b.CameraStyle = "pip" }),
+	} {
+		if _, err := SaveBoss(db, db, c); err == nil {
+			t.Errorf("camera %v: saved", what)
+		}
+	}
+	if !cam.Mode {
+		// migration 75's server: a live shot through the player's own mode
+		if _, err := SaveBoss(db, db, with(func(b *models.CustomBossCard) { b.CameraMs = 3000; b.CameraMode = "far"; b.CameraStyle = "live" })); err == nil || !strings.Contains(err.Error(), "migration 76") {
+			t.Errorf("a framing before migration 76: %v", err)
+		}
+		if _, err := SaveBoss(db, db, with(func(b *models.CustomBossCard) { b.CameraMs = 3000; b.CameraMode = "keep"; b.CameraStyle = "live" })); err != nil {
+			t.Fatal(err)
+		}
+		if r := read(); r.CameraMs != 3000 || r.CameraMode != "keep" || r.CameraStyle != "live" {
+			t.Errorf("before migration 76: %+v", r)
+		}
+		t.Log("before custom migration 76: framing not checked")
+		return
+	}
+	if !cam.Style {
+		if _, err := SaveBoss(db, db, with(func(b *models.CustomBossCard) { b.CameraMs = 3000; b.CameraStyle = "snap" })); err == nil || !strings.Contains(err.Error(), "migration 77") {
+			t.Errorf("a portrait before migration 77: %v", err)
+		}
+		if _, err := SaveBoss(db, db, with(func(b *models.CustomBossCard) { b.CameraMs = 2500; b.CameraMode = "4"; b.CameraStyle = "live" })); err != nil {
+			t.Fatal(err)
+		}
+		if r := read(); r.CameraMs != 2500 || r.CameraMode != "far" || r.CameraStyle != "live" {
+			t.Errorf("before migration 77: %+v", r)
+		}
+		t.Log("before custom migration 77: portraits not checked")
+		return
+	}
+	b, err := SaveBoss(db, db, with(func(b *models.CustomBossCard) { b.CameraMs = 4000; b.CameraMode = " Front "; b.CameraStyle = "" }))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if b.CameraMode != "front" || b.CameraStyle != "snap" {
+		t.Errorf("saved %+v", b)
+	}
+	if r := read(); r.CameraMs != 4000 || r.CameraMode != "front" || r.CameraStyle != "snap" {
+		t.Errorf("read %+v", r)
+	}
+	if _, err := SaveBoss(db, db, with(func(b *models.CustomBossCard) { b.CameraMs = 1000; b.CameraMode = "0"; b.CameraStyle = "LIVE" })); err != nil {
+		t.Fatal(err)
+	}
+	if r := read(); r.CameraMs != 1000 || r.CameraMode != "first" || r.CameraStyle != "live" {
+		t.Errorf("read %+v", r)
+	}
+	// what the server reads a stray value as
+	db.Exec("UPDATE custom_boss_card SET camera_mode = 'weird', camera_style = 'odd' WHERE npc_type_id = 101109")
+	if r := read(); r.CameraMode != "" || r.CameraStyle != "snap" {
+		t.Errorf("stray values read %+v", r)
 	}
 }

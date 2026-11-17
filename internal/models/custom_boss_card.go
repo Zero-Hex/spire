@@ -16,6 +16,9 @@ type CustomBossCard struct {
 	EmblemIcon    uint32 `json:"emblem_icon" gorm:"Column:emblem_icon"`
 	Reveal        string `json:"reveal" gorm:"Column:reveal"` // fade, rise, letters ('' reads as fade)
 	DisplayMs     uint32 `json:"display_ms" gorm:"Column:display_ms"`
+	CameraMs      uint32 `json:"camera_ms" gorm:"Column:camera_ms"`       // 0: no shot (custom migration 75)
+	CameraMode    string `json:"camera_mode" gorm:"Column:camera_mode"`   // '' auto, keep, first, top, close, side, far, front (76)
+	CameraStyle   string `json:"camera_style" gorm:"Column:camera_style"` // snap (portrait), live (77)
 	Shroud        uint8  `json:"shroud" gorm:"Column:shroud"`
 	ShroudColor   string `json:"shroud_color" gorm:"Column:shroud_color"`
 	Sound         string `json:"sound" gorm:"Column:sound"`

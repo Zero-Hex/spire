@@ -89,7 +89,7 @@ func (z *Controller) bosses(c echo.Context) error {
 	if err != nil {
 		return bad(c, err)
 	}
-	return c.JSON(http.StatusOK, echo.Map{"bosses": out.Bosses, "sounds": Sounds(z.store)})
+	return c.JSON(http.StatusOK, echo.Map{"bosses": out.Bosses, "camera": out.Camera, "sounds": Sounds(z.store)})
 }
 
 func (z *Controller) bossNPCs(c echo.Context) error {
