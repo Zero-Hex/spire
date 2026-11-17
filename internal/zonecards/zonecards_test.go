@@ -1,6 +1,7 @@
 package zonecards
 
 import (
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -292,8 +293,14 @@ func bossCamera(t *testing.T, db *gorm.DB) {
 		t.Fatal("not listed")
 		return models.CustomBossCard{}
 	}
-	if cam.HideUiValue != -1 {
-		t.Errorf("Custom:Boss_Snap_Hide_Ui_Value (unset here): %d", cam.HideUiValue)
+	var hide, angle []string
+	db.Raw("SELECT rule_value FROM rule_values WHERE ruleset_id = 1 AND rule_name = 'Custom:Boss_Snap_Hide_Ui_Value'").Scan(&hide)
+	db.Raw("SELECT rule_value FROM rule_values WHERE ruleset_id = 1 AND rule_name = 'Custom:Boss_Snap_Front_Angle'").Scan(&angle)
+	if want := "3"; (len(hide) == 0 && cam.HideUiValue != 3) || (len(hide) == 1 && fmt.Sprint(cam.HideUiValue) != hide[0]) {
+		t.Errorf("Custom:Boss_Snap_Hide_Ui_Value %v (rows %v, default %v)", cam.HideUiValue, hide, want)
+	}
+	if len(angle) == 0 && cam.FrontAngle != -32.85 {
+		t.Errorf("Custom:Boss_Snap_Front_Angle (unset): %v", cam.FrontAngle)
 	}
 	// a card with no shot saves on any of them, whatever it says of the rest
 	if _, err := SaveBoss(db, db, with(func(b *models.CustomBossCard) { b.CameraMode = "auto"; b.CameraStyle = "" })); err != nil {

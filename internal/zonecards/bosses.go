@@ -106,8 +106,12 @@ type BossCamera struct {
 	Mode  bool `json:"mode"`  // camera_mode (76)
 	Style bool `json:"style"` // camera_style (77)
 	// Custom:Boss_Snap_Hide_Ui_Value: the screen mode that hides the client's
-	// UI while a portrait is captured (-1: left alone)
+	// UI while a portrait is captured (3 on RoF2; -1: left alone)
 	HideUiValue int `json:"hide_ui_value"`
+	// Custom:Boss_Snap_Front_Angle: the camera's swing for a front-view
+	// portrait, straight on (EQ heading units; 999, or anything outside
+	// -512..512: each player's own)
+	FrontAngle float64 `json:"front_angle"`
 }
 
 type BossList struct {
@@ -117,10 +121,15 @@ type BossList struct {
 
 func readBossCamera(server *gorm.DB) BossCamera {
 	c := BossCamera{Shot: hasColumn(server, "custom_boss_card", "camera_ms"), Mode: hasColumn(server, "custom_boss_card", "camera_mode"),
-		Style: hasColumn(server, "custom_boss_card", "camera_style"), HideUiValue: -1}
+		Style: hasColumn(server, "custom_boss_card", "camera_style"), HideUiValue: 3, FrontAngle: -32.85} // ruletypes.h
 	if v, ok := ruleValue(server, "Custom:Boss_Snap_Hide_Ui_Value"); ok {
 		if n, err := strconv.Atoi(v); err == nil {
 			c.HideUiValue = n
+		}
+	}
+	if v, ok := ruleValue(server, "Custom:Boss_Snap_Front_Angle"); ok {
+		if f, err := strconv.ParseFloat(v, 64); err == nil {
+			c.FrontAngle = f
 		}
 	}
 	return c

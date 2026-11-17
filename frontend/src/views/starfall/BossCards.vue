@@ -209,16 +209,16 @@
               </div>
               <div v-if="editing.camera_style !== 'live'" class="hint text-muted mb-2">
                 <template v-if="list.camera.hide_ui_value >= 0">
-                  The client's windows are hidden while the frame is captured
-                  (<code>Custom:Boss_Snap_Hide_Ui_Value</code> = {{ list.camera.hide_ui_value }}).
+                  The client's windows (chat, hotbars) are hidden while the frame is captured
+                  (<code>Custom:Boss_Snap_Hide_Ui_Value</code> {{ list.camera.hide_ui_value }}{{ list.camera.hide_ui_value === 3 ? ", RoF2's" : "" }}).
                 </template>
                 <template v-else>
-                  The frame catches the client's windows (chat, hotbars) too. To leave them out, find the screen-mode value
-                  that hides them with <code>#bosscam uihide &lt;value&gt;</code> and set
-                  <code>Custom:Boss_Snap_Hide_Ui_Value</code> to it.
+                  The frame catches the client's windows (chat, hotbars) too: <code>Custom:Boss_Snap_Hide_Ui_Value</code>
+                  is -1. 3 hides them on RoF2 (custom migration 78 sets it).
                 </template>
-                Try one on your own client: target the boss, <code>#bosscam snap [seconds] [frames]</code> (raise
-                <i>frames</i> if the portrait catches the camera half-moved).
+                Try one on your own client: target the boss, <code>#bosscam snap [seconds] [frames] [ui] [view]</code>
+                (view: front, far, close, side, top, first or keep; raise <i>frames</i> if the portrait catches the
+                camera half-moved).
               </div>
             </template>
           </template>
@@ -277,7 +277,8 @@ const CAMERA = { camera_ms: "shot", camera_mode: "mode", camera_style: "style" }
 
 // the shot's framings (boss_cards.cpp CameraMode; the client's F9 modes)
 const MODES = [
-  { value: "", text: "Auto", hint: "players in first person see it from far behind; everyone else through their own camera mode" },
+  { value: "", text: "Auto", hint: "players in first person see it from far behind; everyone else through their own camera mode",
+    portrait: "the front view, straight on" },
   { value: "keep", text: "Their own view", hint: "everyone's own camera mode: a player in first person sees out of the boss's eyes" },
   { value: "first", text: "First person", hint: "from inside the boss, for everyone" },
   { value: "top", text: "From above", hint: "the top-down view, for everyone" },
@@ -463,11 +464,21 @@ export default {
       ]
     },
     modeOptions() {
-      return MODES.map(m => ({ value: m.value, text: m.text }))
+      return MODES.map(m => ({ value: m.value, text: m.value === "" && this.portrait() ? "Auto: from the front" : m.text }))
     },
+    // a portrait's auto is the front view (boss_cards.cpp), swung straight on
+    // by Custom:Boss_Snap_Front_Angle
     modeHint() {
       const m = MODES.find(x => x.value === this.editing.camera_mode)
-      return m ? m.hint : ""
+      if (!m) {
+        return ""
+      }
+      if (this.portrait() && (m.value === "" || m.value === "front")) {
+        const a = this.list.camera.front_angle
+        return "facing it" + (a >= -512 && a <= 512 ? `, swung straight on (Custom:Boss_Snap_Front_Angle ${a})` :
+          ": each player's own swing (Custom:Boss_Snap_Front_Angle is off)")
+      }
+      return this.portrait() && m.portrait ? m.portrait : m.hint
     },
     // the shot is a portrait (which replaces the card)
     portrait() {
