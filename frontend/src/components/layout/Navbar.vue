@@ -323,6 +323,27 @@ export default {
         labelIcon: "ra ra-sun mr-1",
         routePrefixMatches: ["starfall"],
         navs: [
+          { header: "World" },
+          {
+            title: "Zone Workbench",
+            to: ROUTE.STARFALL_ZONE_LOOT,
+            icon: "ra ra-castle-emblem mr-1",
+            routes: ['starfall/zone-loot']
+          },
+          {
+            title: "Zone Cards",
+            to: ROUTE.STARFALL_ZONE_CARDS,
+            icon: "ra ra-wooden-sign mr-1",
+            routes: ['starfall/zone-cards']
+          },
+          {
+            title: "Ambient Lines",
+            to: ROUTE.STARFALL_AMBIENT_LINES,
+            icon: "ra ra-speech-bubbles mr-1",
+            routes: ['starfall/ambient-lines']
+          },
+
+          { header: "Progression" },
           {
             title: "Achievements",
             to: ROUTE.STARFALL_ACHIEVEMENTS,
@@ -347,6 +368,8 @@ export default {
             icon: "ra ra-scroll-unfurled mr-1",
             routes: ['starfall/quest-board']
           },
+
+          { header: "Player Windows" },
           {
             title: "Help Window",
             to: ROUTE.STARFALL_HELP_WINDOW,
@@ -365,23 +388,19 @@ export default {
             icon: "ra ra-crowned-heart mr-1",
             routes: ['starfall/pinned-factions']
           },
-          {
-            title: "Icons & Models",
-            to: ROUTE.STARFALL_ICONS_MODELS,
-            icon: "ra ra-relic-blade mr-1",
-            routes: ['starfall/icons-and-models']
-          },
-          {
-            title: "Quest Scripts",
-            to: ROUTE.STARFALL_QUEST_SCRIPTS,
-            icon: "ra ra-quill-ink mr-1",
-            routes: ['starfall/quest-scripts']
-          },
+
+          { header: "Client & Scripts" },
           {
             title: "Client Patch",
             to: ROUTE.STARFALL_CLIENT_PATCH,
             icon: "fa fa-archive mr-1",
             routes: ['starfall/client-patch']
+          },
+          {
+            title: "Icons & Models",
+            to: ROUTE.STARFALL_ICONS_MODELS,
+            icon: "ra ra-relic-blade mr-1",
+            routes: ['starfall/icons-and-models']
           },
           {
             title: "Race Loading",
@@ -390,22 +409,10 @@ export default {
             routes: ['starfall/race-loading']
           },
           {
-            title: "Zone Workbench",
-            to: ROUTE.STARFALL_ZONE_LOOT,
-            icon: "ra ra-gem mr-1",
-            routes: ['starfall/zone-loot']
-          },
-          {
-            title: "Zone Cards",
-            to: ROUTE.STARFALL_ZONE_CARDS,
-            icon: "ra ra-scroll-unfurled mr-1",
-            routes: ['starfall/zone-cards']
-          },
-          {
-            title: "Ambient Lines",
-            to: ROUTE.STARFALL_AMBIENT_LINES,
-            icon: "ra ra-speech-bubbles mr-1",
-            routes: ['starfall/ambient-lines']
+            title: "Quest Scripts",
+            to: ROUTE.STARFALL_QUEST_SCRIPTS,
+            icon: "ra ra-quill-ink mr-1",
+            routes: ['starfall/quest-scripts']
           },
         ]
       },

@@ -30,13 +30,16 @@
       v-if="!config.to"
     >
       <ul class="nav nav-sm flex-column">
-        <li v-for="nav in config.navs">
+        <li v-for="nav in config.navs" :class="nav.header ? 'nav-subheading' : ''">
+
+          <!-- a heading grouping the links under it -->
+          <div v-if="nav.header" class="nav-subheading-label">{{ nav.header }}</div>
 
           <!-- internal link -->
           <router-link
             :class="'nav-link collapse ' + (hasRoute(nav.to) || hasRouteInArray(nav.routes) ? 'active' : 'collapsed')"
             :to="nav.to"
-            v-if="!nav.to.includes('http')"
+            v-if="nav.to && !nav.to.includes('http')"
             :exact="nav.exact ? nav.exact : false"
           >
             <i :class="nav.icon" v-if="nav.icon"></i>{{ nav.title }}
@@ -50,7 +53,7 @@
             :class="'nav-link collapse ' + (hasRoute(nav.to) || hasRouteInArray(nav.routes) ? 'active' : 'collapsed')"
             :href="nav.to"
             :target="nav.to"
-            v-if="nav.to.includes('http')"
+            v-if="nav.to && nav.to.includes('http')"
           >
             <i :class="nav.icon" v-if="nav.icon"></i>{{ nav.title }}
             <b-badge class="ml-3" variant="primary" v-if="nav.isAlpha">ALPHA</b-badge>
@@ -100,5 +103,15 @@ export default {
 </script>
 
 <style scoped>
+.nav-subheading-label {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(255, 255, 255, 0.45);
+  padding: 0.6rem 1.5rem 0.15rem 2.5rem;
+}
 
+.nav-subheading:first-child .nav-subheading-label {
+  padding-top: 0.2rem;
+}
 </style>
