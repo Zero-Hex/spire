@@ -1,7 +1,6 @@
 package zonecards
 
 import (
-	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -293,17 +292,8 @@ func bossCamera(t *testing.T, db *gorm.DB) {
 		t.Fatal("not listed")
 		return models.CustomBossCard{}
 	}
-	var hide, angle []string
-	db.Raw("SELECT rule_value FROM rule_values WHERE ruleset_id = 1 AND rule_name = 'Custom:Boss_Snap_Hide_Ui_Value'").Scan(&hide)
-	db.Raw("SELECT rule_value FROM rule_values WHERE ruleset_id = 1 AND rule_name = 'Custom:Boss_Snap_Front_Angle'").Scan(&angle)
-	if want := "3"; (len(hide) == 0 && cam.HideUiValue != 3) || (len(hide) == 1 && fmt.Sprint(cam.HideUiValue) != hide[0]) {
-		t.Errorf("Custom:Boss_Snap_Hide_Ui_Value %v (rows %v, default %v)", cam.HideUiValue, hide, want)
-	}
-	if len(angle) == 0 && cam.FrontAngle != -32.85 {
-		t.Errorf("Custom:Boss_Snap_Front_Angle (unset): %v", cam.FrontAngle)
-	}
-	if cam.DistancePerSize != 1.2 || cam.DistanceMin != 8 || cam.HeightPerSize != 0.25 {
-		t.Errorf("Custom:Boss_Portrait_* (unset here): %+v", cam)
+	if !cam.RulesEditable && cam.PortraitRules != DefaultPortraitRules {
+		t.Errorf("portrait rules without rule_values: %+v", cam.PortraitRules)
 	}
 	// a card with no shot saves on any of them, whatever it says of the rest
 	if _, err := SaveBoss(db, db, with(func(b *models.CustomBossCard) { b.CameraMode = "auto"; b.CameraStyle = "" })); err != nil {
@@ -374,5 +364,72 @@ func bossCamera(t *testing.T, db *gorm.DB) {
 	db.Exec("UPDATE custom_boss_card SET camera_mode = 'weird', camera_style = 'odd' WHERE npc_type_id = 101109")
 	if r := read(); r.CameraMode != "" || r.CameraStyle != "snap" {
 		t.Errorf("stray values read %+v", r)
+	}
+}
+
+// the portrait rules: read (defaults where unset), refused out of range,
+// saved only where changed
+func TestPortraitRules(t *testing.T) {
+	db := testDB(t)
+	if !hasTable(db, "rule_values") {
+		if _, err := SavePortraitRules(db, DefaultPortraitRules); err == nil {
+			t.Error("saved without rule_values")
+		}
+		t.Skip("no rule_values table")
+	}
+	var held int64
+	db.Raw("SELECT COUNT(*) FROM rule_values WHERE ruleset_id = 1 AND (rule_name LIKE 'Custom:Boss_Portrait_%' OR rule_name = ?)", hideUiRule).Scan(&held)
+	if held > 0 {
+		t.Skip("this database already sets the portrait rules")
+	}
+	t.Cleanup(func() {
+		db.Exec("DELETE FROM rule_values WHERE ruleset_id = 1 AND (rule_name LIKE 'Custom:Boss_Portrait_%' OR rule_name = ?)", hideUiRule)
+	})
+	if r := readPortraitRules(db); r != DefaultPortraitRules {
+		t.Errorf("unset: %+v", r)
+	}
+	for what, f := range map[string]func(r *PortraitRules){
+		"ui":     func(r *PortraitRules) { r.HideUiValue = 255 },
+		"ui low": func(r *PortraitRules) { r.HideUiValue = -2 },
+		"dist":   func(r *PortraitRules) { r.DistancePerSize = 0 },
+		"min":    func(r *PortraitRules) { r.DistanceMin = 501 },
+		"height": func(r *PortraitRules) { r.HeightPerSize = -0.1 },
+		"zoom":   func(r *PortraitRules) { r.CropZoom = 0.5 },
+		"centre": func(r *PortraitRules) { r.CropCenterY = 1 },
+	} {
+		r := DefaultPortraitRules
+		f(&r)
+		if _, err := SavePortraitRules(db, r); err == nil {
+			t.Errorf("%v: saved", what)
+		}
+	}
+	// unchanged: no rows
+	if _, err := SavePortraitRules(db, DefaultPortraitRules); err != nil {
+		t.Fatal(err)
+	}
+	var n int64
+	db.Raw("SELECT COUNT(*) FROM rule_values WHERE rule_name LIKE 'Custom:Boss_Portrait_%'").Scan(&n)
+	if n != 0 {
+		t.Errorf("unchanged rules wrote %d rows", n)
+	}
+	want := PortraitRules{HideUiValue: -1, DistancePerSize: 2.5, DistanceMin: 10, HeightPerSize: 0.35, CropZoom: 1.8, CropCenterY: 0.65}
+	if _, err := SavePortraitRules(db, want); err != nil {
+		t.Fatal(err)
+	}
+	if r := readPortraitRules(db); r != want {
+		t.Errorf("read back %+v", r)
+	}
+	var rows []string
+	db.Raw("SELECT CONCAT(rule_name, '=', rule_value) FROM rule_values WHERE ruleset_id = 1 AND (rule_name LIKE 'Custom:Boss_Portrait_%' OR rule_name = ?) ORDER BY rule_name", hideUiRule).Scan(&rows)
+	if strings.Join(rows, " ") != "Custom:Boss_Portrait_Crop_Center_Y=0.65 Custom:Boss_Portrait_Crop_Zoom=1.8 Custom:Boss_Portrait_Distance_Per_Size=2.5 Custom:Boss_Portrait_Height_Per_Size=0.35 Custom:Boss_Snap_Hide_Ui_Value=-1" {
+		t.Errorf("rows %v", rows)
+	}
+	// and again: updated in place
+	want.CropZoom = 3
+	if _, err := SavePortraitRules(db, want); err != nil {
+		t.Fatal(err)
+	}
+	if r := readPortraitRules(db); r.CropZoom != 3 {
+		t.Errorf("updated %+v", r)
 	}
 }

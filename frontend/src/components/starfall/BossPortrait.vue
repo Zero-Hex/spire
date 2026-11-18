@@ -1,19 +1,17 @@
 <template>
   <div>
-    <div class="bp-scene" @click="play">
-      <div class="bp-dim" :class="'bp-' + phase"></div>
-      <div class="bp-frame" :class="'bp-' + phase">
-        <div class="bp-shot">
-          <span v-if="npc && npc.race" :class="'race-models-ctn-' + raceImage() + (close ? ' bp-model-close' : '')" class="bp-model"></span>
-          <template v-if="!uiHidden">
-            <div class="bp-ui bp-ui-chat"></div>
-            <div class="bp-ui bp-ui-bar"></div>
-            <div class="bp-ui bp-ui-target"></div>
-          </template>
+    <div ref="scene" class="bp-scene" @click="play">
+      <div class="bp-window" :class="'bp-' + phase + (textOnly ? ' bp-text-only' : '')" :style="windowStyle()">
+        <div v-if="!textOnly" class="bp-pic" :style="{ borderColor: rgba(accent(), 0.5) }">
+          <!-- the captured frame, cropped: 1/zoom of it, centred across, at cropCenterY down -->
+          <div ref="capture" class="bp-capture" :style="captureStyle()">
+            <span v-if="npc && npc.race" :class="'race-models-ctn-' + raceImage()" class="bp-model" :style="modelStyle()"></span>
+          </div>
         </div>
-        <div class="bp-rule"></div>
-        <div class="bp-title">{{ title }}</div>
-        <div v-if="subtitle" class="bp-subtitle">{{ subtitle }}</div>
+        <div class="bp-text" :style="{ paddingTop: textOnly ? '0' : '0.4cqw' }">
+          <div class="bp-title" :style="titleStyle()">{{ title }}</div>
+          <div v-if="subtitle" class="bp-subtitle" :style="subtitleStyle()">{{ subtitle }}</div>
+        </div>
       </div>
       <div class="bp-whiteout" :class="'bp-' + phase"></div>
       <div v-if="phase !== 'held'" class="bp-phase">{{ phaseLabel() }}</div>
@@ -24,7 +22,7 @@
         <b-button size="sm" variant="outline-warning" class="mr-2" @click.stop="play">
           <i :class="'fa ' + (phase === 'held' ? 'fa-play' : 'fa-repeat') + ' mr-1'"></i> Play it
         </b-button>
-        flash, then {{ (ms / 1000).toFixed(1).replace(/\.0$/, "") }} s
+        {{ textOnly ? "" : "flash, then " }}{{ (ms / 1000).toFixed(1).replace(/\.0$/, "") }} s
       </span>
     </div>
   </div>
@@ -32,36 +30,118 @@
 
 <script>
 import "@fontsource/cinzel/latin-600.css";
+import "@fontsource/pirata-one/latin-400.css";
+import "@fontsource/arimo/latin-400.css";
 import {Npcs} from "@/app/npcs";
+import {DEFAULT_COLORS, FAMILIES} from "@/components/starfall/TitleCard";
 
-// A boss portrait (starfall-3 docs/design/boss_cards.md, camera_style snap):
-// a warm-white flash while the camera takes one frame from the boss's view,
-// then the frame, framed, with the title and epithet beneath and a light dim
-// behind. The portrait carries only the text (the server sends it no card
-// style), so it's drawn in the card's default lettering. Spire has no frame
-// to show: the boss's model picture stands in for it.
-const FLASH_MS = 350, OUT_MS = 700
+// A boss portrait as the Starfall DLL draws it (camera_probe.cpp DrawPortrait):
+// a warm-white flash while the camera takes one frame from in front of the
+// boss, then a window (players can move and resize it; first shown at the
+// middle, 40% down, 34% of the screen wide) bordered in the card's accent
+// colour, holding a crop of that frame (1/zoom of it, around the boss) and the
+// card's title and epithet in its font and colours. Players who turned
+// portraits off get the same window, text only. Spire has no frame to show:
+// the boss's model picture stands in for it, placed as the portrait camera
+// sees it -- the whole boss, below the middle, at a scale set by the distance.
+const FLASH_OUT_MS = 350, IN_MS = 450, OUT_MS = 700
+// in a frame shot at size x 2 (the default distance), the boss is about this
+// much of the frame's height, centred this far down it
+const BOSS_FRAC = 0.36, BOSS_Y = 0.70
 
 export default {
   name: "BossPortrait",
   props: {
     title: { type: String, default: "" },
     subtitle: { type: String, default: "" },
-    npc: { type: Object, default: null }, // race, gender, texture, helmtexture
+    card: { type: Object, default: () => ({}) }, // title_font, title_color, subtitle_color, accent_color
+    npc: { type: Object, default: null }, // race, gender, texture, helmtexture, size
     ms: { type: Number, default: 3000 },
-    uiHidden: { type: Boolean, default: false }, // Custom:Boss_Snap_Hide_Ui_Value set
-    close: { type: Boolean, default: false }, // the portrait framing: the boss fills most of the frame
+    textOnly: { type: Boolean, default: false }, // the player's Boss portraits option is off
+    // the portrait framing (camera_mode auto): the boss scaled by the camera's
+    // distance, and the crop; other framings show the frame as their camera
+    // mode takes it, uncropped by Spire's guess
+    framing: { type: Boolean, default: true },
+    rules: { type: Object, default: () => ({}) }, // distance_per_size, distance_min, crop_zoom, crop_center_y
     caption: { type: String, default: "The portrait" },
   },
   data() {
-    return { phase: "held", timers: [] }
+    return { phase: "held", timers: [], captureH: 0, observer: null }
+  },
+  mounted() {
+    this.measure()
+    if (window.ResizeObserver) {
+      this.observer = new ResizeObserver(() => this.measure())
+      this.observer.observe(this.$refs.scene)
+    }
+  },
+  updated() {
+    this.$nextTick(() => this.measure())
   },
   beforeDestroy() {
     this.clear()
+    if (this.observer) {
+      this.observer.disconnect()
+    }
   },
   methods: {
+    measure() {
+      const h = this.$refs.capture ? this.$refs.capture.offsetHeight : 0
+      if (h !== this.captureH) {
+        this.captureH = h
+      }
+    },
     raceImage() {
       return Npcs.getRaceImage(this.npc)
+    },
+    color(key) {
+      return "#" + ((this.card && this.card[key]) || DEFAULT_COLORS[key])
+    },
+    accent() {
+      return this.color("accent_color")
+    },
+    rgba(hex, a) {
+      const n = parseInt(hex.slice(1), 16)
+      return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${a})`
+    },
+    zoom() {
+      const z = parseFloat(this.rules.crop_zoom)
+      return this.framing && z >= 1 && z <= 8 ? z : 1
+    },
+    centerY() {
+      const y = parseFloat(this.rules.crop_center_y)
+      return this.framing && y > 0 && y < 1 ? y : 0.5
+    },
+    windowStyle() {
+      return { borderColor: this.accent() }
+    },
+    // the capture, scaled up by the zoom and shifted so the crop fills the picture
+    captureStyle() {
+      const z = this.zoom(), frac = 1 / z
+      const v0 = Math.min(Math.max(this.centerY() - frac / 2, 0), 1 - frac)
+      return { width: z * 100 + "%", height: z * 100 + "%", left: -(z - 1) / 2 * 100 + "%", top: -v0 * z * 100 + "%" }
+    },
+    // the boss: its height in the frame goes with size / distance
+    // (boss_cards.cpp PortraitDistance; size 0 reads as 6)
+    modelStyle() {
+      let frac = BOSS_FRAC, y = BOSS_Y
+      if (this.framing) {
+        const size = this.npc && this.npc.size > 0 ? this.npc.size : 6
+        const per = parseFloat(this.rules.distance_per_size) || 2, min = parseFloat(this.rules.distance_min) || 10
+        const dist = Math.min(500, Math.max(min, size * per, 1))
+        frac = Math.min(BOSS_FRAC * 2 * size / dist, 1.2)
+      } else {
+        y = 0.55
+      }
+      const scale = this.captureH ? this.captureH * frac / 100 : 0.9 // the sprite is 100px tall
+      return { top: y * 100 + "%", transform: `translate(-50%, -50%) scale(${scale})` }
+    },
+    titleStyle() {
+      const f = FAMILIES[(this.card && this.card.title_font) || ""] || FAMILIES[""]
+      return { fontFamily: f.family, fontWeight: f.weight, color: this.color("title_color") }
+    },
+    subtitleStyle() {
+      return { color: this.color("subtitle_color") }
     },
     clear() {
       this.timers.forEach(t => clearTimeout(t))
@@ -73,19 +153,24 @@ export default {
     play() {
       this.clear()
       this.$emit("stop")
-      this.phase = "flash"
-      this.later(FLASH_MS, () => {
+      this.phase = this.textOnly ? "in" : "flash"
+      const start = this.textOnly ? 0 : 120 // the capture takes a few frames behind the flash
+      this.later(start, () => {
         this.phase = "in"
         this.$emit("appear")
       })
-      this.later(FLASH_MS + this.ms, () => (this.phase = "out"))
-      this.later(FLASH_MS + this.ms + OUT_MS, () => {
+      this.later(start + IN_MS + this.ms, () => (this.phase = "out"))
+      this.later(start + IN_MS + this.ms + OUT_MS, () => {
         this.phase = "gone"
         this.later(900, () => (this.phase = "held"))
       })
     },
     phaseLabel() {
-      return { flash: "the flash: a frame from the boss's view", in: "the portrait", out: "fading", gone: "back to the game" }[this.phase]
+      return {
+        flash: "the flash: one frame from in front of the boss",
+        in: this.textOnly ? "the card (portraits off)" : "the portrait",
+        out: "fading", gone: "back to the game",
+      }[this.phase]
     },
   },
 }
@@ -102,93 +187,61 @@ export default {
   background: radial-gradient(ellipse at 50% 70%, #3a4a3c 0%, #1d2620 55%, #0d1210 100%);
 }
 
-.bp-dim {
-  position: absolute;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.3);
-  transition: opacity 0.6s;
-}
-
-.bp-frame {
+/* the window: 34% of the screen wide, centred 40% down */
+.bp-window {
   position: absolute;
   left: 50%;
-  top: 10%;
-  width: 44%;
-  transform: translateX(-50%);
-  text-align: center;
-  transition: opacity 0.6s;
+  top: 40%;
+  width: 34cqw;
+  transform: translate(-50%, -50%);
+  padding: 0.36cqw;
+  background: rgba(12, 10, 8, 0.88);
+  border: 2px solid;
+  border-radius: 3px;
+  transition: opacity 0.45s;
 }
 
-.bp-shot {
-  position: relative;
-  aspect-ratio: 16 / 9;
-  overflow: hidden;
+.bp-text-only {
+  min-height: 23cqw;
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 2px solid #DEBA5C;
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.6), 0 6px 24px rgba(0, 0, 0, 0.7);
-  background: radial-gradient(ellipse at 50% 85%, #6b5a3e 0%, #2b2a24 60%, #141414 100%);
+}
+
+.bp-pic {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border: 1px solid;
+}
+
+.bp-capture {
+  position: absolute;
+  background: radial-gradient(ellipse at 50% 72%, #6b5a3e 0%, #3b3a30 35%, #22241f 70%, #141414 100%);
 }
 
 .bp-model {
-  display: inline-block;
-  transform: scale(0.9);
-}
-
-.bp-model-close {
-  transform: scale(1.3) translateY(8%);
-}
-
-/* the client's own windows, caught in the frame unless the rule hides them */
-.bp-ui {
   position: absolute;
-  background: rgba(20, 24, 40, 0.75);
-  border: 1px solid rgba(160, 170, 200, 0.5);
+  left: 50%;
+  display: inline-block;
+  transform-origin: 50% 50%;
 }
 
-.bp-ui-chat {
-  left: 3%;
-  bottom: 4%;
-  width: 34%;
-  height: 26%;
-}
-
-.bp-ui-bar {
-  right: 3%;
-  bottom: 4%;
-  width: 40%;
-  height: 9%;
-}
-
-.bp-ui-target {
-  left: 38%;
-  top: 4%;
-  width: 24%;
-  height: 7%;
-}
-
-.bp-rule {
-  height: 1px;
-  margin: 1.2cqw 18% 0.6cqw;
-  background: linear-gradient(90deg, transparent, #DEBA5C, transparent);
+.bp-text {
+  text-align: center;
 }
 
 .bp-title {
-  font-family: Cinzel, serif;
-  font-weight: 600;
-  font-size: 3.4cqw;
-  color: #F6F0E2;
-  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.9);
-  line-height: 1.2;
+  font-size: 2.5cqw;
+  line-height: 1.15;
+  text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.7);
 }
 
 .bp-subtitle {
-  font-family: Cinzel, serif;
-  font-size: 1.6cqw;
-  color: #CDC4B0;
-  font-style: italic;
-  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.9);
+  font-family: Arimo, Arial, sans-serif;
+  font-size: 1.2cqw;
+  margin-top: 0.1cqw;
+  text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.7);
 }
 
 /* the flash hides the camera's few frames away; it fades as the portrait comes in */
@@ -206,8 +259,12 @@ export default {
   transition: none;
 }
 
-.bp-frame.bp-flash, .bp-dim.bp-flash, .bp-frame.bp-out, .bp-dim.bp-out, .bp-frame.bp-gone, .bp-dim.bp-gone {
+.bp-window.bp-flash, .bp-window.bp-out, .bp-window.bp-gone {
   opacity: 0;
+}
+
+.bp-window.bp-out {
+  transition: opacity 0.7s;
 }
 
 .bp-phase {

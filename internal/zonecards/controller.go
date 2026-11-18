@@ -29,6 +29,7 @@ func (z *Controller) Routes() []*routes.Route {
 		routes.RegisterRoute(http.MethodGet, "zone-cards/sound", z.sound, nil),
 		routes.RegisterRoute(http.MethodGet, "zone-cards/bosses", z.bosses, nil),
 		routes.RegisterRoute(http.MethodGet, "zone-cards/bosses/npcs", z.bossNPCs, nil),
+		routes.RegisterRoute(http.MethodPut, "zone-cards/bosses/portrait-rules", z.savePortraitRules, nil),
 		routes.RegisterRoute(http.MethodPut, "zone-cards/bosses/:npc", z.saveBoss, nil),
 		routes.RegisterRoute(http.MethodDelete, "zone-cards/bosses/:npc", z.deleteBoss, nil),
 		routes.RegisterRoute(http.MethodPut, "zone-cards/:zone", z.save, nil),
@@ -111,6 +112,18 @@ func (z *Controller) saveBoss(c echo.Context) error {
 	}
 	b.NpcTypeID = uint32(id)
 	out, err := SaveBoss(z.db.Get(&models.Zone{}, c), z.db.Get(&models.CustomBossCard{}, c), b)
+	if err != nil {
+		return bad(c, err)
+	}
+	return c.JSON(http.StatusOK, out)
+}
+
+func (z *Controller) savePortraitRules(c echo.Context) error {
+	var r PortraitRules
+	if err := c.Bind(&r); err != nil {
+		return bad(c, err)
+	}
+	out, err := SavePortraitRules(z.db.Get(&models.RuleValue{}, c), r)
 	if err != nil {
 		return bad(c, err)
 	}

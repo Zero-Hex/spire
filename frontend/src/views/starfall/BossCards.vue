@@ -55,6 +55,66 @@
             </tbody>
           </table>
         </eq-window-simple>
+
+        <eq-window-simple v-if="rules" title="Portraits: every boss" class="mt-3 bc-rules">
+          <div class="hint text-muted mb-2">
+            Server rules every boss portrait follows. The camera stands straight in front of the boss, far enough to
+            see all of it; the portrait then shows a crop of that frame around the boss.
+          </div>
+          <div class="d-flex align-items-center flex-wrap mb-2">
+            <span class="bc-label bc-rule-label">Camera back</span>
+            <b-form-input size="sm" type="number" min="0.1" max="25" step="0.1" v-model.number="rules.distance_per_size"
+                          class="bc-num bc-num-sm mr-1 bc-rule-dist"/>
+            <span class="mr-2">× size, at least</span>
+            <b-form-input size="sm" type="number" min="1" max="500" step="1" v-model.number="rules.distance_min"
+                          class="bc-num bc-num-sm bc-rule-min"/>
+          </div>
+          <div class="d-flex align-items-center flex-wrap mb-2">
+            <span class="bc-label bc-rule-label">Camera up</span>
+            <b-form-input size="sm" type="number" min="0" max="10" step="0.05" v-model.number="rules.height_per_size"
+                          class="bc-num bc-num-sm mr-1 bc-rule-height"/>
+            <span>× size</span>
+          </div>
+          <div class="d-flex align-items-center flex-wrap mb-2">
+            <span class="bc-label bc-rule-label">Crop zoom</span>
+            <input type="range" min="1" max="8" step="0.1" v-model.number="rules.crop_zoom" class="bc-range-sm mr-2">
+            <b-form-input size="sm" type="number" min="1" max="8" step="0.1" v-model.number="rules.crop_zoom"
+                          class="bc-num bc-num-sm mr-1 bc-rule-zoom"/>
+            <span class="hint text-muted">× (1: the whole frame)</span>
+          </div>
+          <div class="d-flex align-items-center flex-wrap mb-2">
+            <span class="bc-label bc-rule-label">Crop centre</span>
+            <input type="range" min="0.01" max="0.99" step="0.01" v-model.number="rules.crop_center_y" class="bc-range-sm mr-2">
+            <b-form-input size="sm" type="number" min="0.01" max="0.99" step="0.01" v-model.number="rules.crop_center_y"
+                          class="bc-num bc-num-sm mr-1 bc-rule-center"/>
+            <span class="hint text-muted">down (0 top, 1 bottom)</span>
+          </div>
+          <div class="d-flex align-items-center flex-wrap mb-2">
+            <b-form-checkbox class="mr-2 bc-rule-hide" :checked="rules.hide_ui_value >= 0"
+                             @change="v => (rules.hide_ui_value = v ? 3 : -1)">Hide the client's windows</b-form-checkbox>
+            <template v-if="rules.hide_ui_value >= 0">
+              <span class="bc-label">screen mode</span>
+              <b-form-input size="sm" type="number" min="0" max="254" v-model.number="rules.hide_ui_value" class="bc-num bc-num-sm mr-1"/>
+              <span class="hint text-muted">(3 on RoF2)</span>
+            </template>
+          </div>
+          <div class="hint text-danger mb-2" v-if="rulesProblem()">{{ rulesProblem() }}</div>
+          <div class="d-flex align-items-center flex-wrap">
+            <b-button size="sm" variant="success" class="mr-2 bc-rules-save" :disabled="!canSaveRules()" @click="saveRules()">
+              <i :class="'fa ' + (busy ? 'fa-cog fa-spin' : 'fa-save') + ' mr-1'"></i> Save rules
+            </b-button>
+            <b-button v-if="rulesDirty()" size="sm" variant="outline-secondary" class="mr-2" @click="resetRules(false)">Undo</b-button>
+            <a v-if="!rulesAreDefaults()" href="#" class="hint" @click.prevent="resetRules(true)">defaults</a>
+          </div>
+          <div class="hint text-muted mt-2">
+            <template v-if="list.camera.rules_editable">
+              Saved to ruleset 1. Zones read rules at start: <code>#reload rules</code> picks them up now. The preview
+              follows these fields as you change them. Try numbers on one boss first:
+              <code>#bosscam snap 5 3 3 portrait &lt;distance&gt; &lt;height&gt; z&lt;zoom&gt; y&lt;centre&gt;</code>.
+            </template>
+            <span v-else class="text-warning">This server's database has no <code>rule_values</code> table to save them in.</span>
+          </div>
+        </eq-window-simple>
       </div>
 
       <!-- the card -->
@@ -63,14 +123,25 @@
           <div class="text-muted">Pick a boss, or add one.</div>
         </eq-window-simple>
         <eq-window-simple v-else :title="npcLabel() + (isNew ? ' (new)' : '') + (dirty() ? ' (not saved)' : '')">
-          <boss-portrait v-if="portrait() && editing.enabled" :title="previewCard().title" :subtitle="editing.subtitle.trim()"
-                         :npc="editing.npc" :ms="parseInt(editing.camera_ms)" :close="!editing.camera_mode" :ui-hidden="list.camera.hide_ui_value >= 0"
+          <boss-portrait v-if="portrait() && editing.enabled" :key="'bp' + (portraitsOff ? 1 : 0)" :title="previewCard().title"
+                         :subtitle="editing.subtitle.trim()" :card="editing" :npc="editing.npc" :ms="parseInt(editing.camera_ms)"
+                         :framing="!editing.camera_mode" :rules="rules" :text-only="portraitsOff"
                          :caption="portraitCaption()" @appear="cardAppears" @stop="stopSound"/>
           <title-card v-else :card="previewCard()" :shown="!!editing.enabled" hidden-text="Off: no card for this boss"
                       :caption="cardCaption()" :timing="timing()" @appear="cardAppears" @stop="stopSound"/>
+          <div v-if="editing.camera_ms > 0 && editing.enabled" class="d-flex align-items-center flex-wrap hint text-muted mt-1">
+            <b-form-checkbox v-model="portraitsOff" class="mr-2 bc-portraits-off">
+              As a player with Options › Windows › Boss portraits off sees it
+            </b-form-checkbox>
+            <span>
+              {{ portraitsOff ? (portrait() ? "(the same window, text only: no flash, no capture)" : "(just the card: no camera)") : "" }}
+            </span>
+          </div>
           <div v-if="portrait() && editing.enabled" class="hint text-muted mt-1">
-            A portrait carries only the title and epithet, in the card's default lettering: the font, colours, emblem,
-            reveal, shroud and time below are for the full card, which nobody gets while the shot is a portrait.
+            The portrait is a window players can drag and resize (it opens where they last left it; Options › Windows ›
+            Place the boss card positions it). It takes the card's font, title and epithet colours, a frame in the accent
+            colour, and its sound; the emblem, reveal, shroud and time below are for the full card, which nobody gets
+            while the shot is a portrait.
           </div>
 
           <div class="row mt-3">
@@ -204,25 +275,20 @@
                 <span class="hint text-muted bc-cam-hint">{{ modeHint() }}</span>
               </div>
               <div v-if="portrait() && !editing.camera_mode" class="hint text-muted mb-2">
-                Sized by <code>Custom:Boss_Portrait_Distance_Per_Size</code> ({{ list.camera.distance_per_size }} × size, at
-                least <code>Distance_Min</code> {{ list.camera.distance_min }}) and <code>Height_Per_Size</code>
-                ({{ list.camera.height_per_size }} × size): the boss fills most of the frame at any size. A bigger or smaller
-                boss is its NPC's <i>size</i>. Try other numbers on your own client:
-                <code>#bosscam snap 5 3 3 portrait &lt;distance&gt; &lt;height&gt;</code>.
+                By the boss's NPC <i>size</i> and the rules under <b>Portraits: every boss</b>: the camera
+                {{ rules.distance_per_size }} × size back (at least {{ rules.distance_min }}) and {{ rules.height_per_size }}
+                × size up, then a {{ rules.crop_zoom }}× crop centred {{ rules.crop_center_y }} down the frame.
+              </div>
+              <div v-else-if="portrait()" class="hint text-muted mb-2">
+                Not the portrait framing: the portrait shows this camera mode's whole frame (no crop, no sizing).
               </div>
               <div v-if="!list.camera.mode" class="hint text-warning mb-2">
                 Framing needs the <code>camera_mode</code> column (Starfall custom migration 76): until then each player's
                 own camera mode is used.
               </div>
               <div v-if="editing.camera_style !== 'live'" class="hint text-muted mb-2">
-                <template v-if="list.camera.hide_ui_value >= 0">
-                  The client's windows (chat, hotbars) are hidden while the frame is captured
-                  (<code>Custom:Boss_Snap_Hide_Ui_Value</code> {{ list.camera.hide_ui_value }}{{ list.camera.hide_ui_value === 3 ? ", RoF2's" : "" }}).
-                </template>
-                <template v-else>
-                  The frame catches the client's windows (chat, hotbars) too: <code>Custom:Boss_Snap_Hide_Ui_Value</code>
-                  is -1. 3 hides them on RoF2 (custom migration 78 sets it).
-                </template>
+                {{ rules.hide_ui_value >= 0 ? "The client's windows (chat, hotbars) are hidden while the frame is captured." :
+                  "The frame catches the client's windows (chat, hotbars) too." }}
                 Try one on your own client: target the boss, <code>#bosscam snap [seconds] [frames] [ui] [view]</code>
                 (view: portrait, front, far, close, side, top, first or keep; raise <i>frames</i> if the portrait catches the
                 camera half-moved).
@@ -279,6 +345,9 @@ function blank(npc, camera) {
 const FIELDS = ["title", "subtitle", "trigger", "radius", "title_font", "title_color", "subtitle_color", "accent_color", "emblem_icon",
   "reveal", "display_ms", "shroud", "shroud_color", "sound", "repeat_seconds", "enabled", "notes", "camera_ms", "camera_mode", "camera_style"]
 
+// the portrait rules' defaults (ruletypes.h)
+const PORTRAIT_DEFAULTS = { hide_ui_value: 3, distance_per_size: 2, distance_min: 10, height_per_size: 0.4, crop_zoom: 2.2, crop_center_y: 0.7 }
+
 // the camera columns, with the flag for each in the list's camera
 const CAMERA = { camera_ms: "shot", camera_mode: "mode", camera_style: "style" }
 
@@ -316,6 +385,10 @@ export default {
       audio: null,
       picking: false,
       busy: false,
+      // the portrait rules being edited (Custom:Boss_Portrait_*, Boss_Snap_Hide_Ui_Value)
+      rules: null,
+      rulesOriginal: "",
+      portraitsOff: false,
       error: "",
       notification: "",
     }
@@ -336,6 +409,10 @@ export default {
       try {
         const r = await SpireApi.v1().get("zone-cards/bosses")
         this.list = r.data
+        if (!this.rulesDirty()) {
+          this.rules = this.rulesFrom(r.data.camera)
+          this.rulesOriginal = JSON.stringify(this.rules)
+        }
       } catch (e) {
         this.error = this.message(e)
       }
@@ -476,7 +553,7 @@ export default {
     // straight in front of the boss, its distance and height by its size
     // (PortraitDistance, PortraitHeight; Custom:Boss_Portrait_*)
     portraitFraming() {
-      const c = this.list.camera
+      const c = this.rules
       const size = this.editing.npc.size > 0 ? this.editing.npc.size : 6
       const r = v => Math.round(v * 10) / 10
       return {
@@ -485,8 +562,6 @@ export default {
         height: r(Math.min(200, Math.max(-200, size * c.height_per_size))),
       }
     },
-    // a portrait in the front view is swung straight on by
-    // Custom:Boss_Snap_Front_Angle
     modeHint() {
       const m = MODES.find(x => x.value === this.editing.camera_mode)
       if (!m) {
@@ -496,11 +571,6 @@ export default {
         const f = this.portraitFraming()
         return `straight in front of it, ${f.distance} back and ${f.height} up for its size ${f.size}`
       }
-      if (this.portrait() && m.value === "front") {
-        const a = this.list.camera.front_angle
-        return "facing it" + (a >= -512 && a <= 512 ? `, swung straight on (Custom:Boss_Snap_Front_Angle ${a})` :
-          ": each player's own swing (Custom:Boss_Snap_Front_Angle is off)")
-      }
       return m.hint
     },
     // the shot is a portrait (which replaces the card)
@@ -509,7 +579,50 @@ export default {
     },
     portraitCaption() {
       return (this.editing.trigger === "spawn" ? "As it spawns" : "As it engages") +
-        ": its portrait (Spire shows its model picture where the game shows the captured frame)"
+        (this.portraitsOff ? ": its card, text only" : ": its portrait (Spire's model picture stands in for the captured frame)")
+    },
+    rulesFrom(camera) {
+      const { hide_ui_value, distance_per_size, distance_min, height_per_size, crop_zoom, crop_center_y } = camera
+      return { hide_ui_value, distance_per_size, distance_min, height_per_size, crop_zoom, crop_center_y }
+    },
+    rulesDirty() {
+      return !!this.rules && JSON.stringify(this.rules) !== this.rulesOriginal
+    },
+    rulesAreDefaults() {
+      return JSON.stringify(this.rules) === JSON.stringify(PORTRAIT_DEFAULTS)
+    },
+    resetRules(defaults) {
+      this.rules = defaults ? { ...PORTRAIT_DEFAULTS } : JSON.parse(this.rulesOriginal)
+    },
+    // the ranges SavePortraitRules allows
+    rulesProblem() {
+      const r = this.rules
+      const bad = (v, lo, hi) => typeof v !== "number" || isNaN(v) || v < lo || v > hi
+      if (bad(r.distance_per_size, 0.1, 25)) return "Camera back is 0.1 to 25 × size."
+      if (bad(r.distance_min, 1, 500)) return "The shortest distance is 1 to 500."
+      if (bad(r.height_per_size, 0, 10)) return "Camera up is 0 to 10 × size (it can't go below the boss's feet)."
+      if (bad(r.crop_zoom, 1, 8)) return "The crop zoom is 1 to 8."
+      if (bad(r.crop_center_y, 0.01, 0.99)) return "The crop centre is 0.01 to 0.99."
+      if (r.hide_ui_value >= 0 && bad(r.hide_ui_value, 0, 254)) return "The screen mode is 0 to 254."
+      return ""
+    },
+    canSaveRules() {
+      return !this.busy && this.list.camera.rules_editable && this.rulesDirty() && !this.rulesProblem()
+    },
+    async saveRules() {
+      this.busy  = true
+      this.error = ""
+      try {
+        const r = await SpireApi.v1().put("zone-cards/bosses/portrait-rules", this.rules)
+        this.rules = this.rulesFrom(r.data)
+        this.rulesOriginal = JSON.stringify(this.rules)
+        Object.assign(this.list.camera, this.rules)
+        this.notification = "Saved the portrait rules. #reload rules in game picks them up."
+      } catch (e) {
+        this.error = this.message(e)
+      } finally {
+        this.busy = false
+      }
     },
     cardCaption() {
       const as = this.editing.trigger === "spawn" ? "As it spawns" : "As it engages"
@@ -650,6 +763,15 @@ export default {
   margin-left: 4px;
   background: rgba(212, 175, 55, 0.3);
   color: #f1e3b0;
+}
+
+.bc-rule-label {
+  min-width: 92px;
+}
+
+.bc-range-sm {
+  width: 110px;
+  vertical-align: middle;
 }
 
 .bc-badge-cam {

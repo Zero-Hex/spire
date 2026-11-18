@@ -3,6 +3,7 @@ package zonecards
 import (
 	"errors"
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 	"unicode/utf8"
@@ -102,24 +103,54 @@ type Boss struct {
 	NPC BossNPC `json:"npc"`
 }
 
-// BossCamera is which camera columns the server has, and the portrait rule
-type BossCamera struct {
-	Shot  bool `json:"shot"`  // camera_ms (custom migration 75)
-	Mode  bool `json:"mode"`  // camera_mode (76)
-	Style bool `json:"style"` // camera_style (77)
+// PortraitRules are the server rules every boss portrait follows
+// (common/ruletypes.h, Custom:Boss_*), editable here
+type PortraitRules struct {
 	// Custom:Boss_Snap_Hide_Ui_Value: the screen mode that hides the client's
 	// UI while a portrait is captured (3 on RoF2; -1: left alone)
 	HideUiValue int `json:"hide_ui_value"`
-	// Custom:Boss_Snap_Front_Angle: the camera's swing for a front-view
-	// portrait, straight on (EQ heading units; 999, or anything outside
-	// -512..512: each player's own)
-	FrontAngle float64 `json:"front_angle"`
 	// the portrait framing (a portrait's auto): the camera straight in front
 	// of the boss at size x DistancePerSize (at least DistanceMin) and
 	// size x HeightPerSize; Custom:Boss_Portrait_*
 	DistancePerSize float64 `json:"distance_per_size"`
 	DistanceMin     float64 `json:"distance_min"`
 	HeightPerSize   float64 `json:"height_per_size"`
+	// the portrait shows 1/CropZoom of the captured frame's width and height,
+	// centred across it and at CropCenterY down it (0 top, 1 bottom)
+	CropZoom    float64 `json:"crop_zoom"`
+	CropCenterY float64 `json:"crop_center_y"`
+}
+
+// DefaultPortraitRules are ruletypes.h's defaults
+var DefaultPortraitRules = PortraitRules{HideUiValue: 3, DistancePerSize: 2.0, DistanceMin: 10, HeightPerSize: 0.4, CropZoom: 2.2, CropCenterY: 0.70}
+
+// portraitRuleNames are the rules, with each one's place in PortraitRules
+// and its allowed range (the server clamps the camera to distance 1-500,
+// height -200..200, the crop zoom to 1-8 and its centre to 0.01-0.99; the
+// user camera's height can't go below 0)
+var portraitRuleNames = []struct {
+	name     string
+	field    func(r *PortraitRules) *float64
+	min, max float64
+	note     string
+}{
+	{"Custom:Boss_Portrait_Distance_Per_Size", func(r *PortraitRules) *float64 { return &r.DistancePerSize }, 0.1, 25, "Starfall: boss portrait camera distance per point of size"},
+	{"Custom:Boss_Portrait_Distance_Min", func(r *PortraitRules) *float64 { return &r.DistanceMin }, 1, 500, "Starfall: boss portrait shortest camera distance"},
+	{"Custom:Boss_Portrait_Height_Per_Size", func(r *PortraitRules) *float64 { return &r.HeightPerSize }, 0, 10, "Starfall: boss portrait camera height per point of size"},
+	{"Custom:Boss_Portrait_Crop_Zoom", func(r *PortraitRules) *float64 { return &r.CropZoom }, 1, 8, "Starfall: boss portrait crop zoom"},
+	{"Custom:Boss_Portrait_Crop_Center_Y", func(r *PortraitRules) *float64 { return &r.CropCenterY }, 0.01, 0.99, "Starfall: boss portrait crop centre (0 top, 1 bottom)"},
+}
+
+const hideUiRule = "Custom:Boss_Snap_Hide_Ui_Value"
+
+// BossCamera is which camera columns the server has, and the portrait rules
+type BossCamera struct {
+	Shot  bool `json:"shot"`  // camera_ms (custom migration 75)
+	Mode  bool `json:"mode"`  // camera_mode (76)
+	Style bool `json:"style"` // camera_style (77)
+	PortraitRules
+	// the server has a rule_values table to save them in
+	RulesEditable bool `json:"rules_editable"`
 }
 
 type BossList struct {
@@ -127,25 +158,64 @@ type BossList struct {
 	Camera BossCamera `json:"camera"`
 }
 
-func readBossCamera(server *gorm.DB) BossCamera {
-	c := BossCamera{Shot: hasColumn(server, "custom_boss_card", "camera_ms"), Mode: hasColumn(server, "custom_boss_card", "camera_mode"),
-		Style: hasColumn(server, "custom_boss_card", "camera_style"), HideUiValue: 3, FrontAngle: -32.85,
-		DistancePerSize: 1.2, DistanceMin: 8, HeightPerSize: 0.25} // ruletypes.h
-	if v, ok := ruleValue(server, "Custom:Boss_Snap_Hide_Ui_Value"); ok {
+func readPortraitRules(server *gorm.DB) PortraitRules {
+	r := DefaultPortraitRules
+	if v, ok := ruleValue(server, hideUiRule); ok {
 		if n, err := strconv.Atoi(v); err == nil {
-			c.HideUiValue = n
+			r.HideUiValue = n
 		}
 	}
-	for name, f := range map[string]*float64{"Custom:Boss_Snap_Front_Angle": &c.FrontAngle,
-		"Custom:Boss_Portrait_Distance_Per_Size": &c.DistancePerSize, "Custom:Boss_Portrait_Distance_Min": &c.DistanceMin,
-		"Custom:Boss_Portrait_Height_Per_Size": &c.HeightPerSize} {
-		if v, ok := ruleValue(server, name); ok {
+	for _, x := range portraitRuleNames {
+		if v, ok := ruleValue(server, x.name); ok {
 			if n, err := strconv.ParseFloat(v, 64); err == nil {
-				*f = n
+				*x.field(&r) = n
 			}
 		}
 	}
-	return c
+	return r
+}
+
+func readBossCamera(server *gorm.DB) BossCamera {
+	return BossCamera{Shot: hasColumn(server, "custom_boss_card", "camera_ms"), Mode: hasColumn(server, "custom_boss_card", "camera_mode"),
+		Style: hasColumn(server, "custom_boss_card", "camera_style"), PortraitRules: readPortraitRules(server),
+		RulesEditable: hasTable(server, "rule_values")}
+}
+
+// SavePortraitRules writes the rules that changed into ruleset 1 (a zone
+// picks them up with #reload rules)
+func SavePortraitRules(server *gorm.DB, r PortraitRules) (*PortraitRules, error) {
+	if r.HideUiValue < -1 || r.HideUiValue > 254 {
+		return nil, errors.New("the UI-hiding screen mode is from 0 to 254, or -1 to leave the UI alone")
+	}
+	for _, x := range portraitRuleNames {
+		v := *x.field(&r)
+		if math.IsNaN(v) || v < x.min || v > x.max {
+			return nil, fmt.Errorf("%v is from %v to %v", strings.TrimPrefix(x.name, "Custom:"), x.min, x.max)
+		}
+	}
+	if !hasTable(server, "rule_values") {
+		return nil, errors.New("this server's database has no rule_values table")
+	}
+	old := readPortraitRules(server)
+	set := func(name, value, note string) error {
+		return server.Exec("INSERT INTO rule_values (ruleset_id, rule_name, rule_value, notes) VALUES (1, ?, ?, ?) "+
+			"ON DUPLICATE KEY UPDATE rule_value = VALUES(rule_value)", name, value, note).Error
+	}
+	return &r, server.Transaction(func(tx *gorm.DB) error {
+		if r.HideUiValue != old.HideUiValue {
+			if err := set(hideUiRule, strconv.Itoa(r.HideUiValue), "Starfall: the screen mode that hides the client UI during boss portraits"); err != nil {
+				return err
+			}
+		}
+		for _, x := range portraitRuleNames {
+			if v := *x.field(&r); v != *x.field(&old) {
+				if err := set(x.name, strconv.FormatFloat(v, 'f', -1, 64), x.note); err != nil {
+					return err
+				}
+			}
+		}
+		return nil
+	})
 }
 
 // npcInfo is each NPC's name and where it spawns
