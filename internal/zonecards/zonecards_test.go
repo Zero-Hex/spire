@@ -302,6 +302,9 @@ func bossCamera(t *testing.T, db *gorm.DB) {
 	if len(angle) == 0 && cam.FrontAngle != -32.85 {
 		t.Errorf("Custom:Boss_Snap_Front_Angle (unset): %v", cam.FrontAngle)
 	}
+	if cam.DistancePerSize != 1.2 || cam.DistanceMin != 8 || cam.HeightPerSize != 0.25 {
+		t.Errorf("Custom:Boss_Portrait_* (unset here): %+v", cam)
+	}
 	// a card with no shot saves on any of them, whatever it says of the rest
 	if _, err := SaveBoss(db, db, with(func(b *models.CustomBossCard) { b.CameraMode = "auto"; b.CameraStyle = "" })); err != nil {
 		t.Fatal(err)

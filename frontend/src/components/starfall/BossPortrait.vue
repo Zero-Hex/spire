@@ -4,7 +4,7 @@
       <div class="bp-dim" :class="'bp-' + phase"></div>
       <div class="bp-frame" :class="'bp-' + phase">
         <div class="bp-shot">
-          <span v-if="npc && npc.race" :class="'race-models-ctn-' + raceImage()" class="bp-model"></span>
+          <span v-if="npc && npc.race" :class="'race-models-ctn-' + raceImage() + (close ? ' bp-model-close' : '')" class="bp-model"></span>
           <template v-if="!uiHidden">
             <div class="bp-ui bp-ui-chat"></div>
             <div class="bp-ui bp-ui-bar"></div>
@@ -50,6 +50,7 @@ export default {
     npc: { type: Object, default: null }, // race, gender, texture, helmtexture
     ms: { type: Number, default: 3000 },
     uiHidden: { type: Boolean, default: false }, // Custom:Boss_Snap_Hide_Ui_Value set
+    close: { type: Boolean, default: false }, // the portrait framing: the boss fills most of the frame
     caption: { type: String, default: "The portrait" },
   },
   data() {
@@ -133,6 +134,10 @@ export default {
 .bp-model {
   display: inline-block;
   transform: scale(0.9);
+}
+
+.bp-model-close {
+  transform: scale(1.3) translateY(8%);
 }
 
 /* the client's own windows, caught in the frame unless the rule hides them */

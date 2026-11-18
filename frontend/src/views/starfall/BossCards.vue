@@ -64,7 +64,7 @@
         </eq-window-simple>
         <eq-window-simple v-else :title="npcLabel() + (isNew ? ' (new)' : '') + (dirty() ? ' (not saved)' : '')">
           <boss-portrait v-if="portrait() && editing.enabled" :title="previewCard().title" :subtitle="editing.subtitle.trim()"
-                         :npc="editing.npc" :ms="parseInt(editing.camera_ms)" :ui-hidden="list.camera.hide_ui_value >= 0"
+                         :npc="editing.npc" :ms="parseInt(editing.camera_ms)" :close="!editing.camera_mode" :ui-hidden="list.camera.hide_ui_value >= 0"
                          :caption="portraitCaption()" @appear="cardAppears" @stop="stopSound"/>
           <title-card v-else :card="previewCard()" :shown="!!editing.enabled" hidden-text="Off: no card for this boss"
                       :caption="cardCaption()" :timing="timing()" @appear="cardAppears" @stop="stopSound"/>
@@ -201,7 +201,14 @@
                 <span class="bc-label">Framing</span>
                 <b-form-select size="sm" v-model="editing.camera_mode" :options="modeOptions()" :disabled="!list.camera.mode"
                                class="bc-cam-mode mr-2" style="max-width: 260px"/>
-                <span class="hint text-muted">{{ modeHint() }}</span>
+                <span class="hint text-muted bc-cam-hint">{{ modeHint() }}</span>
+              </div>
+              <div v-if="portrait() && !editing.camera_mode" class="hint text-muted mb-2">
+                Sized by <code>Custom:Boss_Portrait_Distance_Per_Size</code> ({{ list.camera.distance_per_size }} × size, at
+                least <code>Distance_Min</code> {{ list.camera.distance_min }}) and <code>Height_Per_Size</code>
+                ({{ list.camera.height_per_size }} × size): the boss fills most of the frame at any size. A bigger or smaller
+                boss is its NPC's <i>size</i>. Try other numbers on your own client:
+                <code>#bosscam snap 5 3 3 portrait &lt;distance&gt; &lt;height&gt;</code>.
               </div>
               <div v-if="!list.camera.mode" class="hint text-warning mb-2">
                 Framing needs the <code>camera_mode</code> column (Starfall custom migration 76): until then each player's
@@ -217,7 +224,7 @@
                   is -1. 3 hides them on RoF2 (custom migration 78 sets it).
                 </template>
                 Try one on your own client: target the boss, <code>#bosscam snap [seconds] [frames] [ui] [view]</code>
-                (view: front, far, close, side, top, first or keep; raise <i>frames</i> if the portrait catches the
+                (view: portrait, front, far, close, side, top, first or keep; raise <i>frames</i> if the portrait catches the
                 camera half-moved).
               </div>
             </template>
@@ -277,8 +284,7 @@ const CAMERA = { camera_ms: "shot", camera_mode: "mode", camera_style: "style" }
 
 // the shot's framings (boss_cards.cpp CameraMode; the client's F9 modes)
 const MODES = [
-  { value: "", text: "Auto", hint: "players in first person see it from far behind; everyone else through their own camera mode",
-    portrait: "the front view, straight on" },
+  { value: "", text: "Auto", hint: "players in first person see it from far behind; everyone else through their own camera mode" },
   { value: "keep", text: "Their own view", hint: "everyone's own camera mode: a player in first person sees out of the boss's eyes" },
   { value: "first", text: "First person", hint: "from inside the boss, for everyone" },
   { value: "top", text: "From above", hint: "the top-down view, for everyone" },
@@ -464,21 +470,38 @@ export default {
       ]
     },
     modeOptions() {
-      return MODES.map(m => ({ value: m.value, text: m.value === "" && this.portrait() ? "Auto: from the front" : m.text }))
+      return MODES.map(m => ({ value: m.value, text: m.value === "" && this.portrait() ? "Portrait (auto)" : m.text }))
     },
-    // a portrait's auto is the front view (boss_cards.cpp), swung straight on
-    // by Custom:Boss_Snap_Front_Angle
+    // a portrait's auto is the portrait framing (boss_cards.cpp): the camera
+    // straight in front of the boss, its distance and height by its size
+    // (PortraitDistance, PortraitHeight; Custom:Boss_Portrait_*)
+    portraitFraming() {
+      const c = this.list.camera
+      const size = this.editing.npc.size > 0 ? this.editing.npc.size : 6
+      const r = v => Math.round(v * 10) / 10
+      return {
+        size: r(size),
+        distance: r(Math.min(500, Math.max(c.distance_min, size * c.distance_per_size, 1))),
+        height: r(Math.min(200, Math.max(-200, size * c.height_per_size))),
+      }
+    },
+    // a portrait in the front view is swung straight on by
+    // Custom:Boss_Snap_Front_Angle
     modeHint() {
       const m = MODES.find(x => x.value === this.editing.camera_mode)
       if (!m) {
         return ""
       }
-      if (this.portrait() && (m.value === "" || m.value === "front")) {
+      if (this.portrait() && m.value === "") {
+        const f = this.portraitFraming()
+        return `straight in front of it, ${f.distance} back and ${f.height} up for its size ${f.size}`
+      }
+      if (this.portrait() && m.value === "front") {
         const a = this.list.camera.front_angle
         return "facing it" + (a >= -512 && a <= 512 ? `, swung straight on (Custom:Boss_Snap_Front_Angle ${a})` :
           ": each player's own swing (Custom:Boss_Snap_Front_Angle is off)")
       }
-      return this.portrait() && m.portrait ? m.portrait : m.hint
+      return m.hint
     },
     // the shot is a portrait (which replaces the card)
     portrait() {

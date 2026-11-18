@@ -88,11 +88,13 @@ type BossNPC struct {
 	Level int    `json:"level"`
 	Race  int    `json:"race"`
 	// its look: the race model picture
-	Gender      int    `json:"gender"`
-	Texture     int    `json:"texture"`
-	HelmTexture int    `json:"helmtexture"`
-	Zones       string `json:"zones"` // where it spawns
-	Found       bool   `json:"found"` // npc_types has it
+	Gender      int `json:"gender"`
+	Texture     int `json:"texture"`
+	HelmTexture int `json:"helmtexture"`
+	// its size: a portrait's camera distance and height scale with it
+	Size  float64 `json:"size"`
+	Zones string  `json:"zones"` // where it spawns
+	Found bool    `json:"found"` // npc_types has it
 }
 
 type Boss struct {
@@ -112,6 +114,12 @@ type BossCamera struct {
 	// portrait, straight on (EQ heading units; 999, or anything outside
 	// -512..512: each player's own)
 	FrontAngle float64 `json:"front_angle"`
+	// the portrait framing (a portrait's auto): the camera straight in front
+	// of the boss at size x DistancePerSize (at least DistanceMin) and
+	// size x HeightPerSize; Custom:Boss_Portrait_*
+	DistancePerSize float64 `json:"distance_per_size"`
+	DistanceMin     float64 `json:"distance_min"`
+	HeightPerSize   float64 `json:"height_per_size"`
 }
 
 type BossList struct {
@@ -121,15 +129,20 @@ type BossList struct {
 
 func readBossCamera(server *gorm.DB) BossCamera {
 	c := BossCamera{Shot: hasColumn(server, "custom_boss_card", "camera_ms"), Mode: hasColumn(server, "custom_boss_card", "camera_mode"),
-		Style: hasColumn(server, "custom_boss_card", "camera_style"), HideUiValue: 3, FrontAngle: -32.85} // ruletypes.h
+		Style: hasColumn(server, "custom_boss_card", "camera_style"), HideUiValue: 3, FrontAngle: -32.85,
+		DistancePerSize: 1.2, DistanceMin: 8, HeightPerSize: 0.25} // ruletypes.h
 	if v, ok := ruleValue(server, "Custom:Boss_Snap_Hide_Ui_Value"); ok {
 		if n, err := strconv.Atoi(v); err == nil {
 			c.HideUiValue = n
 		}
 	}
-	if v, ok := ruleValue(server, "Custom:Boss_Snap_Front_Angle"); ok {
-		if f, err := strconv.ParseFloat(v, 64); err == nil {
-			c.FrontAngle = f
+	for name, f := range map[string]*float64{"Custom:Boss_Snap_Front_Angle": &c.FrontAngle,
+		"Custom:Boss_Portrait_Distance_Per_Size": &c.DistancePerSize, "Custom:Boss_Portrait_Distance_Min": &c.DistanceMin,
+		"Custom:Boss_Portrait_Height_Per_Size": &c.HeightPerSize} {
+		if v, ok := ruleValue(server, name); ok {
+			if n, err := strconv.ParseFloat(v, 64); err == nil {
+				*f = n
+			}
 		}
 	}
 	return c
@@ -142,7 +155,7 @@ func npcInfo(content *gorm.DB, ids []uint32) map[uint32]BossNPC {
 		return out
 	}
 	var rows []BossNPC
-	content.Raw(`SELECT n.id, n.name, n.level, n.race, n.gender, n.texture, n.helmtexture, COALESCE(GROUP_CONCAT(DISTINCT s.zone ORDER BY s.zone SEPARATOR ', '), '') AS zones
+	content.Raw(`SELECT n.id, n.name, n.level, n.race, n.gender, n.texture, n.helmtexture, n.size, COALESCE(GROUP_CONCAT(DISTINCT s.zone ORDER BY s.zone SEPARATOR ', '), '') AS zones
 		FROM npc_types n LEFT JOIN spawnentry e ON e.npcID = n.id LEFT JOIN spawn2 s ON s.spawngroupID = e.spawngroupID
 		WHERE n.id IN ? GROUP BY n.id`, ids).Scan(&rows)
 	for _, r := range rows {
